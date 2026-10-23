@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "165265452139",
+    "project_id": "abik-eda25",
+    "storage_bucket": "abik-eda25.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:165265452139:android:37c3d058c26da252f5552e",
+        "android_client_info": {
+          "package_name": "info.prorabka.abik.android"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAfCMrVTDP_qzFBhWPvBE9739XAPouA-PI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
