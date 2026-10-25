@@ -32,6 +32,7 @@ class SubscriptionViewModel @Inject constructor(
 
     data class UiState(
         val loading: Boolean = true,
+        val noTeam: Boolean = false,
         val rows: List<MemberBalance> = emptyList(),
         val isManager: Boolean = false,
         val error: String? = null,
@@ -43,7 +44,13 @@ class SubscriptionViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             teamManager.selected.collect { team ->
-                if (team != null) load(team.id)
+                if (team != null) {
+                    load(team.id)
+                } else {
+                    _ui.update {
+                        it.copy(loading = false, noTeam = true, rows = emptyList(), isManager = false)
+                    }
+                }
             }
         }
     }
@@ -54,7 +61,7 @@ class SubscriptionViewModel @Inject constructor(
 
     private fun load(teamId: Long) {
         viewModelScope.launch {
-            _ui.update { it.copy(loading = true, error = null) }
+            _ui.update { it.copy(loading = true, noTeam = false, error = null) }
 
             var role: MemberRole? = null
             when (val d = teamRepository.detail(teamId)) {
