@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.network.ApiResult
+import info.prorabka.abik.android.core.prefs.SettingsStore
 import info.prorabka.abik.android.domain.model.City
 import info.prorabka.abik.android.domain.model.Position
 import info.prorabka.abik.android.domain.model.Region
@@ -26,6 +27,7 @@ import javax.inject.Inject
 class ProfileFormViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val geoRepository: GeoRepository,
+    private val settingsStore: SettingsStore,
 ) : ViewModel() {
 
     data class UiState(
@@ -168,7 +170,12 @@ class ProfileFormViewModel @Inject constructor(
                     avatarUrl = s.avatarUrl,
                 )
                 when (result) {
-                    is ApiResult.Success -> onSuccess()
+                    is ApiResult.Success -> {
+                        viewModelScope.launch {
+                            settingsStore.setProfileOnboardingSkipped(false)
+                        }
+                        onSuccess()
+                    }
                     is ApiResult.HttpError -> _ui.update {
                         it.copy(saving = false, error = result.message)
                     }
@@ -177,6 +184,14 @@ class ProfileFormViewModel @Inject constructor(
                     }
                 }
             }
+        }
+    }
+
+    /** «Заполнить позже» на онбординге: запоминаем пропуск и идём дальше. */
+    fun skip(onSkipped: () -> Unit) {
+        viewModelScope.launch {
+            settingsStore.setProfileOnboardingSkipped(true)
+            onSkipped()
         }
     }
 }

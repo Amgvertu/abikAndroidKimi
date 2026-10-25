@@ -14,13 +14,13 @@ import retrofit2.http.Query
 
 interface PaymentApi {
 
-    @POST("api/abik/v1/teams/{teamId}/payments")
+    @POST("v1/teams/{teamId}/payments")
     suspend fun create(
         @Path("teamId") teamId: Long,
         @Body body: PaymentCreateRequestDto,
     ): PaymentDto
 
-    @GET("api/abik/v1/teams/{teamId}/payments")
+    @GET("v1/teams/{teamId}/payments")
     suspend fun list(
         @Path("teamId") teamId: Long,
         @Query("userId") userId: Long? = null,
@@ -30,20 +30,20 @@ interface PaymentApi {
         @Query("amountMax") amountMaxKopecks: Long? = null,
     ): List<PaymentDto>
 
-    @GET("api/abik/v1/teams/{teamId}/payments/{paymentId}")
+    @GET("v1/teams/{teamId}/payments/{paymentId}")
     suspend fun get(
         @Path("teamId") teamId: Long,
         @Path("paymentId") paymentId: Long,
     ): PaymentDto
 
-    @PUT("api/abik/v1/teams/{teamId}/payments/{paymentId}")
+    @PUT("v1/teams/{teamId}/payments/{paymentId}")
     suspend fun update(
         @Path("teamId") teamId: Long,
         @Path("paymentId") paymentId: Long,
         @Body body: PaymentUpdateRequestDto,
     ): PaymentDto
 
-    @DELETE("api/abik/v1/teams/{teamId}/payments/{paymentId}")
+    @DELETE("v1/teams/{teamId}/payments/{paymentId}")
     suspend fun delete(
         @Path("teamId") teamId: Long,
         @Path("paymentId") paymentId: Long,

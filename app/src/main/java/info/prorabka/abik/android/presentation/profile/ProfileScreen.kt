@@ -1,6 +1,11 @@
 package info.prorabka.abik.android.presentation.profile
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,10 +15,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -25,13 +33,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import info.prorabka.abik.android.core.prefs.ThemeMode
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.util.isoDateToDisplay
@@ -61,6 +73,7 @@ fun ProfileScreen(
             0 -> ProfileTab(
                 ui = ui,
                 onEdit = onEditProfile,
+                viewModel = viewModel,
             )
             1 -> SettingsTab(
                 themeMode = themeMode,
@@ -76,13 +89,23 @@ fun ProfileScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ProfileTab(ui: ProfileViewModel.UiState, onEdit: () -> Unit) {
+private fun ProfileTab(
+    ui: ProfileViewModel.UiState,
+    onEdit: () -> Unit,
+    viewModel: ProfileViewModel,
+) {
     if (ui.loading) {
         LoadingBox()
         return
     }
     val profile = ui.profile
+    var avatarMenu by remember { mutableStateOf(false) }
+    val pickImage = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+    ) { uri -> uri?.let(viewModel::uploadAvatar) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -95,12 +118,65 @@ private fun ProfileTab(ui: ProfileViewModel.UiState, onEdit: () -> Unit) {
                 modifier = Modifier.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    Icons.Default.AccountCircle,
-                    contentDescription = "Аватар",
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
+                // Аватар: долгий тап — установить/изменить/удалить (ТЗ v3)
+                Box {
+                    val avatarUrl = viewModel.resolveUrl(profile?.avatarUrl)
+                    if (avatarUrl != null) {
+                        AsyncImage(
+                            model = avatarUrl,
+                            contentDescription = "Аватар",
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .combinedClickable(
+                                    onClick = {},
+                                    onLongClick = { avatarMenu = true },
+                                ),
+                            contentScale = ContentScale.Crop,
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.AccountCircle,
+                            contentDescription = "Аватар",
+                            modifier = Modifier
+                                .size(64.dp)
+                                .combinedClickable(
+                                    onClick = {},
+                                    onLongClick = { avatarMenu = true },
+                                ),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = avatarMenu,
+                        onDismissRequest = { avatarMenu = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (profile?.avatarUrl == null) {
+                                        "Установить аватар"
+                                    } else {
+                                        "Изменить аватар"
+                                    },
+                                )
+                            },
+                            onClick = {
+                                avatarMenu = false
+                                pickImage.launch("image/*")
+                            },
+                        )
+                        if (profile?.avatarUrl != null) {
+                            DropdownMenuItem(
+                                text = { Text("Удалить аватар") },
+                                onClick = {
+                                    avatarMenu = false
+                                    viewModel.removeAvatar()
+                                },
+                            )
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.padding(6.dp))
                 Column {
                     Text(

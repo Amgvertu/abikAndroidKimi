@@ -11,14 +11,14 @@ import retrofit2.http.Streaming
 
 interface ReportApi {
 
-    @GET("api/abik/v1/teams/{teamId}/reports/summary")
+    @GET("v1/teams/{teamId}/reports/summary")
     suspend fun summary(@Path("teamId") teamId: Long): ChargeSummaryDto
 
-    @GET("api/abik/v1/teams/{teamId}/reports/members")
+    @GET("v1/teams/{teamId}/reports/members")
     suspend fun members(@Path("teamId") teamId: Long): List<MemberSummaryDto>
 
     @Streaming
-    @GET("api/abik/v1/teams/{teamId}/reports/charges/export")
+    @GET("v1/teams/{teamId}/reports/charges/export")
     suspend fun exportCharges(
         @Path("teamId") teamId: Long,
         @Query("userId") userId: Long? = null,
@@ -29,6 +29,6 @@ interface ReportApi {
     ): Response<ResponseBody>
 
     @Streaming
-    @GET("api/abik/v1/teams/{teamId}/reports/members/export")
+    @GET("v1/teams/{teamId}/reports/members/export")
     suspend fun exportMembers(@Path("teamId") teamId: Long): Response<ResponseBody>
 }

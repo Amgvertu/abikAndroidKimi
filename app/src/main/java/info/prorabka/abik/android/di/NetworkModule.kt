@@ -13,6 +13,7 @@ import info.prorabka.abik.android.data.api.AdminApi
 import info.prorabka.abik.android.data.api.AuthApi
 import info.prorabka.abik.android.data.api.BalanceApi
 import info.prorabka.abik.android.data.api.ChargeApi
+import info.prorabka.abik.android.data.api.FileApi
 import info.prorabka.abik.android.data.api.GeoApi
 import info.prorabka.abik.android.data.api.InvitationApi
 import info.prorabka.abik.android.data.api.PaymentApi
@@ -110,4 +111,8 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideAdminApi(retrofit: Retrofit): AdminApi = retrofit.create(AdminApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideFileApi(retrofit: Retrofit): FileApi = retrofit.create(FileApi::class.java)
 }

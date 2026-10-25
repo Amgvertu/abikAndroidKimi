@@ -1,12 +1,12 @@
 package info.prorabka.abik.android.core.network
 
-import android.util.Log
 import info.prorabka.abik.android.BuildConfig
 import info.prorabka.abik.android.core.prefs.SettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.Response
@@ -24,41 +24,51 @@ class BaseUrlHolder @Inject constructor(settingsStore: SettingsStore) {
         private set
 
     init {
-        if (BuildConfig.DEBUG) {
-            // В debug — всегда локальный сервер, override из DataStore игнорируем
-            baseUrl = BuildConfig.DEFAULT_BASE_URL
-            Log.d("BaseUrlHolder", "debug mode, force baseUrl=$baseUrl")
-        } else {
-            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                settingsStore.baseUrlOverride.collect { override ->
-                    baseUrl = override ?: BuildConfig.DEFAULT_BASE_URL
-                    Log.d("BaseUrlHolder", "override=$override -> effective=$baseUrl")
-                }
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            settingsStore.baseUrlOverride.collect { override ->
+                baseUrl = override ?: BuildConfig.DEFAULT_BASE_URL
             }
         }
     }
 }
 
 /**
- * Подставляет актуальный base URL (scheme/host/port) в каждый запрос —
- * позволяет переключать сервер без пересоздания Retrofit.
+ * Подставляет актуальный base URL в каждый запрос — позволяет переключать
+ * сервер без пересоздания Retrofit. Переносит не только scheme/host/port,
+ * но и префикс пути: прод ходит через nginx на /api/, а локальный сервер —
+ * напрямую в context-path /api/abik.
  */
 @Singleton
 class DynamicBaseUrlInterceptor @Inject constructor(
     private val holder: BaseUrlHolder,
 ) : Interceptor {
 
+    private val defaultBase: HttpUrl = BuildConfig.DEFAULT_BASE_URL.toHttpUrl()
+
     override fun intercept(chain: Interceptor.Chain): Response {
-        val base = runCatching { holder.baseUrl.toHttpUrl() }.getOrNull()
+        val target = runCatching { holder.baseUrl.toHttpUrl() }.getOrNull()
             ?: return chain.proceed(chain.request())
         val url = chain.request().url
-        if (url.scheme == base.scheme && url.host == base.host && url.port == base.port) {
-            return chain.proceed(chain.request())
-        }
+
+        val targetPrefix = target.encodedPath.removeSuffix("/")
+        val defaultPrefix = defaultBase.encodedPath.removeSuffix("/")
+
+        val sameOrigin = url.scheme == target.scheme && url.host == target.host && url.port == target.port
+        val prefixOk = targetPrefix.isEmpty() ||
+            url.encodedPath == targetPrefix || url.encodedPath.startsWith("$targetPrefix/")
+        if (sameOrigin && prefixOk) return chain.proceed(chain.request())
+
+        // Отрезаем префикс базы по умолчанию (/api) и добавляем префикс цели (/api/abik)
+        val relative = url.encodedPath
+            .removePrefix(defaultPrefix)
+            .removePrefix("/")
+        val newPath = if (targetPrefix.isEmpty()) "/$relative" else "$targetPrefix/$relative"
+
         val rewritten = url.newBuilder()
-            .scheme(base.scheme)
-            .host(base.host)
-            .port(base.port)
+            .scheme(target.scheme)
+            .host(target.host)
+            .port(target.port)
+            .encodedPath(newPath)
             .build()
         return chain.proceed(chain.request().newBuilder().url(rewritten).build())
     }

@@ -1,5 +1,6 @@
 package info.prorabka.abik.android.presentation.shell
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.DateRange
@@ -15,9 +17,11 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,6 +30,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -35,9 +40,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -45,7 +53,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import coil.compose.AsyncImage
 import info.prorabka.abik.android.core.ui.components.EmptyState
+import info.prorabka.abik.android.core.ui.theme.Danger
+import info.prorabka.abik.android.core.ui.theme.Success
 import info.prorabka.abik.android.core.util.kopecksToRubles
 import info.prorabka.abik.android.presentation.home.HomeScreen
 import info.prorabka.abik.android.presentation.navigation.Routes
@@ -77,24 +88,14 @@ fun MainShell(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TeamSelector(ui, viewModel)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        ui.myBalanceKopecks?.let { balance ->
-                            Text(
-                                text = balance.kopecksToRubles(),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (balance < 0) {
-                                    MaterialTheme.colorScheme.error
-                                } else {
-                                    MaterialTheme.colorScheme.primary
-                                },
-                            )
-                        }
-                    }
+                    TeamSelector(
+                        ui = ui,
+                        viewModel = viewModel,
+                        onCreateTeam = { rootNavController.navigate(Routes.ONBOARDING_TEAM) },
+                    )
                 },
                 actions = {
+                    ui.myBalanceKopecks?.let { balance -> BalanceChip(balance) }
                     IconButton(onClick = { rootNavController.navigate(Routes.NOTIFICATIONS) }) {
                         Icon(Icons.Default.Notifications, contentDescription = "Уведомления")
                     }
@@ -130,15 +131,15 @@ fun MainShell(
                             Icon(
                                 imageVector = when (tab) {
                                     MainTab.HOME -> Icons.Default.Home
-                                    MainTab.SUBSCRIPTION -> Icons.Default.Star
+                                    MainTab.SUBSCRIPTION -> Icons.Outlined.Email
                                     MainTab.GAMES -> Icons.Default.DateRange
-                                    MainTab.TEAM -> Icons.Default.AccountCircle
+                                    MainTab.TEAM -> Icons.Outlined.Person
                                     MainTab.PROFILE -> Icons.Default.Person
                                 },
                                 contentDescription = tab.title,
                             )
                         },
-                        label = { Text(tab.title) },
+                        label = { Text(tab.title, fontSize = 10.sp) },
                     )
                 }
             }
@@ -153,6 +154,7 @@ fun MainShell(
                 HomeScreen(
                     shellViewModel = viewModel,
                     onAddPayment = { rootNavController.navigate(Routes.paymentForm()) },
+                    onCreateTeam = { rootNavController.navigate(Routes.ONBOARDING_TEAM) },
                 )
             }
             composable(MainTab.SUBSCRIPTION.route) {
@@ -166,6 +168,7 @@ fun MainShell(
                     onAddCharge = { userId ->
                         rootNavController.navigate(Routes.chargeCreate(userId))
                     },
+                    onCreateTeam = { rootNavController.navigate(Routes.ONBOARDING_TEAM) },
                 )
             }
             composable(MainTab.GAMES.route) {
@@ -178,6 +181,7 @@ fun MainShell(
                     onMemberClick = { userId ->
                         rootNavController.navigate(Routes.memberDetails(userId))
                     },
+                    onCreateTeam = { rootNavController.navigate(Routes.ONBOARDING_TEAM) },
                 )
             }
             composable(MainTab.PROFILE.route) {
@@ -193,38 +197,82 @@ fun MainShell(
 
 /** Логотип + выпадающий список команд в тулбаре. */
 @Composable
-private fun TeamSelector(ui: ShellViewModel.UiState, viewModel: ShellViewModel) {
+private fun TeamSelector(
+    ui: ShellViewModel.UiState,
+    viewModel: ShellViewModel,
+    onCreateTeam: () -> Unit,
+) {
     var expanded by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.clickable(enabled = ui.teams.size > 1) { expanded = true },
-        ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        val logoUrl = viewModel.resolveUrl(ui.selected?.logoUrl)
+        if (logoUrl != null) {
+            AsyncImage(
+                model = logoUrl,
+                contentDescription = "Логотип",
+                modifier = Modifier.size(32.dp).clip(CircleShape),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
             Icon(
                 Icons.Default.AccountCircle,
                 contentDescription = null,
                 modifier = Modifier.size(28.dp),
                 tint = MaterialTheme.colorScheme.primary,
             )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = ui.selected?.name ?: "…",
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            ui.teams.forEach { team ->
+        Spacer(modifier = Modifier.width(6.dp))
+        Box {
+            TextButton(onClick = { expanded = true }) {
+                Text(
+                    text = ui.selected?.name ?: "Нет команды",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(" ▾", fontSize = 12.sp)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                ui.teams.forEach { team ->
+                    DropdownMenuItem(
+                        text = { Text(team.name) },
+                        onClick = {
+                            viewModel.selectTeam(team)
+                            expanded = false
+                        },
+                    )
+                }
+                if (ui.teams.isNotEmpty()) {
+                    HorizontalDivider()
+                }
                 DropdownMenuItem(
-                    text = { Text(team.name) },
+                    text = { Text("Создать команду") },
                     onClick = {
-                        viewModel.selectTeam(team)
                         expanded = false
+                        onCreateTeam()
                     },
                 )
             }
         }
+    }
+}
+
+/** Баланс-плашка в тулбаре (как в прототипе): «+1 500 ₽» / «−500 ₽». */
+@Composable
+private fun BalanceChip(balanceKopecks: Long) {
+    val color = if (balanceKopecks < 0) Danger else Success
+    val sign = if (balanceKopecks < 0) "−" else "+"
+    Box(
+        modifier = Modifier
+            .background(color.copy(alpha = 0.15f), CircleShape)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = sign + kotlin.math.abs(balanceKopecks).kopecksToRubles(),
+            color = color,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 

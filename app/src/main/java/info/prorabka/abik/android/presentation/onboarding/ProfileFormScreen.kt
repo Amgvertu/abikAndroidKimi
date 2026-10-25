@@ -56,6 +56,7 @@ fun ProfileFormScreen(
     submitText: String,
     prefill: Boolean,
     onDone: () -> Unit,
+    onSkip: (() -> Unit)? = null,
     viewModel: ProfileFormViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
@@ -153,6 +154,15 @@ fun ProfileFormScreen(
             onClick = { viewModel.save(onDone) },
             loading = ui.saving,
         )
+        if (onSkip != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            TextButton(
+                onClick = { viewModel.skip(onSkip) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Заполнить позже")
+            }
+        }
         Spacer(modifier = Modifier.height(24.dp))
     }
 }

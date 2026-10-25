@@ -10,11 +10,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.Icon
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -24,8 +22,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import info.prorabka.abik.android.core.ui.theme.Danger
 import info.prorabka.abik.android.core.ui.theme.Success
+import info.prorabka.abik.android.core.ui.components.AbikButton
+import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
 import info.prorabka.abik.android.core.util.kopecksToRubles
 import info.prorabka.abik.android.presentation.shell.ShellViewModel
 
@@ -37,17 +38,25 @@ import info.prorabka.abik.android.presentation.shell.ShellViewModel
 fun HomeScreen(
     shellViewModel: ShellViewModel,
     onAddPayment: () -> Unit,
+    onCreateTeam: () -> Unit,
 ) {
     val ui by shellViewModel.ui.collectAsState()
+
+    if (ui.selected == null) {
+        // Команда ещё не создана («Создать команду позже» на онбординге)
+        NoTeamPlaceholder(onCreateTeam)
+        return
+    }
 
     Scaffold(
         floatingActionButton = {
             if (ui.isManager) {
-                ExtendedFloatingActionButton(
+                FloatingActionButton(
                     onClick = onAddPayment,
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("Платёж") },
-                )
+                    shape = CircleShape,
+                ) {
+                    Text("+", fontSize = 26.sp)
+                }
             }
         },
     ) { padding ->

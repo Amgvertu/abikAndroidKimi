@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
+import info.prorabka.abik.android.core.network.UrlResolver
 import info.prorabka.abik.android.core.prefs.TokenStore
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.Team
@@ -28,7 +29,11 @@ class ShellViewModel @Inject constructor(
     private val financeRepository: FinanceRepository,
     private val authRepository: AuthRepository,
     private val tokenStore: TokenStore,
+    private val urlResolver: UrlResolver,
 ) : ViewModel() {
+
+    /** Относительный URL файла → абсолютный (для логотипов/аватаров). */
+    fun resolveUrl(url: String?): String? = urlResolver.resolve(url)
 
     data class UiState(
         val teams: List<Team> = emptyList(),

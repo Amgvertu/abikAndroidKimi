@@ -7,6 +7,7 @@ import dagger.hilt.components.SingletonComponent
 import info.prorabka.abik.android.data.repository.AdminRepositoryImpl
 import info.prorabka.abik.android.data.repository.AuthRepositoryImpl
 import info.prorabka.abik.android.data.repository.ChargeRepositoryImpl
+import info.prorabka.abik.android.data.repository.FileRepositoryImpl
 import info.prorabka.abik.android.data.repository.FinanceRepositoryImpl
 import info.prorabka.abik.android.data.repository.GeoRepositoryImpl
 import info.prorabka.abik.android.data.repository.ReportRepositoryImpl
@@ -15,6 +16,7 @@ import info.prorabka.abik.android.data.repository.UserRepositoryImpl
 import info.prorabka.abik.android.domain.repository.AdminRepository
 import info.prorabka.abik.android.domain.repository.AuthRepository
 import info.prorabka.abik.android.domain.repository.ChargeRepository
+import info.prorabka.abik.android.domain.repository.FileRepository
 import info.prorabka.abik.android.domain.repository.FinanceRepository
 import info.prorabka.abik.android.domain.repository.GeoRepository
 import info.prorabka.abik.android.domain.repository.ReportRepository
@@ -57,4 +59,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindAdminRepository(impl: AdminRepositoryImpl): AdminRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindFileRepository(impl: FileRepositoryImpl): FileRepository
 }

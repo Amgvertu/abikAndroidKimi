@@ -19,68 +19,68 @@ import retrofit2.http.Path
 
 interface TeamApi {
 
-    @GET("api/abik/v1/teams/my")
+    @GET("v1/teams/my")
     suspend fun myTeams(): List<TeamDto>
 
-    @POST("api/abik/v1/teams")
+    @POST("v1/teams")
     suspend fun create(@Body body: TeamCreateRequestDto): TeamDetailDto
 
-    @GET("api/abik/v1/teams/{teamId}")
+    @GET("v1/teams/{teamId}")
     suspend fun detail(@Path("teamId") teamId: Long): TeamDetailDto
 
-    @PUT("api/abik/v1/teams/{teamId}")
+    @PUT("v1/teams/{teamId}")
     suspend fun update(
         @Path("teamId") teamId: Long,
         @Body body: TeamCreateRequestDto,
     ): TeamDetailDto
 
-    @POST("api/abik/v1/teams/{teamId}/archive")
+    @POST("v1/teams/{teamId}/archive")
     suspend fun archive(@Path("teamId") teamId: Long): TeamDetailDto
 
-    @POST("api/abik/v1/teams/{teamId}/transfer-ownership")
+    @POST("v1/teams/{teamId}/transfer-ownership")
     suspend fun transferOwnership(
         @Path("teamId") teamId: Long,
         @Body body: TransferOwnershipRequestDto,
     ): TeamDetailDto
 
-    @GET("api/abik/v1/teams/{teamId}/members")
+    @GET("v1/teams/{teamId}/members")
     suspend fun members(@Path("teamId") teamId: Long): List<TeamMemberDto>
 
-    @PUT("api/abik/v1/teams/{teamId}/members/{targetUserId}/role")
+    @PUT("v1/teams/{teamId}/members/{targetUserId}/role")
     suspend fun changeRole(
         @Path("teamId") teamId: Long,
         @Path("targetUserId") targetUserId: Long,
         @Body body: UpdateMemberRoleRequestDto,
     ): TeamMemberDto
 
-    @PUT("api/abik/v1/teams/{teamId}/members/{targetUserId}/jersey")
+    @PUT("v1/teams/{teamId}/members/{targetUserId}/jersey")
     suspend fun setJersey(
         @Path("teamId") teamId: Long,
         @Path("targetUserId") targetUserId: Long,
         @Body body: SetJerseyNumberRequestDto,
     ): TeamMemberDto
 
-    @DELETE("api/abik/v1/teams/{teamId}/members/{targetUserId}")
+    @DELETE("v1/teams/{teamId}/members/{targetUserId}")
     suspend fun excludeMember(
         @Path("teamId") teamId: Long,
         @Path("targetUserId") targetUserId: Long,
     ): MessageResponse
 
-    @POST("api/abik/v1/teams/{teamId}/members/{targetUserId}/restore")
+    @POST("v1/teams/{teamId}/members/{targetUserId}/restore")
     suspend fun restoreMember(
         @Path("teamId") teamId: Long,
         @Path("targetUserId") targetUserId: Long,
     ): TeamMemberDto
 
-    @POST("api/abik/v1/teams/{teamId}/leave")
+    @POST("v1/teams/{teamId}/leave")
     suspend fun leave(@Path("teamId") teamId: Long): MessageResponse
 
-    @POST("api/abik/v1/teams/{teamId}/invitations")
+    @POST("v1/teams/{teamId}/invitations")
     suspend fun invite(
         @Path("teamId") teamId: Long,
         @Body body: InviteRequestDto,
     ): InvitationDto
 
-    @GET("api/abik/v1/teams/{teamId}/invitations")
+    @GET("v1/teams/{teamId}/invitations")
     suspend fun outgoingInvitations(@Path("teamId") teamId: Long): List<InvitationDto>
 }

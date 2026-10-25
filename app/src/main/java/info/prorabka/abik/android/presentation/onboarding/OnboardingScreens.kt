@@ -43,6 +43,7 @@ fun OnboardingProfileScreen(onDone: () -> Unit) {
         submitText = "Сохранить и продолжить",
         prefill = false,
         onDone = onDone,
+        onSkip = onDone,
     )
 }
 
@@ -144,6 +145,13 @@ fun OnboardingTeamScreen(
             onClick = { viewModel.createTeam(onDone) },
             loading = ui.saving,
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        TextButton(
+            onClick = { viewModel.skip(onDone) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Создать команду позже")
+        }
         Spacer(modifier = Modifier.height(24.dp))
     }
 }

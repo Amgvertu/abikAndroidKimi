@@ -1,6 +1,7 @@
 package info.prorabka.abik.android.core.prefs
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -23,7 +24,8 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 class SettingsStore @Inject constructor(@ApplicationContext private val context: Context) {
 
     private val keyTheme = stringPreferencesKey("theme_mode")
-    private val keyBaseUrl = stringPreferencesKey("base_url_override")
+    // v2: старое значение без префикса пути (/api/abik) больше невалидно
+    private val keyBaseUrl = stringPreferencesKey("base_url_override_v2")
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
         prefs[keyTheme]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM
@@ -52,5 +54,26 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
 
     suspend fun setSelectedTeamId(id: Long) {
         context.dataStore.edit { it[keyTeamId] = id }
+    }
+
+    // --- Флаги «заполнить позже» на онбординге ---
+
+    private val keyProfileSkipped = booleanPreferencesKey("profile_onboarding_skipped")
+    private val keyTeamSkipped = booleanPreferencesKey("team_onboarding_skipped")
+
+    /** Пользователь нажал «Заполнить позже» на экране профиля. */
+    val profileOnboardingSkipped: Flow<Boolean> =
+        context.dataStore.data.map { it[keyProfileSkipped] ?: false }
+
+    suspend fun setProfileOnboardingSkipped(skipped: Boolean) {
+        context.dataStore.edit { it[keyProfileSkipped] = skipped }
+    }
+
+    /** Пользователь нажал «Создать команду позже». */
+    val teamOnboardingSkipped: Flow<Boolean> =
+        context.dataStore.data.map { it[keyTeamSkipped] ?: false }
+
+    suspend fun setTeamOnboardingSkipped(skipped: Boolean) {
+        context.dataStore.edit { it[keyTeamSkipped] = skipped }
     }
 }

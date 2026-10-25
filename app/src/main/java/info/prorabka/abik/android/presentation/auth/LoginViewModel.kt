@@ -3,11 +3,16 @@ package info.prorabka.abik.android.presentation.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import info.prorabka.abik.android.BuildConfig
 import info.prorabka.abik.android.core.network.ApiResult
+import info.prorabka.abik.android.core.prefs.SettingsStore
 import info.prorabka.abik.android.core.util.PhoneUtils
 import info.prorabka.abik.android.domain.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -15,6 +20,7 @@ import javax.inject.Inject
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val settingsStore: SettingsStore,
 ) : ViewModel() {
 
     data class UiState(
@@ -26,6 +32,19 @@ class LoginViewModel @Inject constructor(
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
+
+    /** Текущий base URL (для переключателя сервера в debug). */
+    val currentBaseUrl: StateFlow<String> = settingsStore.baseUrlOverride
+        .map { it ?: BuildConfig.DEFAULT_BASE_URL }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, BuildConfig.DEFAULT_BASE_URL)
+
+    fun useRemoteServer() {
+        viewModelScope.launch { settingsStore.setBaseUrlOverride(null) }
+    }
+
+    fun useLocalServer() {
+        viewModelScope.launch { settingsStore.setBaseUrlOverride(BuildConfig.LOCAL_BASE_URL) }
+    }
 
     fun onPhoneChange(value: String) = _ui.update { it.copy(phone = value, error = null) }
     fun onPasswordChange(value: String) = _ui.update { it.copy(password = value, error = null) }

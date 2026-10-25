@@ -6,11 +6,13 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.BuildConfig
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
+import info.prorabka.abik.android.core.network.UrlResolver
 import info.prorabka.abik.android.core.prefs.SettingsStore
 import info.prorabka.abik.android.core.prefs.ThemeMode
 import info.prorabka.abik.android.core.prefs.TokenStore
 import info.prorabka.abik.android.domain.model.Profile
 import info.prorabka.abik.android.domain.model.TeamMember
+import info.prorabka.abik.android.domain.repository.FileRepository
 import info.prorabka.abik.android.domain.repository.UserRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,10 +27,14 @@ import javax.inject.Inject
 class ProfileViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val teamRepository: TeamRepository,
+    private val fileRepository: FileRepository,
     private val teamManager: CurrentTeamManager,
     private val settingsStore: SettingsStore,
     private val tokenStore: TokenStore,
+    private val urlResolver: UrlResolver,
 ) : ViewModel() {
+
+    fun resolveUrl(url: String?): String? = urlResolver.resolve(url)
 
     data class UiState(
         val loading: Boolean = true,
@@ -97,6 +103,53 @@ class ProfileViewModel @Inject constructor(
 
     fun setTheme(mode: ThemeMode) {
         viewModelScope.launch { settingsStore.setThemeMode(mode) }
+    }
+
+    /** Загрузить новый аватар: файл → /api/v1/files → PUT профиля. */
+    fun uploadAvatar(uri: android.net.Uri) {
+        val profile = _ui.value.profile ?: return
+        viewModelScope.launch {
+            when (val uploaded = fileRepository.upload(uri)) {
+                is ApiResult.Success -> saveAvatar(profile, uploaded.data)
+                is ApiResult.HttpError -> _ui.update { it.copy(error = uploaded.message) }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
+    /** Удалить аватар (avatarUrl = null). */
+    fun removeAvatar() {
+        val profile = _ui.value.profile ?: return
+        viewModelScope.launch { saveAvatar(profile, null) }
+    }
+
+    private suspend fun saveAvatar(profile: Profile, avatarUrl: String?) {
+        when (
+            val result = userRepository.updateMyProfile(
+                cityId = profile.cityId,
+                lastName = profile.lastName,
+                firstName = profile.firstName,
+                middleName = profile.middleName,
+                birthDateIso = profile.birthDate
+                    ?.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE) ?: "",
+                heightCm = profile.heightCm,
+                weightKg = profile.weightKg,
+                stickHand = profile.stickHand,
+                positions = profile.positions,
+                jerseySize = profile.jerseySize,
+                coversSize = profile.coversSize,
+                gaitersSize = profile.gaitersSize,
+                avatarUrl = avatarUrl,
+            )
+        ) {
+            is ApiResult.Success -> _ui.update { it.copy(profile = result.data, error = null) }
+            is ApiResult.HttpError -> _ui.update { it.copy(error = result.message) }
+            is ApiResult.NetworkError -> _ui.update {
+                it.copy(error = "Нет соединения с сервером")
+            }
+        }
     }
 
     fun useRemoteServer() {

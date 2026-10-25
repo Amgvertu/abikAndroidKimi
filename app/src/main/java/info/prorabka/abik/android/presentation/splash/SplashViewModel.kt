@@ -4,12 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.network.ApiResult
+import info.prorabka.abik.android.core.prefs.SettingsStore
 import info.prorabka.abik.android.core.prefs.TokenStore
 import info.prorabka.abik.android.domain.repository.TeamRepository
 import info.prorabka.abik.android.domain.repository.UserRepository
 import info.prorabka.abik.android.presentation.navigation.Routes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,6 +24,7 @@ class SplashViewModel @Inject constructor(
     private val tokenStore: TokenStore,
     private val userRepository: UserRepository,
     private val teamRepository: TeamRepository,
+    private val settingsStore: SettingsStore,
 ) : ViewModel() {
 
     private val _destination = MutableStateFlow<String?>(null)
@@ -42,8 +45,13 @@ class SplashViewModel @Inject constructor(
                 is ApiResult.Success -> routeByTeams()
                 is ApiResult.HttpError -> {
                     // 404 — профиль ещё не заполнен
-                    if (profile.httpCode == 404) {
+                    if (profile.httpCode == 404 &&
+                        !settingsStore.profileOnboardingSkipped.first()
+                    ) {
                         _destination.value = Routes.ONBOARDING_PROFILE
+                    } else if (profile.httpCode == 404) {
+                        // Профиль отложен («заполнить позже») — идём к выбору команды
+                        routeByTeams()
                     } else {
                         // Сервер недоступен/ошибка — пробуем в main, там покажем ошибку
                         _destination.value = Routes.MAIN
@@ -57,7 +65,13 @@ class SplashViewModel @Inject constructor(
     private suspend fun routeByTeams() {
         when (val teams = teamRepository.myTeams()) {
             is ApiResult.Success ->
-                _destination.value = if (teams.data.isEmpty()) Routes.ONBOARDING_TEAM else Routes.MAIN
+                _destination.value = if (teams.data.isEmpty() &&
+                    !settingsStore.teamOnboardingSkipped.first()
+                ) {
+                    Routes.ONBOARDING_TEAM
+                } else {
+                    Routes.MAIN
+                }
             else -> _destination.value = Routes.MAIN
         }
     }

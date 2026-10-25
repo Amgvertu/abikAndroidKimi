@@ -19,9 +19,10 @@ android {
         versionCode 1
         versionName "1.0"
 
-        buildConfigField "String", "PROD_BASE_URL",  '"http://192.168.0.119:8083/"'
-        buildConfigField "String", "DEFAULT_BASE_URL", '"https://varamy.online/"'   // дефолт = прод
-        buildConfigField "String", "LOCAL_BASE_URL",  '"http://192.168.0.119:8083/"'
+        // Полный API-префикс зашит в base URL: прод идёт через nginx (/api/ -> /api/abik/),
+        // локальный сервер — напрямую в context-path /api/abik (см. application-prod.yml).
+        buildConfigField "String", "DEFAULT_BASE_URL", '"https://varamy.online/api/"'
+        buildConfigField "String", "LOCAL_BASE_URL", '"http://192.168.0.119:8083/api/abik/"'
     }
 
     buildTypes {

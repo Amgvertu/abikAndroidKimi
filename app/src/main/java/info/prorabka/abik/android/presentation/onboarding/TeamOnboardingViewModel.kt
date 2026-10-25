@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.network.ApiResult
+import info.prorabka.abik.android.core.prefs.SettingsStore
 import info.prorabka.abik.android.domain.model.City
 import info.prorabka.abik.android.domain.model.Invitation
 import info.prorabka.abik.android.domain.model.Region
@@ -23,6 +24,7 @@ import javax.inject.Inject
 class TeamOnboardingViewModel @Inject constructor(
     private val teamRepository: TeamRepository,
     private val geoRepository: GeoRepository,
+    private val settingsStore: SettingsStore,
 ) : ViewModel() {
 
     companion object {
@@ -87,7 +89,10 @@ class TeamOnboardingViewModel @Inject constructor(
         viewModelScope.launch {
             _ui.update { it.copy(saving = true, error = null) }
             when (val r = teamRepository.acceptInvitation(invitationId)) {
-                is ApiResult.Success -> onDone()
+                is ApiResult.Success -> {
+                    settingsStore.setTeamOnboardingSkipped(false)
+                    onDone()
+                }
                 is ApiResult.HttpError -> _ui.update { it.copy(saving = false, error = r.message) }
                 is ApiResult.NetworkError -> _ui.update {
                     it.copy(saving = false, error = "Нет соединения с сервером")
@@ -129,7 +134,10 @@ class TeamOnboardingViewModel @Inject constructor(
                     ),
                 )
                 when (result) {
-                    is ApiResult.Success -> onDone()
+                    is ApiResult.Success -> {
+                        settingsStore.setTeamOnboardingSkipped(false)
+                        onDone()
+                    }
                     is ApiResult.HttpError -> _ui.update {
                         it.copy(saving = false, error = result.message)
                     }
@@ -138,6 +146,14 @@ class TeamOnboardingViewModel @Inject constructor(
                     }
                 }
             }
+        }
+    }
+
+    /** «Создать команду позже»: запоминаем пропуск и уходим на главную. */
+    fun skip(onSkipped: () -> Unit) {
+        viewModelScope.launch {
+            settingsStore.setTeamOnboardingSkipped(true)
+            onSkipped()
         }
     }
 }

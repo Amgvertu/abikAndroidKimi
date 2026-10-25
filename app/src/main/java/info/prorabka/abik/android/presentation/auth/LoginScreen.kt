@@ -2,6 +2,7 @@ package info.prorabka.abik.android.presentation.auth
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -21,6 +22,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import info.prorabka.abik.android.BuildConfig
 import info.prorabka.abik.android.core.ui.components.AbikButton
 import info.prorabka.abik.android.core.ui.components.AbikTextField
 import info.prorabka.abik.android.core.ui.components.ErrorText
@@ -80,5 +82,23 @@ fun LoginScreen(
 
         TextButton(onClick = onForgotPassword) { Text("Забыли пароль?") }
         TextButton(onClick = onRegister) { Text("Регистрация") }
+
+        if (BuildConfig.DEBUG) {
+            val currentUrl by viewModel.currentBaseUrl.collectAsState()
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "Сервер: $currentUrl",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = viewModel::useRemoteServer) {
+                    Text("varamy.online", fontSize = 12.sp)
+                }
+                TextButton(onClick = viewModel::useLocalServer) {
+                    Text("192.168.0.119", fontSize = 12.sp)
+                }
+            }
+        }
     }
 }

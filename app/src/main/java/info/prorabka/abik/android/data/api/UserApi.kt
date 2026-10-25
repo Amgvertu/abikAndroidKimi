@@ -16,29 +16,29 @@ import retrofit2.http.Path
 
 interface UserApi {
 
-    @GET("api/abik/v1/users/me")
+    @GET("v1/users/me")
     suspend fun me(): UserDto
 
-    @GET("api/abik/v1/users/me/profile")
+    @GET("v1/users/me/profile")
     suspend fun myProfile(): UserProfileResponse
 
-    @PUT("api/abik/v1/users/me/profile")
+    @PUT("v1/users/me/profile")
     suspend fun updateMyProfile(@Body body: UserProfileRequest): UserProfileResponse
 
-    @GET("api/abik/v1/users/{userId}/profile")
+    @GET("v1/users/{userId}/profile")
     suspend fun profileOfUser(@Path("userId") userId: Long): UserProfileResponse
 
     // --- Смена номера (backend-api-extension.md, раздел 2а.3) ---
 
-    @POST("api/abik/v1/users/me/phone-change/start")
+    @POST("v1/users/me/phone-change/start")
     suspend fun phoneChangeStart(): MessageResponse
 
-    @POST("api/abik/v1/users/me/phone-change/verify-old")
+    @POST("v1/users/me/phone-change/verify-old")
     suspend fun phoneChangeVerifyOld(@Body body: SmsCodeRequest): PhoneChangeTokenResponse
 
-    @POST("api/abik/v1/users/me/phone-change/send-new")
+    @POST("v1/users/me/phone-change/send-new")
     suspend fun phoneChangeSendNew(@Body body: PhoneChangeSendNewRequest): MessageResponse
 
-    @POST("api/abik/v1/users/me/phone-change/confirm")
+    @POST("v1/users/me/phone-change/confirm")
     suspend fun phoneChangeConfirm(@Body body: PhoneChangeConfirmRequest): MessageResponse
 }

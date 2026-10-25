@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import info.prorabka.abik.android.core.ui.components.LoadingBox
+import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
 import info.prorabka.abik.android.core.ui.theme.Danger
 import info.prorabka.abik.android.core.ui.theme.Success
 import info.prorabka.abik.android.core.util.kopecksToRubles
@@ -46,9 +48,15 @@ fun SubscriptionScreen(
     onMemberClick: (Long) -> Unit,
     onAddPayment: (Long) -> Unit,
     onAddCharge: (Long) -> Unit,
+    onCreateTeam: () -> Unit,
     viewModel: SubscriptionViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+
+    if (ui.noTeam) {
+        NoTeamPlaceholder(onCreateTeam)
+        return
+    }
 
     Scaffold(
         floatingActionButton = {
@@ -100,22 +108,26 @@ private fun MemberBalanceRow(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = row.jerseyNumber?.toString() ?: "—",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp),
+            // Аватар (пока заглушка — avatarUrl появится в списке участников на бэкенде)
+            Icon(
+                Icons.Default.AccountCircle,
+                contentDescription = null,
+                modifier = Modifier.size(38.dp).padding(end = 8.dp),
+                tint = MaterialTheme.colorScheme.primary,
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(row.name, style = MaterialTheme.typography.bodyLarge)
-                if (row.status != info.prorabka.abik.android.domain.model.MemberStatus.ACTIVE) {
-                    Text(
-                        row.status.display,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(
+                    buildString {
+                        row.jerseyNumber?.let { append("№$it") }
+                        if (row.status != info.prorabka.abik.android.domain.model.MemberStatus.ACTIVE) {
+                            if (isNotEmpty()) append(" • ")
+                            append(row.status.display)
+                        }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Text(
                 text = row.balanceKopecks.kopecksToRubles(),

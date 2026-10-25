@@ -1,5 +1,7 @@
 package info.prorabka.abik.android.presentation.team
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.PersonAdd
@@ -36,47 +39,79 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import info.prorabka.abik.android.core.ui.components.AbikTextField
 import info.prorabka.abik.android.core.ui.components.LoadingBox
+import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.model.TeamMember
 
 /**
  * Экран «Команда»: информация о команде, список участников.
- * Управляющие: приглашение, долгий тап на игрока — контекстное меню.
+ * Управляющие: приглашение, долгий тап на игрока — контекстное меню,
+ * долгий тап на логотип — изменить логотип.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TeamScreen(
     onMemberClick: (Long) -> Unit,
+    onCreateTeam: () -> Unit,
     viewModel: TeamViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
     var showInviteDialog by remember { mutableStateOf(false) }
     var jerseyDialogMember by remember { mutableStateOf<TeamMember?>(null) }
 
-    if (ui.loading && ui.detail == null) {
+    if (ui.loading && ui.detail == null && !ui.noTeam) {
         LoadingBox()
+        return
+    }
+    if (ui.noTeam) {
+        NoTeamPlaceholder(onCreateTeam)
         return
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         // --- Шапка команды ---
+        val pickLogo = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.GetContent(),
+        ) { uri -> uri?.let(viewModel::changeLogo) }
         Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
             Row(
                 modifier = Modifier.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    Icons.Default.AccountCircle,
-                    contentDescription = "Логотип",
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
+                // Логотип: долгий тап (управляющие) — изменить (ТЗ v3)
+                val logoUrl = viewModel.resolveUrl(ui.detail?.logoUrl)
+                val logoModifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = { if (ui.isManager) pickLogo.launch("image/*") },
+                    )
+                if (logoUrl != null) {
+                    AsyncImage(
+                        model = logoUrl,
+                        contentDescription = "Логотип",
+                        modifier = logoModifier,
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.AccountCircle,
+                        contentDescription = "Логотип",
+                        modifier = logoModifier,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 Spacer(modifier = Modifier.padding(4.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(

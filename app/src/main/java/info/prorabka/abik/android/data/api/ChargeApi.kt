@@ -20,7 +20,7 @@ import retrofit2.http.Query
 
 interface ChargeApi {
 
-    @GET("api/abik/v1/teams/{teamId}/charges")
+    @GET("v1/teams/{teamId}/charges")
     suspend fun list(
         @Path("teamId") teamId: Long,
         @Query("userId") userId: Long? = null,
@@ -31,19 +31,19 @@ interface ChargeApi {
         @Query("dateTo") dateTo: String? = null,
     ): List<ChargeDto>
 
-    @GET("api/abik/v1/teams/{teamId}/charges/{chargeId}")
+    @GET("v1/teams/{teamId}/charges/{chargeId}")
     suspend fun get(
         @Path("teamId") teamId: Long,
         @Path("chargeId") chargeId: Long,
     ): ChargeDto
 
-    @POST("api/abik/v1/teams/{teamId}/charges")
+    @POST("v1/teams/{teamId}/charges")
     suspend fun createManual(
         @Path("teamId") teamId: Long,
         @Body body: ChargeCreateManualRequestDto,
     ): List<ChargeDto>
 
-    @POST("api/abik/v1/teams/{teamId}/charges/{chargeId}/cancel")
+    @POST("v1/teams/{teamId}/charges/{chargeId}/cancel")
     suspend fun cancel(
         @Path("teamId") teamId: Long,
         @Path("chargeId") chargeId: Long,
@@ -52,29 +52,29 @@ interface ChargeApi {
 
     // --- Группы и подгруппы (автодополнение «Назначение») ---
 
-    @GET("api/abik/v1/teams/{teamId}/charge-groups")
+    @GET("v1/teams/{teamId}/charge-groups")
     suspend fun listGroups(@Path("teamId") teamId: Long): List<ChargeGroupDto>
 
-    @POST("api/abik/v1/teams/{teamId}/charge-groups")
+    @POST("v1/teams/{teamId}/charge-groups")
     suspend fun createGroup(
         @Path("teamId") teamId: Long,
         @Body body: ChargeGroupRequestDto,
     ): ChargeGroupDto
 
-    @GET("api/abik/v1/teams/{teamId}/charge-groups/{groupId}/subgroups")
+    @GET("v1/teams/{teamId}/charge-groups/{groupId}/subgroups")
     suspend fun listSubgroups(
         @Path("teamId") teamId: Long,
         @Path("groupId") groupId: Long,
     ): List<ChargeSubgroupDto>
 
-    @POST("api/abik/v1/teams/{teamId}/charge-groups/{groupId}/subgroups")
+    @POST("v1/teams/{teamId}/charge-groups/{groupId}/subgroups")
     suspend fun createSubgroup(
         @Path("teamId") teamId: Long,
         @Path("groupId") groupId: Long,
         @Body body: ChargeSubgroupRequestDto,
     ): ChargeSubgroupDto
 
-    @DELETE("api/abik/v1/teams/{teamId}/charge-groups/{groupId}")
+    @DELETE("v1/teams/{teamId}/charge-groups/{groupId}")
     suspend fun deleteGroup(
         @Path("teamId") teamId: Long,
         @Path("groupId") groupId: Long,
@@ -82,32 +82,32 @@ interface ChargeApi {
 
     // --- Шаблоны начислений ---
 
-    @GET("api/abik/v1/teams/{teamId}/charge-templates")
+    @GET("v1/teams/{teamId}/charge-templates")
     suspend fun listTemplates(
         @Path("teamId") teamId: Long,
         @Query("onlyActive") onlyActive: Boolean = false,
     ): List<ChargeTemplateDto>
 
-    @POST("api/abik/v1/teams/{teamId}/charge-templates")
+    @POST("v1/teams/{teamId}/charge-templates")
     suspend fun createTemplate(
         @Path("teamId") teamId: Long,
         @Body body: ChargeTemplateRequestDto,
     ): ChargeTemplateDto
 
-    @PUT("api/abik/v1/teams/{teamId}/charge-templates/{templateId}")
+    @PUT("v1/teams/{teamId}/charge-templates/{templateId}")
     suspend fun updateTemplate(
         @Path("teamId") teamId: Long,
         @Path("templateId") templateId: Long,
         @Body body: ChargeTemplateRequestDto,
     ): ChargeTemplateDto
 
-    @POST("api/abik/v1/teams/{teamId}/charge-templates/{templateId}/activate")
+    @POST("v1/teams/{teamId}/charge-templates/{templateId}/activate")
     suspend fun activateTemplate(
         @Path("teamId") teamId: Long,
         @Path("templateId") templateId: Long,
     ): ChargeTemplateDto
 
-    @POST("api/abik/v1/teams/{teamId}/charge-templates/{templateId}/deactivate")
+    @POST("v1/teams/{teamId}/charge-templates/{templateId}/deactivate")
     suspend fun deactivateTemplate(
         @Path("teamId") teamId: Long,
         @Path("templateId") templateId: Long,
