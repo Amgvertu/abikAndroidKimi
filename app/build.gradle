@@ -21,7 +21,7 @@ android {
 
         // Полный API-префикс зашит в base URL: прод идёт через nginx (/api/ -> /api/abik/),
         // локальный сервер — напрямую в context-path /api/abik (см. application-prod.yml).
-        buildConfigField "String", "DEFAULT_BASE_URL", '"https://varamy.online/api/"'
+        buildConfigField "String", "DEFAULT_BASE_URL", '"https://varamy.online/api/abik/"'
         buildConfigField "String", "LOCAL_BASE_URL", '"http://192.168.0.119:8083/api/abik/"'
     }
 
