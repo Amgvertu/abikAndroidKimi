@@ -10,6 +10,7 @@ import info.prorabka.abik.android.core.network.UrlResolver
 import info.prorabka.abik.android.core.prefs.SettingsStore
 import info.prorabka.abik.android.core.prefs.ThemeMode
 import info.prorabka.abik.android.core.prefs.TokenStore
+import info.prorabka.abik.android.domain.model.Invitation
 import info.prorabka.abik.android.domain.model.Profile
 import info.prorabka.abik.android.domain.model.TeamMember
 import info.prorabka.abik.android.domain.repository.FileRepository
@@ -42,7 +43,10 @@ class ProfileViewModel @Inject constructor(
         val phone: String = "",
         val jerseyNumber: Int? = null,
         val isSuperAdmin: Boolean = false,
+        val invitations: List<Invitation> = emptyList(),
+        val invitationSaving: Boolean = false,
         val error: String? = null,
+        val info: String? = null,
     )
 
     private val _ui = MutableStateFlow(UiState())
@@ -96,6 +100,61 @@ class ProfileViewModel @Inject constructor(
                 }
                 is ApiResult.NetworkError -> _ui.update {
                     it.copy(loading = false, error = "Нет соединения с сервером")
+                }
+            }
+            when (val inv = teamRepository.incomingInvitations()) {
+                is ApiResult.Success -> _ui.update { it.copy(invitations = inv.data) }
+                else -> Unit
+            }
+        }
+    }
+
+    /** Принять приглашение: обновить команды и переключиться на новую. */
+    fun acceptInvitation(invitation: Invitation) {
+        viewModelScope.launch {
+            _ui.update { it.copy(invitationSaving = true, error = null, info = null) }
+            when (val r = teamRepository.acceptInvitation(invitation.id)) {
+                is ApiResult.Success -> {
+                    teamManager.refresh()
+                    teamManager.teams.value
+                        .firstOrNull { it.id == invitation.teamId }
+                        ?.let(teamManager::select)
+                    _ui.update {
+                        it.copy(
+                            invitationSaving = false,
+                            info = "Вы вступили в команду «${invitation.teamName}»",
+                        )
+                    }
+                    load()
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(invitationSaving = false, error = r.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(invitationSaving = false, error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
+    fun declineInvitation(invitation: Invitation) {
+        viewModelScope.launch {
+            _ui.update { it.copy(invitationSaving = true, error = null, info = null) }
+            when (val r = teamRepository.declineInvitation(invitation.id)) {
+                is ApiResult.Success -> {
+                    _ui.update {
+                        it.copy(
+                            invitationSaving = false,
+                            invitations = it.invitations.filter { i -> i.id != invitation.id },
+                            info = "Приглашение отклонено",
+                        )
+                    }
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(invitationSaving = false, error = r.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(invitationSaving = false, error = "Нет соединения с сервером")
                 }
             }
         }
@@ -157,6 +216,8 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun useLocalServer() {
-        viewModelScope.launch { settingsStore.setBaseUrlOverride(BuildConfig.LOCAL_BASE_URL) }
+        // Через геттер SettingsStore, а не константу BuildConfig — иначе kotlinc
+        // инлайнит значение на момент компиляции и может зашить протухший URL.
+        viewModelScope.launch { settingsStore.setBaseUrlOverride(settingsStore.localBaseUrl) }
     }
 }

@@ -8,6 +8,7 @@ import info.prorabka.abik.android.data.dto.ChargeCreateManualRequestDto
 import info.prorabka.abik.android.data.dto.ChargeGroupRequestDto
 import info.prorabka.abik.android.data.dto.ChargeSubgroupRequestDto
 import info.prorabka.abik.android.data.dto.ChargeTemplateRequestDto
+import info.prorabka.abik.android.data.dto.ChargeUpdateRequestDto
 import info.prorabka.abik.android.domain.model.Charge
 import info.prorabka.abik.android.domain.model.ChargeDistribution
 import info.prorabka.abik.android.domain.model.ChargeGroup
@@ -78,6 +79,54 @@ class ChargeRepositoryImpl @Inject constructor(
             api.cancel(teamId, chargeId, ChargeCancelRequestDto(reason))
             Unit
         }
+
+    override suspend fun chargeById(teamId: Long, chargeId: Long): ApiResult<Charge> = apiCall {
+        api.get(teamId, chargeId).let { dto ->
+            Charge(
+                id = dto.id,
+                groupName = dto.groupName ?: "",
+                subgroupName = dto.subgroupName,
+                userId = dto.userId,
+                userName = listOfNotNull(dto.userLastName, dto.userFirstName).joinToString(" "),
+                amountKopecks = dto.amountKopecks,
+                paidKopecks = dto.paidKopecks,
+                remainingKopecks = dto.remainingKopecks,
+                status = runCatching { ChargeStatus.valueOf(dto.status) }
+                    .getOrDefault(ChargeStatus.ACTIVE),
+                description = dto.description,
+                dueDate = dto.dueDate,
+                createdAt = dto.createdAt,
+            )
+        }
+    }
+
+    override suspend fun updateCharge(
+        teamId: Long,
+        chargeId: Long,
+        groupId: Long,
+        subgroupId: Long?,
+        amountKopecks: Long,
+        description: String?,
+        dueDateIso: String,
+    ): ApiResult<Unit> = apiCall {
+        api.update(
+            teamId,
+            chargeId,
+            ChargeUpdateRequestDto(
+                groupId = groupId,
+                subgroupId = subgroupId,
+                amountKopecks = amountKopecks,
+                description = description,
+                dueDate = dueDateIso,
+            ),
+        )
+        Unit
+    }
+
+    override suspend fun deleteCharge(teamId: Long, chargeId: Long): ApiResult<Unit> = apiCall {
+        api.delete(teamId, chargeId)
+        Unit
+    }
 
     override suspend fun groups(teamId: Long): ApiResult<List<ChargeGroup>> = apiCall {
         api.listGroups(teamId).map { ChargeGroup(it.id, it.name) }

@@ -6,11 +6,13 @@ import info.prorabka.abik.android.data.api.InvitationApi
 import info.prorabka.abik.android.data.api.TeamApi
 import info.prorabka.abik.android.data.dto.InviteRequestDto
 import info.prorabka.abik.android.data.dto.SetJerseyNumberRequestDto
+import info.prorabka.abik.android.data.dto.SetTrainerRequestDto
 import info.prorabka.abik.android.data.dto.TeamCreateRequestDto
 import info.prorabka.abik.android.data.dto.TeamDetailDto
 import info.prorabka.abik.android.data.dto.TransferOwnershipRequestDto
 import info.prorabka.abik.android.data.dto.UpdateMemberRoleRequestDto
 import info.prorabka.abik.android.domain.model.Invitation
+import info.prorabka.abik.android.domain.model.MemberDetails
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.model.Team
@@ -76,9 +78,28 @@ class TeamRepositoryImpl @Inject constructor(
                 status = runCatching { MemberStatus.valueOf(dto.status) }
                     .getOrDefault(MemberStatus.ACTIVE),
                 jerseyNumber = dto.jerseyNumber,
+                isTrainer = dto.isTrainer,
             )
         }
     }
+
+    override suspend fun memberDetails(teamId: Long, userId: Long): ApiResult<MemberDetails> =
+        apiCall {
+            teamApi.memberDetails(teamId, userId).let { dto ->
+                MemberDetails(
+                    userId = dto.userId,
+                    phone = dto.phone,
+                    role = runCatching { MemberRole.valueOf(dto.role) }
+                        .getOrDefault(MemberRole.MEMBER),
+                    status = runCatching { MemberStatus.valueOf(dto.membershipStatus) }
+                        .getOrDefault(MemberStatus.ACTIVE),
+                    jerseyNumber = dto.jerseyNumber,
+                    isTrainer = dto.isTrainer,
+                    joinedAt = dto.joinedAt,
+                    profile = dto.profile?.toDomain(),
+                )
+            }
+        }
 
     override suspend fun changeRole(teamId: Long, userId: Long, role: MemberRole): ApiResult<Unit> =
         apiCall {
@@ -91,6 +112,15 @@ class TeamRepositoryImpl @Inject constructor(
             teamApi.setJersey(teamId, userId, SetJerseyNumberRequestDto(number))
             Unit
         }
+
+    override suspend fun setTrainer(
+        teamId: Long,
+        userId: Long,
+        isTrainer: Boolean,
+    ): ApiResult<Unit> = apiCall {
+        teamApi.setTrainer(teamId, userId, SetTrainerRequestDto(isTrainer))
+        Unit
+    }
 
     override suspend fun excludeMember(teamId: Long, userId: Long): ApiResult<Unit> = apiCall {
         teamApi.excludeMember(teamId, userId)

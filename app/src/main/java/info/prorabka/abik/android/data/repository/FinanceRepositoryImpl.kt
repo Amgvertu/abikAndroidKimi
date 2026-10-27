@@ -94,6 +94,23 @@ class FinanceRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun paymentById(teamId: Long, paymentId: Long): ApiResult<Payment> = apiCall {
+        val dto = paymentApi.get(teamId, paymentId)
+        Payment(
+            id = dto.id,
+            teamId = dto.teamId,
+            userId = dto.userId,
+            userName = listOfNotNull(dto.userLastName, dto.userFirstName).joinToString(" "),
+            amountKopecks = dto.amountKopecks,
+            description = dto.description,
+            paidAt = dto.paidAt ?: dto.createdAt,
+            createdByName = listOfNotNull(dto.createdByLastName, dto.createdByFirstName)
+                .joinToString(" ")
+                .ifBlank { null },
+            createdAt = dto.createdAt,
+        )
+    }
+
     override suspend fun updatePayment(
         teamId: Long,
         paymentId: Long,

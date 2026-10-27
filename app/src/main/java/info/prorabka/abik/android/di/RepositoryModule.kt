@@ -7,19 +7,27 @@ import dagger.hilt.components.SingletonComponent
 import info.prorabka.abik.android.data.repository.AdminRepositoryImpl
 import info.prorabka.abik.android.data.repository.AuthRepositoryImpl
 import info.prorabka.abik.android.data.repository.ChargeRepositoryImpl
+import info.prorabka.abik.android.data.repository.DeviceRepositoryImpl
+import info.prorabka.abik.android.data.repository.EventRepositoryImpl
 import info.prorabka.abik.android.data.repository.FileRepositoryImpl
 import info.prorabka.abik.android.data.repository.FinanceRepositoryImpl
 import info.prorabka.abik.android.data.repository.GeoRepositoryImpl
+import info.prorabka.abik.android.data.repository.NotificationRepositoryImpl
 import info.prorabka.abik.android.data.repository.ReportRepositoryImpl
+import info.prorabka.abik.android.data.repository.RosterRepositoryImpl
 import info.prorabka.abik.android.data.repository.TeamRepositoryImpl
 import info.prorabka.abik.android.data.repository.UserRepositoryImpl
 import info.prorabka.abik.android.domain.repository.AdminRepository
 import info.prorabka.abik.android.domain.repository.AuthRepository
 import info.prorabka.abik.android.domain.repository.ChargeRepository
+import info.prorabka.abik.android.domain.repository.DeviceRepository
+import info.prorabka.abik.android.domain.repository.EventRepository
 import info.prorabka.abik.android.domain.repository.FileRepository
 import info.prorabka.abik.android.domain.repository.FinanceRepository
 import info.prorabka.abik.android.domain.repository.GeoRepository
+import info.prorabka.abik.android.domain.repository.NotificationRepository
 import info.prorabka.abik.android.domain.repository.ReportRepository
+import info.prorabka.abik.android.domain.repository.RosterRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
 import info.prorabka.abik.android.domain.repository.UserRepository
 import javax.inject.Singleton
@@ -46,6 +54,14 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
+    abstract fun bindRosterRepository(impl: RosterRepositoryImpl): RosterRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindEventRepository(impl: EventRepositoryImpl): EventRepository
+
+    @Binds
+    @Singleton
     abstract fun bindFinanceRepository(impl: FinanceRepositoryImpl): FinanceRepository
 
     @Binds
@@ -63,4 +79,12 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindFileRepository(impl: FileRepositoryImpl): FileRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindNotificationRepository(impl: NotificationRepositoryImpl): NotificationRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindDeviceRepository(impl: DeviceRepositoryImpl): DeviceRepository
 }

@@ -41,6 +41,15 @@ data class ChargeCreateManualRequestDto(
 data class ChargeCancelRequestDto(val reason: String)
 
 @Serializable
+data class ChargeUpdateRequestDto(
+    val groupId: Long,
+    val subgroupId: Long? = null,
+    val amountKopecks: Long,
+    val description: String? = null,
+    val dueDate: String,
+)
+
+@Serializable
 data class ChargeGroupDto(
     val id: Long,
     val teamId: Long,

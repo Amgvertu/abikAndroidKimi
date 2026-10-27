@@ -26,6 +26,8 @@ interface FinanceRepository {
         dateToIso: String? = null,
     ): ApiResult<List<Payment>>
 
+    suspend fun paymentById(teamId: Long, paymentId: Long): ApiResult<Payment>
+
     suspend fun updatePayment(
         teamId: Long,
         paymentId: Long,

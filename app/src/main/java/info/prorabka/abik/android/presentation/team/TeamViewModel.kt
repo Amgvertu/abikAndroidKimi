@@ -140,6 +140,39 @@ class TeamViewModel @Inject constructor(
         }
     }
 
+    /** Редактирование названия/описания/сезона (город, регион, логотип сохраняются). */
+    fun updateTeam(name: String, description: String, season: String) {
+        val teamId = currentTeamId() ?: return
+        val detail = _ui.value.detail ?: return
+        if (name.isBlank()) {
+            _ui.update { it.copy(error = "Название команды не может быть пустым") }
+            return
+        }
+        viewModelScope.launch {
+            val result = teamRepository.update(
+                teamId,
+                TeamCreateData(
+                    name = name.trim(),
+                    cityId = detail.cityId ?: 0L,
+                    homeRegionId = detail.homeRegionId ?: 0L,
+                    logoUrl = detail.logoUrl ?: "",
+                    description = description.trim().ifBlank { null },
+                    season = season.trim().ifBlank { null },
+                ),
+            )
+            when (result) {
+                is ApiResult.Success -> {
+                    _ui.update { it.copy(detail = result.data, info = "Команда обновлена") }
+                    teamManager.refresh()
+                }
+                is ApiResult.HttpError -> _ui.update { it.copy(error = result.message) }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
     fun setJerseyNumber(member: TeamMember, number: Int?) {
         val teamId = currentTeamId() ?: return
         viewModelScope.launch {

@@ -21,7 +21,7 @@ android {
 
         // Полный API-префикс зашит в base URL: прод идёт через nginx (/api/ -> /api/abik/),
         // локальный сервер — напрямую в context-path /api/abik (см. application-prod.yml).
-        buildConfigField "String", "DEFAULT_BASE_URL", '"https://varamy.online/api/abik/"'
+        buildConfigField "String", "DEFAULT_BASE_URL", '"https://varamy.online/api/"'
         buildConfigField "String", "LOCAL_BASE_URL", '"http://192.168.0.119:8083/api/abik/"'
     }
 
@@ -80,6 +80,7 @@ dependencies {
 
     implementation platform('com.google.firebase:firebase-bom:34.11.0')
     implementation 'com.google.firebase:firebase-messaging'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1'
 
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.2'
 }

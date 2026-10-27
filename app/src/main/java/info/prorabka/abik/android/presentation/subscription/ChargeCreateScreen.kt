@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,25 +44,29 @@ import info.prorabka.abik.android.core.ui.components.AbikButton
 import info.prorabka.abik.android.core.ui.components.AbikTextField
 import info.prorabka.abik.android.core.ui.components.ErrorText
 import info.prorabka.abik.android.core.ui.components.LoadingBox
+import info.prorabka.abik.android.core.ui.theme.Danger
+import info.prorabka.abik.android.core.util.kopecksToRublesExact
 import java.time.format.DateTimeFormatter
 
-/** Создание разового начисления: назначение, сумма, дата, примечание, участники. */
+/** Создание/редактирование разового начисления: назначение, сумма, дата, примечание, участники. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChargeCreateScreen(
     preselectUserId: Long,
+    chargeId: Long = -1L,
     onDone: () -> Unit,
     onBack: () -> Unit,
     viewModel: ChargeCreateViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    LaunchedEffect(preselectUserId) { viewModel.load(preselectUserId) }
+    LaunchedEffect(preselectUserId, chargeId) { viewModel.load(preselectUserId, chargeId) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Новое начисление") },
+                title = { Text(if (ui.isEdit) "Редактировать начисление" else "Новое начисление") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
@@ -95,8 +100,28 @@ fun ChargeCreateScreen(
                 value = ui.amountRubles,
                 onValueChange = viewModel::onAmount,
                 label = "Сумма (₽)",
-                keyboardType = KeyboardType.Number,
+                keyboardType = KeyboardType.Decimal,
             )
+            if (ui.isEdit) {
+                Text(
+                    buildString {
+                        append("Начисление участника: ${ui.chargeUserName}")
+                        if (ui.paidKopecks > 0) {
+                            append("\nУже оплачено: ${ui.paidKopecks.kopecksToRublesExact()} — меньше этой суммы указать нельзя")
+                        }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+                )
+            } else {
+                Text(
+                    "Сумма применяется к каждому выбранному участнику",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+                )
+            }
             Spacer(modifier = Modifier.height(12.dp))
 
             info.prorabka.abik.android.core.ui.components.DateField(
@@ -114,28 +139,36 @@ fun ChargeCreateScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "Участники (${ui.selectedUserIds.size})",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = viewModel::selectAll) { Text("Выбрать всех") }
-            }
-            Column(modifier = Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
-                ui.members.forEach { member ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Checkbox(
-                            checked = member.userId in ui.selectedUserIds,
-                            onCheckedChange = { viewModel.toggleMember(member.userId) },
-                        )
-                        Text(member.displayName, style = MaterialTheme.typography.bodyMedium)
+            if (!ui.isEdit) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Участники (${ui.selectedUserIds.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    val allSelected = ui.members.isNotEmpty() &&
+                        ui.selectedUserIds.containsAll(ui.members.map { it.userId })
+                    TextButton(onClick = viewModel::toggleSelectAll) {
+                        Text(if (allSelected) "Снять выбор" else "Выбрать всех")
+                    }
+                }
+                Column(
+                    modifier = Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState()),
+                ) {
+                    ui.members.forEach { member ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Checkbox(
+                                checked = member.userId in ui.selectedUserIds,
+                                onCheckedChange = { viewModel.toggleMember(member.userId) },
+                            )
+                            Text(member.displayName, style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
                 }
             }
@@ -143,12 +176,40 @@ fun ChargeCreateScreen(
             ErrorText(ui.error)
             Spacer(modifier = Modifier.height(16.dp))
             AbikButton(
-                text = "Создать начисление",
+                text = if (ui.isEdit) "Сохранить" else "Создать начисление",
                 onClick = { viewModel.save(onDone) },
                 loading = ui.saving,
             )
+            if (ui.isEdit) {
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    onClick = { showDeleteConfirm = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Удалить начисление", color = Danger)
+                }
+            }
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Удалить начисление") },
+            text = {
+                Text("Начисление будет удалено безвозвратно. Если по нему были оплаты — используйте «Отменить» на экране участника.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    viewModel.delete(onDone)
+                }) { Text("Удалить", color = Danger) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Назад") }
+            },
+        )
     }
 }
 

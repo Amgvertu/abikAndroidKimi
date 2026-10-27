@@ -21,6 +21,8 @@ import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -47,6 +49,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -58,6 +61,7 @@ import info.prorabka.abik.android.core.ui.components.EmptyState
 import info.prorabka.abik.android.core.ui.theme.Danger
 import info.prorabka.abik.android.core.ui.theme.Success
 import info.prorabka.abik.android.core.util.kopecksToRubles
+import info.prorabka.abik.android.presentation.events.EventsScreen
 import info.prorabka.abik.android.presentation.home.HomeScreen
 import info.prorabka.abik.android.presentation.navigation.Routes
 import info.prorabka.abik.android.presentation.profile.ProfileScreen
@@ -84,6 +88,13 @@ fun MainShell(
     val currentRoute = backStackEntry?.destination?.route
     val ui by viewModel.ui.collectAsState()
 
+    // Возврат с форм (платёж/начисление/профиль) — обновить балансы и бейдж
+    LifecycleResumeEffect(Unit) {
+        viewModel.refresh()
+        viewModel.refreshUnreadCount()
+        onPauseOrDispose { }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -97,7 +108,15 @@ fun MainShell(
                 actions = {
                     ui.myBalanceKopecks?.let { balance -> BalanceChip(balance) }
                     IconButton(onClick = { rootNavController.navigate(Routes.NOTIFICATIONS) }) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Уведомления")
+                        BadgedBox(
+                            badge = {
+                                if (ui.unreadNotifications > 0) {
+                                    Badge { Text(ui.unreadNotifications.toString()) }
+                                }
+                            },
+                        ) {
+                            Icon(Icons.Default.Notifications, contentDescription = "Уведомления")
+                        }
                     }
                     ShellMenu(
                         onReports = { rootNavController.navigate(Routes.REPORTS) },
@@ -172,9 +191,13 @@ fun MainShell(
                 )
             }
             composable(MainTab.GAMES.route) {
-                Box(Modifier.fillMaxSize()) {
-                    EmptyState("Игры появятся после расширения бэкенда")
-                }
+                EventsScreen(
+                    onEventClick = { eventId ->
+                        rootNavController.navigate(Routes.eventDetails(eventId))
+                    },
+                    onCreate = { rootNavController.navigate(Routes.eventForm()) },
+                    onCreateTeam = { rootNavController.navigate(Routes.ONBOARDING_TEAM) },
+                )
             }
             composable(MainTab.TEAM.route) {
                 TeamScreen(
@@ -182,6 +205,7 @@ fun MainShell(
                         rootNavController.navigate(Routes.memberDetails(userId))
                     },
                     onCreateTeam = { rootNavController.navigate(Routes.ONBOARDING_TEAM) },
+                    onRoster = { rootNavController.navigate(Routes.ROSTER) },
                 )
             }
             composable(MainTab.PROFILE.route) {

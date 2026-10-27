@@ -13,11 +13,15 @@ import info.prorabka.abik.android.data.api.AdminApi
 import info.prorabka.abik.android.data.api.AuthApi
 import info.prorabka.abik.android.data.api.BalanceApi
 import info.prorabka.abik.android.data.api.ChargeApi
+import info.prorabka.abik.android.data.api.DeviceApi
+import info.prorabka.abik.android.data.api.EventApi
 import info.prorabka.abik.android.data.api.FileApi
 import info.prorabka.abik.android.data.api.GeoApi
 import info.prorabka.abik.android.data.api.InvitationApi
+import info.prorabka.abik.android.data.api.NotificationApi
 import info.prorabka.abik.android.data.api.PaymentApi
 import info.prorabka.abik.android.data.api.ReportApi
+import info.prorabka.abik.android.data.api.RosterApi
 import info.prorabka.abik.android.data.api.TeamApi
 import info.prorabka.abik.android.data.api.UserApi
 import kotlinx.serialization.json.Json
@@ -89,6 +93,14 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideRosterApi(retrofit: Retrofit): RosterApi = retrofit.create(RosterApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideEventApi(retrofit: Retrofit): EventApi = retrofit.create(EventApi::class.java)
+
+    @Provides
+    @Singleton
     fun provideInvitationApi(retrofit: Retrofit): InvitationApi =
         retrofit.create(InvitationApi::class.java)
 
@@ -115,4 +127,13 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideFileApi(retrofit: Retrofit): FileApi = retrofit.create(FileApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideNotificationApi(retrofit: Retrofit): NotificationApi =
+        retrofit.create(NotificationApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideDeviceApi(retrofit: Retrofit): DeviceApi = retrofit.create(DeviceApi::class.java)
 }

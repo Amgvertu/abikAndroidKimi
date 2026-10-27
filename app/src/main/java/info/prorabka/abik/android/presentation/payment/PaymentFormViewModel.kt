@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
+import info.prorabka.abik.android.core.util.filterMoneyInput
+import info.prorabka.abik.android.core.util.kopecksToInput
+import info.prorabka.abik.android.core.util.parseMoneyToKopecks
 import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.model.TeamMember
 import info.prorabka.abik.android.domain.repository.FinanceRepository
@@ -34,11 +37,23 @@ class PaymentFormViewModel @Inject constructor(
         val error: String? = null,
         val members: List<TeamMember> = emptyList(),
         val selectedMember: TeamMember? = null,
+        /** Плательщик из загруженного платежа (id + имя), даже если он исключён из команды. */
+        val payerUserId: Long? = null,
+        val payerNameFallback: String? = null,
         val amountRubles: String = "",
         val paidAt: LocalDate = LocalDate.now(),
         val note: String = "",
         val editPaymentId: Long? = null,
-    )
+    ) {
+        /** Плательщик известен, но его нет среди активных участников (исключён). */
+        val payerExcluded: Boolean
+            get() = payerUserId != null && members.none { it.userId == payerUserId }
+
+        val payerDisplayName: String
+            get() = selectedMember?.displayName
+                ?: payerNameFallback?.let { "$it (исключён из команды)" }
+                ?: ""
+    }
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
@@ -52,10 +67,12 @@ class PaymentFormViewModel @Inject constructor(
                 is ApiResult.Success -> {
                     val active = m.data.filter { it.status == MemberStatus.ACTIVE }
                     _ui.update { state ->
+                        val preselected = active.firstOrNull { it.userId == preselectUserId }
                         state.copy(
                             members = active,
-                            selectedMember = active.firstOrNull { it.userId == preselectUserId }
-                                ?: state.selectedMember,
+                            selectedMember = preselected ?: state.selectedMember,
+                            // предвыбор должен засчитываться как выбранный плательщик
+                            payerUserId = preselected?.userId ?: state.payerUserId,
                         )
                     }
                 }
@@ -63,54 +80,60 @@ class PaymentFormViewModel @Inject constructor(
                 is ApiResult.NetworkError -> _ui.update { it.copy(error = "Нет соединения с сервером") }
             }
             if (paymentId > 0) {
-                when (val p = financeRepository.payments(teamId)) {
+                // AND-02: платёж грузим по ID отдельным запросом, а не поиском в общем списке
+                when (val p = financeRepository.paymentById(teamId, paymentId)) {
                     is ApiResult.Success -> {
-                        val payment = p.data.firstOrNull { it.id == paymentId }
-                        if (payment != null) {
-                            _ui.update { state ->
-                                state.copy(
-                                    amountRubles = (payment.amountKopecks / 100).toString(),
-                                    note = payment.description.orEmpty(),
-                                    paidAt = payment.paidAt
-                                        ?.take(10)
-                                        ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-                                        ?: LocalDate.now(),
-                                    selectedMember = state.members.firstOrNull {
-                                        it.userId == payment.userId
-                                    } ?: state.selectedMember,
-                                )
-                            }
+                        val payment = p.data
+                        _ui.update { state ->
+                            state.copy(
+                                amountRubles = payment.amountKopecks.kopecksToInput(),
+                                note = payment.description.orEmpty(),
+                                paidAt = payment.paidAt
+                                    ?.take(10)
+                                    ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                                    ?: LocalDate.now(),
+                                payerUserId = payment.userId,
+                                payerNameFallback = payment.userName.ifBlank { null },
+                                selectedMember = state.members.firstOrNull {
+                                    it.userId == payment.userId
+                                } ?: state.selectedMember,
+                            )
                         }
                     }
-                    else -> Unit
+                    is ApiResult.HttpError -> _ui.update { it.copy(error = p.message) }
+                    is ApiResult.NetworkError -> _ui.update {
+                        it.copy(error = "Нет соединения с сервером")
+                    }
                 }
             }
             _ui.update { it.copy(loading = false) }
         }
     }
 
-    fun selectMember(member: TeamMember) = _ui.update { it.copy(selectedMember = member) }
-    fun onAmount(v: String) = _ui.update { it.copy(amountRubles = v.filter(Char::isDigit).take(9)) }
+    fun selectMember(member: TeamMember) = _ui.update {
+        it.copy(selectedMember = member, payerUserId = member.userId, payerNameFallback = null)
+    }
+    fun onAmount(v: String) = _ui.update { it.copy(amountRubles = v.filterMoneyInput()) }
     fun onPaidAt(v: LocalDate) = _ui.update { it.copy(paidAt = v) }
     fun onNote(v: String) = _ui.update { it.copy(note = v.take(500)) }
 
     fun save(onDone: () -> Unit) {
         val s = _ui.value
         val teamId = teamManager.selected.value?.id ?: return
-        val amountRubles = s.amountRubles.toLongOrNull()
+        val kopecks = s.amountRubles.parseMoneyToKopecks()
+        val payerId = s.payerUserId
         when {
-            s.selectedMember == null -> _ui.update { it.copy(error = "Выберите, кто внёс платёж") }
-            amountRubles == null || amountRubles <= 0 ->
+            payerId == null -> _ui.update { it.copy(error = "Выберите, кто внёс платёж") }
+            kopecks == null || kopecks <= 0 ->
                 _ui.update { it.copy(error = "Укажите сумму в рублях") }
             else -> viewModelScope.launch {
                 _ui.update { it.copy(saving = true, error = null) }
-                val kopecks = amountRubles * 100
                 val paidAtIso = s.paidAt.format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val result = if (s.editPaymentId != null) {
                     financeRepository.updatePayment(
                         teamId = teamId,
-                        paymentId = s.editPaymentId!!,
-                        userId = s.selectedMember!!.userId,
+                        paymentId = s.editPaymentId,
+                        userId = payerId,
                         amountKopecks = kopecks,
                         paidAtIso = paidAtIso,
                         description = s.note.ifBlank { null },
@@ -118,7 +141,7 @@ class PaymentFormViewModel @Inject constructor(
                 } else {
                     financeRepository.createPayment(
                         teamId = teamId,
-                        userId = s.selectedMember!!.userId,
+                        userId = payerId,
                         amountKopecks = kopecks,
                         paidAtIso = paidAtIso,
                         description = s.note.ifBlank { null },

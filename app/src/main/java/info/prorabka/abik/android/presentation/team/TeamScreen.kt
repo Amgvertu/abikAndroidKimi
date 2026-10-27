@@ -3,9 +3,7 @@ package info.prorabka.abik.android.presentation.team
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -55,18 +54,20 @@ import info.prorabka.abik.android.domain.model.TeamMember
 
 /**
  * Экран «Команда»: информация о команде, список участников.
- * Управляющие: приглашение, долгий тап на игрока — контекстное меню,
- * долгий тап на логотип — изменить логотип.
+ * Управляющие: приглашение, редактирование команды, долгий тап на игрока —
+ * контекстное меню, долгий тап на логотип — изменить логотип.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TeamScreen(
     onMemberClick: (Long) -> Unit,
     onCreateTeam: () -> Unit,
+    onRoster: () -> Unit,
     viewModel: TeamViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
     var showInviteDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
     var jerseyDialogMember by remember { mutableStateOf<TeamMember?>(null) }
 
     if (ui.loading && ui.detail == null && !ui.noTeam) {
@@ -129,11 +130,27 @@ fun TeamScreen(
                     )
                 }
                 if (ui.isManager) {
+                    IconButton(onClick = { showEditDialog = true }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Редактировать команду")
+                    }
                     IconButton(onClick = { showInviteDialog = true }) {
                         Icon(Icons.Default.PersonAdd, contentDescription = "Пригласить игрока")
                     }
                 }
             }
+            ui.detail?.description?.takeIf { it.isNotBlank() }?.let { description ->
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                )
+            }
+        }
+
+        // --- Переход к составу регулярки ---
+        TextButton(onClick = onRoster, modifier = Modifier.fillMaxWidth()) {
+            Text("Состав регулярки")
         }
 
         ui.info?.let {
@@ -181,6 +198,21 @@ fun TeamScreen(
         )
     }
 
+    if (showEditDialog) {
+        ui.detail?.let { detail ->
+            TeamEditDialog(
+                name = detail.name,
+                description = detail.description.orEmpty(),
+                season = detail.season.orEmpty(),
+                onDismiss = { showEditDialog = false },
+                onSave = { name, description, season ->
+                    viewModel.updateTeam(name, description, season)
+                    showEditDialog = false
+                },
+            )
+        }
+    }
+
     jerseyDialogMember?.let { member ->
         JerseyNumberDialog(
             member = member,
@@ -211,6 +243,7 @@ private fun MemberRow(
     var menuExpanded by remember { mutableStateOf(false) }
 
     Box {
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -233,6 +266,7 @@ private fun MemberRow(
                 Text(
                     buildString {
                         append(member.role.display)
+                        if (member.isTrainer) append(" • Тренер")
                         if (member.status != MemberStatus.ACTIVE) {
                             append(" • ${member.status.display}")
                         }
@@ -325,91 +359,52 @@ private fun InviteDialog(onDismiss: () -> Unit, onInvite: (String) -> Unit) {
     )
 }
 
-/** Таблица свободных и занятых номеров (1–99) по ТЗ v3. */
+/** Редактирование названия, описания и сезона команды (управляющие). */
 @Composable
-private fun JerseyNumberDialog(
-    member: TeamMember,
-    taken: Map<Int, String>,
+private fun TeamEditDialog(
+    name: String,
+    description: String,
+    season: String,
     onDismiss: () -> Unit,
-    onSelect: (Int?) -> Unit,
+    onSave: (name: String, description: String, season: String) -> Unit,
 ) {
-    var confirmFree by remember { mutableStateOf<Int?>(null) }
-    var busyInfo by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    var nameValue by remember { mutableStateOf(name) }
+    var descriptionValue by remember { mutableStateOf(description) }
+    var seasonValue by remember { mutableStateOf(season) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Номер: ${member.displayName}") },
+        title = { Text("Редактировать команду") },
         text = {
             Column {
-                Text(
-                    "Текущий: ${member.jerseyNumber ?: "не назначен"}",
-                    style = MaterialTheme.typography.bodySmall,
+                AbikTextField(
+                    value = nameValue,
+                    onValueChange = { nameValue = it },
+                    label = "Название",
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                LazyColumn(modifier = Modifier.height(280.dp)) {
-                    items((1..99).toList().chunked(6)) { rowNumbers ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                        ) {
-                            rowNumbers.forEach { number ->
-                                val isTaken = number in taken
-                                Text(
-                                    text = number.toString(),
-                                    modifier = Modifier
-                                        .padding(6.dp)
-                                        .clickable {
-                                            if (isTaken) {
-                                                busyInfo = number to taken.getValue(number)
-                                            } else {
-                                                confirmFree = number
-                                            }
-                                        },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = when {
-                                        isTaken -> MaterialTheme.colorScheme.onSurfaceVariant
-                                        else -> MaterialTheme.colorScheme.primary
-                                    },
-                                    fontWeight = if (isTaken) FontWeight.Normal else FontWeight.Bold,
-                                )
-                            }
-                        }
-                    }
-                }
-                if (member.jerseyNumber != null) {
-                    TextButton(onClick = { onSelect(null) }) {
-                        Text("Снять номер", color = MaterialTheme.colorScheme.error)
-                    }
-                }
+                AbikTextField(
+                    value = seasonValue,
+                    onValueChange = { seasonValue = it },
+                    label = "Сезон (например, 2026/27)",
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AbikTextField(
+                    value = descriptionValue,
+                    onValueChange = { descriptionValue = it },
+                    label = "Описание",
+                    singleLine = false,
+                )
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Закрыть") }
+            TextButton(
+                onClick = { onSave(nameValue, descriptionValue, seasonValue) },
+                enabled = nameValue.isNotBlank(),
+            ) { Text("Сохранить") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Отмена") }
         },
     )
-
-    confirmFree?.let { number ->
-        AlertDialog(
-            onDismissRequest = { confirmFree = null },
-            title = { Text("Назначить номер $number?") },
-            text = { Text(member.displayName) },
-            confirmButton = {
-                TextButton(onClick = { onSelect(number) }) { Text("Назначить") }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmFree = null }) { Text("Отмена") }
-            },
-        )
-    }
-
-    busyInfo?.let { (number, owner) ->
-        AlertDialog(
-            onDismissRequest = { busyInfo = null },
-            title = { Text("Номер $number занят") },
-            text = { Text("Сейчас под ним: $owner") },
-            confirmButton = {
-                TextButton(onClick = { busyInfo = null }) { Text("Понятно") }
-            },
-        )
-    }
 }

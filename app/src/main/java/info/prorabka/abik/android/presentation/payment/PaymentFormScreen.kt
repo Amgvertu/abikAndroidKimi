@@ -88,7 +88,7 @@ fun PaymentFormScreen(
                 value = ui.amountRubles,
                 onValueChange = viewModel::onAmount,
                 label = "Сумма (₽)",
-                keyboardType = KeyboardType.Number,
+                keyboardType = KeyboardType.Decimal,
             )
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -134,16 +134,24 @@ private fun MemberDropdown(
     viewModel: PaymentFormViewModel,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+    // Плательщик исключён из команды — показываем его имя, менять нельзя
+    val enabled = !ui.payerExcluded
+    ExposedDropdownMenuBox(
+        expanded = expanded && enabled,
+        onExpandedChange = { if (enabled) expanded = it },
+    ) {
         OutlinedTextField(
-            value = ui.selectedMember?.displayName ?: "",
+            value = ui.payerDisplayName,
             onValueChange = {},
             readOnly = true,
+            enabled = enabled,
             label = { Text("Кто внёс") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            trailingIcon = {
+                if (enabled) ExposedDropdownMenuDefaults.TrailingIcon(expanded)
+            },
             modifier = Modifier.fillMaxWidth().menuAnchor(),
         )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        ExposedDropdownMenu(expanded = expanded && enabled, onDismissRequest = { expanded = false }) {
             ui.members.forEach { member ->
                 DropdownMenuItem(
                     text = { Text(member.displayName) },

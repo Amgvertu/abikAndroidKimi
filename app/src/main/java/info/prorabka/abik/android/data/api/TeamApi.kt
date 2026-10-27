@@ -2,8 +2,10 @@ package info.prorabka.abik.android.data.api
 
 import info.prorabka.abik.android.data.dto.InvitationDto
 import info.prorabka.abik.android.data.dto.InviteRequestDto
+import info.prorabka.abik.android.data.dto.MemberDetailsDto
 import info.prorabka.abik.android.data.dto.MessageResponse
 import info.prorabka.abik.android.data.dto.SetJerseyNumberRequestDto
+import info.prorabka.abik.android.data.dto.SetTrainerRequestDto
 import info.prorabka.abik.android.data.dto.TeamCreateRequestDto
 import info.prorabka.abik.android.data.dto.TeamDetailDto
 import info.prorabka.abik.android.data.dto.TeamDto
@@ -46,6 +48,12 @@ interface TeamApi {
     @GET("v1/teams/{teamId}/members")
     suspend fun members(@Path("teamId") teamId: Long): List<TeamMemberDto>
 
+    @GET("v1/teams/{teamId}/members/{targetUserId}")
+    suspend fun memberDetails(
+        @Path("teamId") teamId: Long,
+        @Path("targetUserId") targetUserId: Long,
+    ): MemberDetailsDto
+
     @PUT("v1/teams/{teamId}/members/{targetUserId}/role")
     suspend fun changeRole(
         @Path("teamId") teamId: Long,
@@ -58,6 +66,13 @@ interface TeamApi {
         @Path("teamId") teamId: Long,
         @Path("targetUserId") targetUserId: Long,
         @Body body: SetJerseyNumberRequestDto,
+    ): TeamMemberDto
+
+    @PUT("v1/teams/{teamId}/members/{targetUserId}/trainer")
+    suspend fun setTrainer(
+        @Path("teamId") teamId: Long,
+        @Path("targetUserId") targetUserId: Long,
+        @Body body: SetTrainerRequestDto,
     ): TeamMemberDto
 
     @DELETE("v1/teams/{teamId}/members/{targetUserId}")

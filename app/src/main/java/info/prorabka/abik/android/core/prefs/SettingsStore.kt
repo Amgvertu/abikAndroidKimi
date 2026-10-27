@@ -24,8 +24,8 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 class SettingsStore @Inject constructor(@ApplicationContext private val context: Context) {
 
     private val keyTheme = stringPreferencesKey("theme_mode")
-    // v2: старое значение без префикса пути (/api/abik) больше невалидно
-    private val keyBaseUrl = stringPreferencesKey("base_url_override_v2")
+    // v3: значения v1/v2 могли сохраниться без префикса пути (/api/abik) — не читаем их
+    private val keyBaseUrl = stringPreferencesKey("base_url_override_v3")
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
         prefs[keyTheme]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM

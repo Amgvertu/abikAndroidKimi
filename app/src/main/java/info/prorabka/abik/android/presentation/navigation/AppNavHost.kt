@@ -16,6 +16,8 @@ import info.prorabka.abik.android.presentation.admin.AdminScreen
 import info.prorabka.abik.android.presentation.auth.ForgotPasswordScreen
 import info.prorabka.abik.android.presentation.auth.LoginScreen
 import info.prorabka.abik.android.presentation.auth.RegisterScreen
+import info.prorabka.abik.android.presentation.events.EventDetailsScreen
+import info.prorabka.abik.android.presentation.events.EventFormScreen
 import info.prorabka.abik.android.presentation.notifications.NotificationsScreen
 import info.prorabka.abik.android.presentation.onboarding.OnboardingProfileScreen
 import info.prorabka.abik.android.presentation.onboarding.OnboardingTeamScreen
@@ -23,6 +25,7 @@ import info.prorabka.abik.android.presentation.onboarding.ProfileFormScreen
 import info.prorabka.abik.android.presentation.payment.PaymentFormScreen
 import info.prorabka.abik.android.presentation.profile.ChangePhoneScreen
 import info.prorabka.abik.android.presentation.reports.ReportsScreen
+import info.prorabka.abik.android.presentation.roster.RosterScreen
 import info.prorabka.abik.android.presentation.shell.MainShell
 import info.prorabka.abik.android.presentation.splash.SplashScreen
 import info.prorabka.abik.android.presentation.subscription.ChargeCreateScreen
@@ -125,6 +128,32 @@ fun AppNavHost(
                 onBack = { navController.popBackStack() },
             )
         }
+        composable(Routes.ROSTER) {
+            RosterScreen(
+                onBack = { navController.popBackStack() },
+                onCreateTeam = { navController.navigate(Routes.ONBOARDING_TEAM) },
+            )
+        }
+        composable(
+            route = Routes.EVENT_DETAILS,
+            arguments = listOf(navArgument("eventId") { type = NavType.LongType }),
+        ) {
+            EventDetailsScreen(
+                onBack = { navController.popBackStack() },
+                onEdit = { eventId -> navController.navigate(Routes.eventForm(eventId)) },
+            )
+        }
+        composable(
+            route = Routes.EVENT_FORM,
+            arguments = listOf(
+                navArgument("eventId") {
+                    type = NavType.LongType
+                    defaultValue = -1L
+                },
+            ),
+        ) {
+            EventFormScreen(onBack = { navController.popBackStack() })
+        }
         composable(
             route = Routes.MEMBER_FINANCE,
             arguments = listOf(navArgument("userId") { type = NavType.LongType }),
@@ -135,6 +164,9 @@ fun AppNavHost(
                 onEditPayment = { paymentId ->
                     navController.navigate(Routes.paymentForm(paymentId = paymentId))
                 },
+                onEditCharge = { chargeId ->
+                    navController.navigate(Routes.chargeCreate(chargeId = chargeId))
+                },
             )
         }
         composable(Routes.CHARGE_CREATE,
@@ -143,10 +175,15 @@ fun AppNavHost(
                     type = NavType.LongType
                     defaultValue = -1L
                 },
+                navArgument("chargeId") {
+                    type = NavType.LongType
+                    defaultValue = -1L
+                },
             ),
         ) { entry ->
             ChargeCreateScreen(
                 preselectUserId = entry.arguments?.getLong("userId") ?: -1L,
+                chargeId = entry.arguments?.getLong("chargeId") ?: -1L,
                 onDone = { navController.popBackStack() },
                 onBack = { navController.popBackStack() },
             )

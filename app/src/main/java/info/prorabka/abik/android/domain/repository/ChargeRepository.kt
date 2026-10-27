@@ -29,6 +29,20 @@ interface ChargeRepository {
 
     suspend fun cancel(teamId: Long, chargeId: Long, reason: String): ApiResult<Unit>
 
+    suspend fun chargeById(teamId: Long, chargeId: Long): ApiResult<Charge>
+
+    suspend fun updateCharge(
+        teamId: Long,
+        chargeId: Long,
+        groupId: Long,
+        subgroupId: Long?,
+        amountKopecks: Long,
+        description: String?,
+        dueDateIso: String,
+    ): ApiResult<Unit>
+
+    suspend fun deleteCharge(teamId: Long, chargeId: Long): ApiResult<Unit>
+
     suspend fun groups(teamId: Long): ApiResult<List<ChargeGroup>>
     suspend fun createGroup(teamId: Long, name: String): ApiResult<ChargeGroup>
     suspend fun subgroups(teamId: Long, groupId: Long): ApiResult<List<ChargeSubgroup>>

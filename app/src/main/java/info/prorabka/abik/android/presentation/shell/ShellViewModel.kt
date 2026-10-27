@@ -10,17 +10,21 @@ import info.prorabka.abik.android.core.prefs.TokenStore
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.Team
 import info.prorabka.abik.android.domain.repository.AuthRepository
+import info.prorabka.abik.android.domain.repository.DeviceRepository
 import info.prorabka.abik.android.domain.repository.FinanceRepository
+import info.prorabka.abik.android.domain.repository.NotificationRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
  * Состояние главной оболочки: команды, выбранная команда,
- * моя роль и мой баланс для тулбара.
+ * моя роль, мой баланс и счётчик непрочитанных уведомлений для тулбара.
  */
 @HiltViewModel
 class ShellViewModel @Inject constructor(
@@ -28,6 +32,8 @@ class ShellViewModel @Inject constructor(
     private val teamRepository: TeamRepository,
     private val financeRepository: FinanceRepository,
     private val authRepository: AuthRepository,
+    private val notificationRepository: NotificationRepository,
+    private val deviceRepository: DeviceRepository,
     private val tokenStore: TokenStore,
     private val urlResolver: UrlResolver,
 ) : ViewModel() {
@@ -41,6 +47,7 @@ class ShellViewModel @Inject constructor(
         val myRole: MemberRole? = null,
         val myBalanceKopecks: Long? = null,
         val teamBalanceKopecks: Long? = null,
+        val unreadNotifications: Int = 0,
         val loading: Boolean = true,
     ) {
         val isManager: Boolean
@@ -63,12 +70,43 @@ class ShellViewModel @Inject constructor(
             }
         }
         refresh()
+        registerDevice()
+        startUnreadPolling()
+    }
+
+    /** Регистрируем FCM-токен на сервере (fire-and-forget). */
+    private fun registerDevice() {
+        viewModelScope.launch { deviceRepository.registerCurrentDevice() }
+    }
+
+    /** Опрашиваем счётчик непрочитанных, чтобы бейдж на колокольчике был актуален. */
+    private fun startUnreadPolling() {
+        viewModelScope.launch {
+            while (isActive) {
+                refreshUnreadCount()
+                delay(UNREAD_POLL_INTERVAL_MS)
+            }
+        }
+    }
+
+    fun refreshUnreadCount() {
+        viewModelScope.launch {
+            when (val result = notificationRepository.unreadCount()) {
+                is ApiResult.Success -> _ui.update { it.copy(unreadNotifications = result.data) }
+                else -> Unit
+            }
+        }
+    }
+
+    private companion object {
+        const val UNREAD_POLL_INTERVAL_MS = 30_000L
     }
 
     fun refresh() {
         viewModelScope.launch {
             _ui.update { it.copy(loading = true) }
             teamManager.refresh()
+            teamManager.selected.value?.let { loadTeamData(it.id) }
             _ui.update { it.copy(loading = false) }
         }
     }

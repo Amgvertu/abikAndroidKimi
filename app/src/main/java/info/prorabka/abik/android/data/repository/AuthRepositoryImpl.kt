@@ -12,6 +12,7 @@ import info.prorabka.abik.android.data.dto.PhoneRequest
 import info.prorabka.abik.android.data.dto.RegisterConfirmRequest
 import info.prorabka.abik.android.data.dto.RegisterStartRequest
 import info.prorabka.abik.android.domain.repository.AuthRepository
+import info.prorabka.abik.android.domain.repository.DeviceRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,6 +21,7 @@ class AuthRepositoryImpl @Inject constructor(
     private val api: AuthApi,
     private val tokenStore: TokenStore,
     private val sessionManager: SessionManager,
+    private val deviceRepository: DeviceRepository,
 ) : AuthRepository {
 
     companion object {
@@ -44,6 +46,7 @@ class AuthRepositoryImpl @Inject constructor(
                 response.tokens.refreshToken,
                 response.user.id,
             )
+            deviceRepository.registerCurrentDevice()
         }
 
     override suspend fun login(phone: String, password: String): ApiResult<Unit> = apiCall {
@@ -53,9 +56,12 @@ class AuthRepositoryImpl @Inject constructor(
             response.tokens.refreshToken,
             response.user.id,
         )
+        deviceRepository.registerCurrentDevice()
     }
 
     override suspend fun logout(): ApiResult<Unit> {
+        // Сначала отвязываем устройство, пока access-токен ещё действителен
+        deviceRepository.unregisterCurrentDevice()
         val refresh = tokenStore.refreshToken
         val result = if (refresh != null) {
             apiCall { api.logout(LogoutRequest(refresh)); Unit }

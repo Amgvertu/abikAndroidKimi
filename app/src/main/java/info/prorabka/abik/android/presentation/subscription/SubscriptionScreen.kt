@@ -33,11 +33,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
 import info.prorabka.abik.android.core.ui.theme.Danger
 import info.prorabka.abik.android.core.ui.theme.Success
-import info.prorabka.abik.android.core.util.kopecksToRubles
+import info.prorabka.abik.android.core.util.kopecksToRublesExact
 
 /**
  * Экран «Абонемент»: таблица участников с балансами.
@@ -56,6 +57,12 @@ fun SubscriptionScreen(
     if (ui.noTeam) {
         NoTeamPlaceholder(onCreateTeam)
         return
+    }
+
+    // Возврат с деталей участника / форм — перечитать балансы
+    LifecycleResumeEffect(Unit) {
+        viewModel.reload()
+        onPauseOrDispose { }
     }
 
     Scaffold(
@@ -130,7 +137,7 @@ private fun MemberBalanceRow(
                 )
             }
             Text(
-                text = row.balanceKopecks.kopecksToRubles(),
+                text = row.balanceKopecks.kopecksToRublesExact(),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = if (row.balanceKopecks < 0) Danger else Success,

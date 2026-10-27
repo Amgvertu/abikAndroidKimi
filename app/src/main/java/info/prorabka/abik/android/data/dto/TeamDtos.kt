@@ -41,6 +41,7 @@ data class TeamMemberDto(
     val role: String,
     val status: String,
     val jerseyNumber: Int? = null,
+    val isTrainer: Boolean = false,
     val joinedAt: String? = null,
 )
 
@@ -66,6 +67,22 @@ data class UpdateMemberRoleRequestDto(val role: String)
 
 @Serializable
 data class SetJerseyNumberRequestDto(val jerseyNumber: Int?)
+
+@Serializable
+data class SetTrainerRequestDto(val isTrainer: Boolean)
+
+/** BE-07: карточка участника команды (членство + профиль). */
+@Serializable
+data class MemberDetailsDto(
+    val userId: Long,
+    val phone: String? = null,
+    val role: String,
+    val membershipStatus: String,
+    val jerseyNumber: Int? = null,
+    val isTrainer: Boolean = false,
+    val joinedAt: String? = null,
+    val profile: UserProfileResponse? = null,
+)
 
 @Serializable
 data class TransferOwnershipRequestDto(val newOwnerUserId: Long)

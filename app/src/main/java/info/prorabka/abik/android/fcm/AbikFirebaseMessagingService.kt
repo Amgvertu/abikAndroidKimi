@@ -9,23 +9,43 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import dagger.hilt.android.AndroidEntryPoint
 import info.prorabka.abik.android.MainActivity
 import info.prorabka.abik.android.R
+import info.prorabka.abik.android.core.prefs.TokenStore
+import info.prorabka.abik.android.domain.repository.DeviceRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
- * Приём push-уведомлений FCM.
- * Регистрация токена на сервере — через DeviceApi (backend-api-extension.md, раздел 4);
- * пока endpoint не добавлен на сервер, токен просто сохраняется локально.
+ * Приём push-уведомлений FCM и регистрация токена устройства
+ * на сервере (POST /v1/devices).
  */
+@AndroidEntryPoint
 class AbikFirebaseMessagingService : FirebaseMessagingService() {
+
+    @Inject
+    lateinit var deviceRepository: DeviceRepository
+
+    @Inject
+    lateinit var tokenProvider: DeviceTokenProvider
+
+    @Inject
+    lateinit var tokenStore: TokenStore
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        // TODO: отправить на POST /api/v1/devices, когда endpoint появится на сервере
-        getSharedPreferences("fcm", Context.MODE_PRIVATE)
-            .edit()
-            .putString("pending_token", token)
-            .apply()
+        tokenProvider.savedToken = token
+        // Если пользователь залогинен — сразу перепривязываем токен на сервере;
+        // иначе регистрация произойдёт при следующем входе.
+        if (tokenStore.isLoggedIn) {
+            serviceScope.launch { deviceRepository.registerCurrentDevice() }
+        }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {

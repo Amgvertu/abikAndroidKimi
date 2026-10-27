@@ -43,7 +43,9 @@ class LoginViewModel @Inject constructor(
     }
 
     fun useLocalServer() {
-        viewModelScope.launch { settingsStore.setBaseUrlOverride(BuildConfig.LOCAL_BASE_URL) }
+        // Через геттер SettingsStore, а не константу BuildConfig — защита от
+        // инлайнинга константы компилятором (зашивался протухший URL).
+        viewModelScope.launch { settingsStore.setBaseUrlOverride(settingsStore.localBaseUrl) }
     }
 
     fun onPhoneChange(value: String) = _ui.update { it.copy(phone = value, error = null) }

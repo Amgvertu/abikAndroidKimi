@@ -9,6 +9,7 @@ import info.prorabka.abik.android.data.dto.ChargeSubgroupDto
 import info.prorabka.abik.android.data.dto.ChargeSubgroupRequestDto
 import info.prorabka.abik.android.data.dto.ChargeTemplateDto
 import info.prorabka.abik.android.data.dto.ChargeTemplateRequestDto
+import info.prorabka.abik.android.data.dto.ChargeUpdateRequestDto
 import info.prorabka.abik.android.data.dto.MessageResponse
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -49,6 +50,20 @@ interface ChargeApi {
         @Path("chargeId") chargeId: Long,
         @Body body: ChargeCancelRequestDto,
     ): ChargeDto
+
+    @PUT("v1/teams/{teamId}/charges/{chargeId}")
+    suspend fun update(
+        @Path("teamId") teamId: Long,
+        @Path("chargeId") chargeId: Long,
+        @Body body: ChargeUpdateRequestDto,
+    ): ChargeDto
+
+    // Сервер отвечает 204 без тела — тип Unit, чтобы Retrofit не парсил пустой ответ
+    @DELETE("v1/teams/{teamId}/charges/{chargeId}")
+    suspend fun delete(
+        @Path("teamId") teamId: Long,
+        @Path("chargeId") chargeId: Long,
+    )
 
     // --- Группы и подгруппы (автодополнение «Назначение») ---
 

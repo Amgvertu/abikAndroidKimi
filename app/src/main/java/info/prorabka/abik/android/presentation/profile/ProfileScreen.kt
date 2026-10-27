@@ -43,11 +43,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import coil.compose.AsyncImage
 import info.prorabka.abik.android.core.prefs.ThemeMode
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.util.isoDateToDisplay
 import info.prorabka.abik.android.core.util.phoneToDisplay
+import info.prorabka.abik.android.domain.model.Invitation
 
 /**
  * Вкладка «Профиль» нижнего меню: внутри две вкладки — «Профиль» и «Настройки».
@@ -62,6 +64,12 @@ fun ProfileScreen(
     val ui by viewModel.ui.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
+
+    // Синхронизация профиля: обновляем данные при возврате на экран
+    LifecycleResumeEffect(Unit) {
+        viewModel.load()
+        onPauseOrDispose { }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = tab) {
@@ -96,7 +104,7 @@ private fun ProfileTab(
     onEdit: () -> Unit,
     viewModel: ProfileViewModel,
 ) {
-    if (ui.loading) {
+    if (ui.loading && ui.profile == null) {
         LoadingBox()
         return
     }
@@ -214,12 +222,87 @@ private fun ProfileTab(
                             .joinToString(", ")
                             .ifBlank { "—" },
                     )
+                    if (!profile.jerseySize.isNullOrBlank()) {
+                        ProfileRow("Размер джерси", profile.jerseySize)
+                    }
+                    if (!profile.coversSize.isNullOrBlank()) {
+                        ProfileRow("Размер чехлов", profile.coversSize)
+                    }
+                    if (!profile.gaitersSize.isNullOrBlank()) {
+                        ProfileRow("Размер гамаш", profile.gaitersSize)
+                    }
                 }
             }
         }
 
+        // --- Входящие приглашения в команды (вне онбординга) ---
+        if (ui.invitations.isNotEmpty()) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Приглашения в команды",
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ui.invitations.forEach { invitation ->
+                        InvitationRow(
+                            invitation = invitation,
+                            enabled = !ui.invitationSaving,
+                            onAccept = { viewModel.acceptInvitation(invitation) },
+                            onDecline = { viewModel.declineInvitation(invitation) },
+                        )
+                    }
+                }
+            }
+        }
+
+        ui.info?.let {
+            Text(
+                it,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        ui.error?.let {
+            Text(
+                it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+
         TextButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
             Text("Редактировать профиль")
+        }
+    }
+}
+
+@Composable
+private fun InvitationRow(
+    invitation: Invitation,
+    enabled: Boolean,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(invitation.teamName, style = MaterialTheme.typography.bodyLarge)
+            invitation.expiresAt?.take(10)?.let { date ->
+                Text(
+                    "Действует до ${date.isoDateToDisplay()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        TextButton(onClick = onDecline, enabled = enabled) {
+            Text("Отклонить", color = MaterialTheme.colorScheme.error)
+        }
+        TextButton(onClick = onAccept, enabled = enabled) {
+            Text("Принять")
         }
     }
 }

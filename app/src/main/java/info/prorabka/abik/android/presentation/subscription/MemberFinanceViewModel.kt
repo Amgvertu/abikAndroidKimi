@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.domain.model.Charge
+import info.prorabka.abik.android.domain.model.ChargeStatus
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.Payment
 import info.prorabka.abik.android.domain.repository.ChargeRepository
@@ -34,7 +35,18 @@ class MemberFinanceViewModel @Inject constructor(
         val payments: List<Payment> = emptyList(),
         val isManager: Boolean = false,
         val error: String? = null,
-    )
+    ) {
+        /** Начисления, участвующие в долге (не отменённые и не архивные). */
+        private val effectiveCharges: List<Charge>
+            get() = charges.filter {
+                it.status != ChargeStatus.CANCELLED && it.status != ChargeStatus.ARCHIVED
+            }
+
+        /** Сводка: сколько начислено / сколько из этого оплачено / остаток к оплате. */
+        val chargedKopecks: Long get() = effectiveCharges.sumOf { it.amountKopecks }
+        val chargesPaidKopecks: Long get() = effectiveCharges.sumOf { it.paidKopecks }
+        val remainingKopecks: Long get() = effectiveCharges.sumOf { it.remainingKopecks }
+    }
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
@@ -70,14 +82,25 @@ class MemberFinanceViewModel @Inject constructor(
                 is ApiResult.Success -> _ui.update {
                     it.copy(charges = c.data.sortedByDescending { ch -> ch.createdAt })
                 }
-                else -> Unit
+                is ApiResult.HttpError -> _ui.update { it.copy(error = c.message) }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(error = "Нет соединения с сервером")
+                }
             }
             when (val p = financeRepository.payments(teamId, userId = userId)) {
                 is ApiResult.Success -> _ui.update {
-                    it.copy(payments = p.data.sortedByDescending { pm -> pm.createdAt })
+                    // AND-01: сортировка по дате внесения платежа (paidAt), новые сверху
+                    it.copy(
+                        payments = p.data.sortedByDescending { pm -> pm.paidAt ?: pm.createdAt },
+                    )
                 }
-                else -> Unit
+                is ApiResult.HttpError -> _ui.update { it.copy(error = p.message) }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(error = "Нет соединения с сервером")
+                }
             }
+            // Ошибка загрузки не должна выглядеть как пустой список:
+            // показываем баннер с ошибкой и кнопкой «Повторить»
             _ui.update { it.copy(loading = false) }
         }
     }
