@@ -31,6 +31,7 @@ object Routes {
         "payment_form?paymentId=$paymentId&userId=$userId"
     fun memberDetails(userId: Long) = "member/$userId"
     fun memberFinance(userId: Long) = "member_finance/$userId"
+    fun memberProfileEdit(userId: Long) = "member_profile_edit/$userId"
     fun eventDetails(eventId: Long) = "event_details/$eventId"
     fun eventForm(eventId: Long = -1L) = "event_form?eventId=$eventId"
     fun chargeCreate(userId: Long = -1L, chargeId: Long = -1L) =

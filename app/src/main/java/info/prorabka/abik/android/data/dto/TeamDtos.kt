@@ -42,6 +42,8 @@ data class TeamMemberDto(
     val status: String,
     val jerseyNumber: Int? = null,
     val isTrainer: Boolean = false,
+    val positions: Set<String> = emptySet(),
+    val avatarUrl: String? = null,
     val joinedAt: String? = null,
 )
 

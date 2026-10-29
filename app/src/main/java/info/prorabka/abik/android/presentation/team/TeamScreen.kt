@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -175,6 +176,7 @@ fun TeamScreen(
             items(ui.members, key = { it.userId }) { member ->
                 MemberRow(
                     member = member,
+                    avatarUrl = viewModel.resolveUrl(member.avatarUrl),
                     isManager = ui.isManager,
                     isOwner = ui.isOwner,
                     onClick = { onMemberClick(member.userId) },
@@ -232,6 +234,7 @@ fun TeamScreen(
 @Composable
 private fun MemberRow(
     member: TeamMember,
+    avatarUrl: String?,
     isManager: Boolean,
     isOwner: Boolean,
     onClick: () -> Unit,
@@ -261,11 +264,37 @@ private fun MemberRow(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(32.dp),
             )
+            if (avatarUrl != null) {
+                AsyncImage(
+                    model = avatarUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Icon(
+                    Icons.Default.AccountCircle,
+                    contentDescription = null,
+                    modifier = Modifier.size(36.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(member.displayName, style = MaterialTheme.typography.bodyLarge)
                 Text(
                     buildString {
                         append(member.role.display)
+                        if (member.positions.isNotEmpty()) {
+                            append(" • ")
+                            append(
+                                member.positions
+                                    .sortedBy { it.ordinal }
+                                    .joinToString("/") { it.display },
+                            )
+                        }
                         if (member.isTrainer) append(" • Тренер")
                         if (member.status != MemberStatus.ACTIVE) {
                             append(" • ${member.status.display}")

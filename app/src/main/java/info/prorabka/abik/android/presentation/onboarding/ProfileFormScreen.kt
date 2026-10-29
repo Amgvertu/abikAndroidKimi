@@ -57,11 +57,14 @@ fun ProfileFormScreen(
     prefill: Boolean,
     onDone: () -> Unit,
     onSkip: (() -> Unit)? = null,
+    memberUserId: Long? = null,
     viewModel: ProfileFormViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
 
-    LaunchedEffect(prefill) { viewModel.load(prefill) }
+    LaunchedEffect(prefill, memberUserId) {
+        if (memberUserId != null) viewModel.loadForMember(memberUserId) else viewModel.load(prefill)
+    }
 
     if (ui.loading) {
         LoadingBox()

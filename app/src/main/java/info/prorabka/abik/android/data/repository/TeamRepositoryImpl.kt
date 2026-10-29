@@ -11,10 +11,13 @@ import info.prorabka.abik.android.data.dto.TeamCreateRequestDto
 import info.prorabka.abik.android.data.dto.TeamDetailDto
 import info.prorabka.abik.android.data.dto.TransferOwnershipRequestDto
 import info.prorabka.abik.android.data.dto.UpdateMemberRoleRequestDto
+import info.prorabka.abik.android.data.dto.UserProfileRequest
 import info.prorabka.abik.android.domain.model.Invitation
 import info.prorabka.abik.android.domain.model.MemberDetails
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.MemberStatus
+import info.prorabka.abik.android.domain.model.Position
+import info.prorabka.abik.android.domain.model.ProfileFormData
 import info.prorabka.abik.android.domain.model.Team
 import info.prorabka.abik.android.domain.model.TeamCreateData
 import info.prorabka.abik.android.domain.model.TeamDetail
@@ -79,8 +82,39 @@ class TeamRepositoryImpl @Inject constructor(
                     .getOrDefault(MemberStatus.ACTIVE),
                 jerseyNumber = dto.jerseyNumber,
                 isTrainer = dto.isTrainer,
+                positions = dto.positions.mapNotNull { p ->
+                    runCatching { Position.valueOf(p) }.getOrNull()
+                }.toSet(),
+                avatarUrl = dto.avatarUrl,
             )
         }
+    }
+
+    override suspend fun updateMemberProfile(
+        teamId: Long,
+        userId: Long,
+        data: ProfileFormData,
+    ): ApiResult<Unit> = apiCall {
+        teamApi.updateMemberProfile(
+            teamId,
+            userId,
+            UserProfileRequest(
+                cityId = data.cityId,
+                lastName = data.lastName,
+                firstName = data.firstName,
+                middleName = data.middleName,
+                birthDate = data.birthDateIso,
+                heightCm = data.heightCm,
+                weightKg = data.weightKg,
+                stickHand = data.stickHand.name,
+                positions = data.positions.map { it.name }.toSet(),
+                jerseySize = data.jerseySize,
+                coversSize = data.coversSize,
+                gaitersSize = data.gaitersSize,
+                avatarUrl = data.avatarUrl,
+            ),
+        )
+        Unit
     }
 
     override suspend fun memberDetails(teamId: Long, userId: Long): ApiResult<MemberDetails> =

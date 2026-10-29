@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
+import info.prorabka.abik.android.core.network.UrlResolver
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.repository.FinanceRepository
@@ -20,6 +21,7 @@ class SubscriptionViewModel @Inject constructor(
     private val teamManager: CurrentTeamManager,
     private val teamRepository: TeamRepository,
     private val financeRepository: FinanceRepository,
+    private val urlResolver: UrlResolver,
 ) : ViewModel() {
 
     data class MemberBalance(
@@ -28,6 +30,7 @@ class SubscriptionViewModel @Inject constructor(
         val jerseyNumber: Int?,
         val balanceKopecks: Long,
         val status: MemberStatus,
+        val avatarUrl: String? = null,
     )
 
     data class UiState(
@@ -93,6 +96,7 @@ class SubscriptionViewModel @Inject constructor(
                                 jerseyNumber = m.jerseyNumber,
                                 balanceKopecks = balances[m.userId]?.amountKopecks ?: 0L,
                                 status = m.status,
+                                avatarUrl = urlResolver.resolve(m.avatarUrl),
                             )
                         },
                 )

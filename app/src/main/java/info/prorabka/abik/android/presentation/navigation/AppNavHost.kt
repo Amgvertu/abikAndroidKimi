@@ -10,6 +10,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.prefs.SessionManager
 import info.prorabka.abik.android.core.ui.components.EmptyState
 import info.prorabka.abik.android.presentation.admin.AdminScreen
@@ -38,10 +39,12 @@ import info.prorabka.abik.android.presentation.team.MemberDetailsScreen
 fun AppNavHost(
     navController: NavHostController,
     sessionManager: SessionManager,
+    teamManager: CurrentTeamManager,
 ) {
-    // Истёк refresh-токен — уходим на экран входа
+    // Истёк refresh-токен — чистим командные данные и уходим на экран входа
     LaunchedEffect(Unit) {
         sessionManager.sessionExpired.collect {
+            teamManager.clear()
             navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
         }
     }
@@ -126,6 +129,21 @@ fun AppNavHost(
             MemberDetailsScreen(
                 userId = entry.arguments?.getLong("userId") ?: 0L,
                 onBack = { navController.popBackStack() },
+                onEditProfile = { userId ->
+                    navController.navigate(Routes.memberProfileEdit(userId))
+                },
+            )
+        }
+        composable(
+            route = "member_profile_edit/{userId}",
+            arguments = listOf(navArgument("userId") { type = NavType.LongType }),
+        ) { entry ->
+            ProfileFormScreen(
+                title = "Профиль участника",
+                submitText = "Сохранить",
+                prefill = false,
+                memberUserId = entry.arguments?.getLong("userId") ?: 0L,
+                onDone = { navController.popBackStack() },
             )
         }
         composable(Routes.ROSTER) {

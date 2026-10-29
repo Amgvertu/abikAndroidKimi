@@ -12,6 +12,8 @@ import info.prorabka.abik.android.data.dto.TeamDto
 import info.prorabka.abik.android.data.dto.TeamMemberDto
 import info.prorabka.abik.android.data.dto.TransferOwnershipRequestDto
 import info.prorabka.abik.android.data.dto.UpdateMemberRoleRequestDto
+import info.prorabka.abik.android.data.dto.UserProfileRequest
+import info.prorabka.abik.android.data.dto.UserProfileResponse
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -74,6 +76,14 @@ interface TeamApi {
         @Path("targetUserId") targetUserId: Long,
         @Body body: SetTrainerRequestDto,
     ): TeamMemberDto
+
+    /** BE-15b: редактирование профиля участника управляющим. */
+    @PUT("v1/teams/{teamId}/members/{targetUserId}/profile")
+    suspend fun updateMemberProfile(
+        @Path("teamId") teamId: Long,
+        @Path("targetUserId") targetUserId: Long,
+        @Body body: UserProfileRequest,
+    ): UserProfileResponse
 
     @DELETE("v1/teams/{teamId}/members/{targetUserId}")
     suspend fun excludeMember(

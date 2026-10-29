@@ -7,10 +7,14 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.domain.model.EventDetail
+import info.prorabka.abik.android.domain.model.EventType
+import info.prorabka.abik.android.domain.model.LineupSlot
 import info.prorabka.abik.android.domain.model.MemberRole
+import info.prorabka.abik.android.domain.model.SweaterColor
 import info.prorabka.abik.android.domain.model.VoteAnswer
 import info.prorabka.abik.android.domain.repository.EventRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
+import info.prorabka.abik.android.domain.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -22,6 +26,7 @@ class EventDetailsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val eventRepository: EventRepository,
     private val teamRepository: TeamRepository,
+    private val userRepository: UserRepository,
     private val teamManager: CurrentTeamManager,
 ) : ViewModel() {
 
@@ -31,7 +36,12 @@ class EventDetailsViewModel @Inject constructor(
         val loading: Boolean = true,
         val event: EventDetail? = null,
         val myRole: MemberRole? = null,
+        val myIsTrainer: Boolean = false,
         val acting: Boolean = false,
+        val sweatersSaving: Boolean = false,
+        val lineupSaving: Boolean = false,
+        val sweatersSaved: Boolean = false,
+        val lineupSaved: Boolean = false,
         val deleted: Boolean = false,
         val error: String? = null,
         val info: String? = null,
@@ -43,6 +53,14 @@ class EventDetailsViewModel @Inject constructor(
 
         val isOwnerOrAdmin: Boolean
             get() = myRole == MemberRole.OWNER || myRole == MemberRole.ADMIN
+
+        /** Свитеры назначают владелец, админ или тренер; только на тренировках. */
+        val canEditSweaters: Boolean
+            get() = (isOwnerOrAdmin || myIsTrainer) && event?.type == EventType.TRAINING
+
+        /** Заявку меняют только владелец и админ; только на играх/матчах. */
+        val canEditLineup: Boolean
+            get() = isOwnerOrAdmin && event != null && event?.type != EventType.TRAINING
     }
 
     private val _ui = MutableStateFlow(UiState())
@@ -63,6 +81,7 @@ class EventDetailsViewModel @Inject constructor(
                 is ApiResult.Success -> _ui.update { it.copy(myRole = d.data.myRole) }
                 else -> Unit
             }
+            loadMyTrainerFlag(teamId)
             when (val r = eventRepository.detail(teamId, eventId)) {
                 is ApiResult.Success -> _ui.update { it.copy(loading = false, event = r.data) }
                 is ApiResult.HttpError -> _ui.update { it.copy(loading = false, error = r.message) }
@@ -71,6 +90,62 @@ class EventDetailsViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private suspend fun loadMyTrainerFlag(teamId: Long) {
+        val myId = (userRepository.me() as? ApiResult.Success)?.data?.id ?: return
+        val members = (teamRepository.members(teamId) as? ApiResult.Success)?.data ?: return
+        val me = members.firstOrNull { it.userId == myId } ?: return
+        _ui.update { it.copy(myIsTrainer = me.isTrainer) }
+    }
+
+    fun setSweaters(items: Map<Long, SweaterColor?>) {
+        val teamId = teamManager.selected.value?.id ?: return
+        viewModelScope.launch {
+            _ui.update { it.copy(sweatersSaving = true, error = null) }
+            when (val r = eventRepository.setSweaters(teamId, eventId, items)) {
+                is ApiResult.Success -> {
+                    _ui.update {
+                        it.copy(sweatersSaving = false, sweatersSaved = true,
+                            info = "Свитеры назначены")
+                    }
+                    load()
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(sweatersSaving = false, error = r.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(sweatersSaving = false, error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
+    fun setLineup(slots: List<LineupSlot>) {
+        val teamId = teamManager.selected.value?.id ?: return
+        viewModelScope.launch {
+            _ui.update { it.copy(lineupSaving = true, error = null) }
+            when (val r = eventRepository.setLineup(teamId, eventId, slots)) {
+                is ApiResult.Success -> {
+                    _ui.update {
+                        it.copy(lineupSaving = false, lineupSaved = true,
+                            info = "Заявка сохранена")
+                    }
+                    load()
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(lineupSaving = false, error = r.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(lineupSaving = false, error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
+    /** Сбросить флаги после закрытия диалогов свитеров/заявки. */
+    fun consumeActionFlags() = _ui.update {
+        it.copy(sweatersSaved = false, lineupSaved = false)
     }
 
     fun vote(answer: VoteAnswer) {

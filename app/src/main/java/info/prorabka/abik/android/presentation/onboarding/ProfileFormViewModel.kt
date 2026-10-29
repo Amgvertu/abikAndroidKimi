@@ -3,13 +3,17 @@ package info.prorabka.abik.android.presentation.onboarding
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.core.prefs.SettingsStore
 import info.prorabka.abik.android.domain.model.City
 import info.prorabka.abik.android.domain.model.Position
+import info.prorabka.abik.android.domain.model.Profile
+import info.prorabka.abik.android.domain.model.ProfileFormData
 import info.prorabka.abik.android.domain.model.Region
 import info.prorabka.abik.android.domain.model.StickHand
 import info.prorabka.abik.android.domain.repository.GeoRepository
+import info.prorabka.abik.android.domain.repository.TeamRepository
 import info.prorabka.abik.android.domain.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +32,12 @@ class ProfileFormViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val geoRepository: GeoRepository,
     private val settingsStore: SettingsStore,
+    private val teamRepository: TeamRepository,
+    private val teamManager: CurrentTeamManager,
 ) : ViewModel() {
+
+    /** Если задан — режим редактирования профиля участника команды (BE-15b). */
+    private var memberUserId: Long? = null
 
     data class UiState(
         val loading: Boolean = true,
@@ -66,36 +75,68 @@ class ProfileFormViewModel @Inject constructor(
                 }
             }
             if (prefill) {
-                when (val p = userRepository.myProfile()) {
+                prefillFrom(userRepository.myProfile())
+            }
+            _ui.update { it.copy(loading = false) }
+        }
+    }
+
+    /**
+     * BE-15b: режим редактирования профиля участника команды.
+     * Подставляет профиль участника (если он уже заполнен) в ту же форму.
+     */
+    fun loadForMember(userId: Long) {
+        memberUserId = userId
+        val teamId = teamManager.selected.value?.id
+        viewModelScope.launch {
+            _ui.update { it.copy(loading = true, error = null) }
+            when (val r = geoRepository.regions()) {
+                is ApiResult.Success -> _ui.update { it.copy(regions = r.data) }
+                is ApiResult.HttpError -> _ui.update { it.copy(error = r.message) }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(error = "Нет соединения с сервером")
+                }
+            }
+            if (teamId != null) {
+                when (val d = teamRepository.memberDetails(teamId, userId)) {
                     is ApiResult.Success -> {
-                        val profile = p.data
-                        _ui.update {
-                            it.copy(
-                                lastName = profile.lastName,
-                                firstName = profile.firstName,
-                                middleName = profile.middleName,
-                                birthDate = profile.birthDate,
-                                height = profile.heightCm.toString(),
-                                weight = profile.weightKg.toString(),
-                                stickHand = profile.stickHand,
-                                positions = profile.positions,
-                                jerseySize = profile.jerseySize.orEmpty(),
-                                coversSize = profile.coversSize.orEmpty(),
-                                gaitersSize = profile.gaitersSize.orEmpty(),
-                                avatarUrl = profile.avatarUrl,
-                            )
-                        }
-                        // Восстановить выбранные регион/город
-                        val region = _ui.value.regions.firstOrNull { it.id == profile.regionId }
-                        if (region != null) {
-                            _ui.update { it.copy(selectedRegion = region) }
-                            loadCities(region.id, preselectCityId = profile.cityId)
-                        }
+                        d.data.profile?.let { profile -> prefillFrom(ApiResult.Success(profile)) }
                     }
-                    else -> Unit
+                    is ApiResult.HttpError -> _ui.update { it.copy(error = d.message) }
+                    is ApiResult.NetworkError -> _ui.update {
+                        it.copy(error = "Нет соединения с сервером")
+                    }
                 }
             }
             _ui.update { it.copy(loading = false) }
+        }
+    }
+
+    /** Подставить профиль в поля формы (свой или участника). */
+    private suspend fun prefillFrom(result: ApiResult<Profile>) {
+        if (result !is ApiResult.Success) return
+        val profile = result.data
+        _ui.update {
+            it.copy(
+                lastName = profile.lastName,
+                firstName = profile.firstName,
+                middleName = profile.middleName,
+                birthDate = profile.birthDate,
+                height = profile.heightCm.toString(),
+                weight = profile.weightKg.toString(),
+                stickHand = profile.stickHand,
+                positions = profile.positions,
+                jerseySize = profile.jerseySize.orEmpty(),
+                coversSize = profile.coversSize.orEmpty(),
+                gaitersSize = profile.gaitersSize.orEmpty(),
+                avatarUrl = profile.avatarUrl,
+            )
+        }
+        // Восстановить выбранные регион/город
+        val region = _ui.value.regions.firstOrNull { it.id == profile.regionId }
+        if (region != null) {
+            _ui.update { it.copy(selectedRegion = region) }
+            loadCities(region.id, preselectCityId = profile.cityId)
         }
     }
 
@@ -154,25 +195,56 @@ class ProfileFormViewModel @Inject constructor(
             s.positions.isEmpty() -> _ui.update { it.copy(error = "Укажите хотя бы одно амплуа") }
             else -> viewModelScope.launch {
                 _ui.update { it.copy(saving = true, error = null) }
-                val result = userRepository.updateMyProfile(
-                    cityId = s.selectedCity!!.id,
-                    lastName = s.lastName.trim(),
-                    firstName = s.firstName.trim(),
-                    middleName = s.middleName.trim(),
-                    birthDateIso = s.birthDate!!.format(DateTimeFormatter.ISO_LOCAL_DATE),
-                    heightCm = height!!,
-                    weightKg = weight!!,
-                    stickHand = s.stickHand,
-                    positions = s.positions,
-                    jerseySize = s.jerseySize.ifBlank { null },
-                    coversSize = s.coversSize.ifBlank { null },
-                    gaitersSize = s.gaitersSize.ifBlank { null },
-                    avatarUrl = s.avatarUrl,
-                )
+                val targetMemberId = memberUserId
+                val result: ApiResult<*> = if (targetMemberId != null) {
+                    // BE-15b: управляющий редактирует профиль участника
+                    val teamId = teamManager.selected.value?.id
+                    if (teamId == null) {
+                        ApiResult.HttpError(0, null, "Команда не выбрана")
+                    } else {
+                        teamRepository.updateMemberProfile(
+                            teamId,
+                            targetMemberId,
+                            ProfileFormData(
+                                cityId = s.selectedCity!!.id,
+                                lastName = s.lastName.trim(),
+                                firstName = s.firstName.trim(),
+                                middleName = s.middleName.trim(),
+                                birthDateIso = s.birthDate!!.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                                heightCm = height!!,
+                                weightKg = weight!!,
+                                stickHand = s.stickHand,
+                                positions = s.positions,
+                                jerseySize = s.jerseySize.ifBlank { null },
+                                coversSize = s.coversSize.ifBlank { null },
+                                gaitersSize = s.gaitersSize.ifBlank { null },
+                                avatarUrl = s.avatarUrl,
+                            ),
+                        )
+                    }
+                } else {
+                    userRepository.updateMyProfile(
+                        cityId = s.selectedCity!!.id,
+                        lastName = s.lastName.trim(),
+                        firstName = s.firstName.trim(),
+                        middleName = s.middleName.trim(),
+                        birthDateIso = s.birthDate!!.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                        heightCm = height!!,
+                        weightKg = weight!!,
+                        stickHand = s.stickHand,
+                        positions = s.positions,
+                        jerseySize = s.jerseySize.ifBlank { null },
+                        coversSize = s.coversSize.ifBlank { null },
+                        gaitersSize = s.gaitersSize.ifBlank { null },
+                        avatarUrl = s.avatarUrl,
+                    )
+                }
                 when (result) {
                     is ApiResult.Success -> {
-                        viewModelScope.launch {
-                            settingsStore.setProfileOnboardingSkipped(false)
+                        if (targetMemberId == null) {
+                            viewModelScope.launch {
+                                settingsStore.setProfileOnboardingSkipped(false)
+                            }
                         }
                         onSuccess()
                     }

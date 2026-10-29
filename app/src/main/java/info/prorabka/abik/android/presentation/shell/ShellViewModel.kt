@@ -136,6 +136,9 @@ class ShellViewModel @Inject constructor(
     fun logout(onLoggedOut: () -> Unit) {
         viewModelScope.launch {
             authRepository.logout()
+            // Чистим командные данные и локальное состояние — не оставляем чужих badges
+            teamManager.clear()
+            _ui.update { UiState(loading = false) }
             onLoggedOut()
         }
     }

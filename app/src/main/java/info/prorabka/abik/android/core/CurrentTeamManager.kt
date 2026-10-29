@@ -49,4 +49,11 @@ class CurrentTeamManager @Inject constructor(
         _selected.value = team
         scope.launch { settingsStore.setSelectedTeamId(team.id) }
     }
+
+    /** Полная очистка при logout / истечении сессии — не оставляем чужих данных. */
+    fun clear() {
+        _teams.value = emptyList()
+        _selected.value = null
+        scope.launch { settingsStore.setSelectedTeamId(0L) }
+    }
 }

@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
+import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.prefs.SessionManager
 import info.prorabka.abik.android.core.prefs.SettingsStore
 import info.prorabka.abik.android.core.prefs.ThemeMode
@@ -28,6 +29,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var sessionManager: SessionManager
 
+    @Inject
+    lateinit var teamManager: CurrentTeamManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -43,6 +47,7 @@ class MainActivity : ComponentActivity() {
                     AppNavHost(
                         navController = rememberNavController(),
                         sessionManager = sessionManager,
+                        teamManager = teamManager,
                     )
                 }
             }

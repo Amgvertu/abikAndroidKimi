@@ -79,6 +79,8 @@ data class TeamMember(
     val status: MemberStatus,
     val jerseyNumber: Int?,
     val isTrainer: Boolean = false,
+    val positions: Set<Position> = emptySet(),
+    val avatarUrl: String? = null,
 ) {
     val displayName: String get() = "$lastName $firstName".trim().ifBlank { phone }
 }
@@ -93,6 +95,23 @@ data class MemberDetails(
     val isTrainer: Boolean,
     val joinedAt: String?,
     val profile: Profile?,
+)
+
+/** BE-15: данные формы профиля — редактирование своего профиля или профиля участника. */
+data class ProfileFormData(
+    val cityId: Long,
+    val lastName: String,
+    val firstName: String,
+    val middleName: String,
+    val birthDateIso: String,
+    val heightCm: Int,
+    val weightKg: Int,
+    val stickHand: StickHand,
+    val positions: Set<Position>,
+    val jerseySize: String?,
+    val coversSize: String?,
+    val gaitersSize: String?,
+    val avatarUrl: String?,
 )
 
 data class TeamDetail(

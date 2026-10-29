@@ -21,7 +21,10 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -51,6 +54,7 @@ import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.domain.model.EventDetail
 import info.prorabka.abik.android.domain.model.EventVoter
 import info.prorabka.abik.android.domain.model.LineupRole
+import info.prorabka.abik.android.domain.model.LineupSlot
 import info.prorabka.abik.android.domain.model.Position
 import info.prorabka.abik.android.domain.model.SweaterColor
 import info.prorabka.abik.android.domain.model.VoteAnswer
@@ -65,9 +69,23 @@ fun EventDetailsScreen(
 ) {
     val ui by viewModel.ui.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showSweatersDialog by remember { mutableStateOf(false) }
+    var showLineupDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(ui.deleted) {
         if (ui.deleted) onBack()
+    }
+    LaunchedEffect(ui.sweatersSaved) {
+        if (ui.sweatersSaved) {
+            showSweatersDialog = false
+            viewModel.consumeActionFlags()
+        }
+    }
+    LaunchedEffect(ui.lineupSaved) {
+        if (ui.lineupSaved) {
+            showLineupDialog = false
+            viewModel.consumeActionFlags()
+        }
     }
 
     Scaffold(
@@ -107,10 +125,40 @@ fun EventDetailsScreen(
                     acting = ui.acting,
                     error = ui.error,
                     info = ui.info,
+                    canEditSweaters = ui.canEditSweaters,
+                    canEditLineup = ui.canEditLineup,
                     onVote = viewModel::vote,
+                    onEditSweaters = { showSweatersDialog = true },
+                    onEditLineup = { showLineupDialog = true },
                 )
             }
         }
+    }
+
+    if (showSweatersDialog && ui.event != null) {
+        SweatersDialog(
+            voters = ui.event!!.voters.filter { it.answer == VoteAnswer.YES },
+            saving = ui.sweatersSaving,
+            error = ui.error,
+            onSave = viewModel::setSweaters,
+            onDismiss = {
+                showSweatersDialog = false
+                viewModel.clearMessages()
+            },
+        )
+    }
+
+    if (showLineupDialog && ui.event != null) {
+        LineupDialog(
+            event = ui.event!!,
+            saving = ui.lineupSaving,
+            error = ui.error,
+            onSave = viewModel::setLineup,
+            onDismiss = {
+                showLineupDialog = false
+                viewModel.clearMessages()
+            },
+        )
     }
 
     if (showDeleteDialog) {
@@ -158,7 +206,11 @@ private fun EventContent(
     acting: Boolean,
     error: String?,
     info: String?,
+    canEditSweaters: Boolean,
+    canEditLineup: Boolean,
     onVote: (VoteAnswer) -> Unit,
+    onEditSweaters: () -> Unit,
+    onEditLineup: () -> Unit,
 ) {
     Column(
         Modifier
@@ -220,6 +272,10 @@ private fun EventContent(
             }
         }
 
+        if (canEditSweaters) {
+            TextButton(onClick = onEditSweaters) { Text("Назначить свитеры") }
+        }
+
         info?.let {
             Text(
                 it,
@@ -245,7 +301,7 @@ private fun EventContent(
         }
 
         // Заявка на игру (просмотр)
-        event.lineup?.takeIf { it.isNotEmpty() }?.let { slots ->
+        event.lineup?.takeIf { it.isNotEmpty() }?.let {
             Spacer(Modifier.height(16.dp))
             Text(
                 "Заявка на игру",
@@ -254,6 +310,14 @@ private fun EventContent(
             )
             Spacer(Modifier.height(4.dp))
             LineupView(event = event)
+        }
+        if (canEditLineup) {
+            TextButton(onClick = onEditLineup) {
+                Text(
+                    if (event.lineup.isNullOrEmpty()) "Создать заявку на игру"
+                    else "Изменить заявку",
+                )
+            }
         }
 
         Spacer(Modifier.height(24.dp))
@@ -380,6 +444,315 @@ private fun LineupView(event: EventDetail) {
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
+            }
+        }
+    }
+}
+
+
+// ====== Редактор свитеров (тренировка; владелец/админ/тренер) ======
+
+@Composable
+private fun SweatersDialog(
+    voters: List<EventVoter>,
+    saving: Boolean,
+    error: String?,
+    onSave: (Map<Long, SweaterColor?>) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = remember {
+        androidx.compose.runtime.mutableStateMapOf<Long, SweaterColor?>().apply {
+            voters.forEach { put(it.userId, it.sweaterColor) }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = { if (!saving) onDismiss() },
+        title = { Text("Свитеры") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (voters.isEmpty()) {
+                    Text("Пока никто не ответил «Иду»")
+                }
+                voters.forEach { voter ->
+                    Text(
+                        voter.fullName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        SweaterColor.entries.forEach { color ->
+                            FilterChip(
+                                selected = colors[voter.userId] == color,
+                                onClick = {
+                                    colors[voter.userId] =
+                                        if (colors[voter.userId] == color) null else color
+                                },
+                                label = { SweaterDot(color) },
+                            )
+                        }
+                    }
+                }
+                ErrorText(error)
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(colors.toMap()) },
+                enabled = !saving && voters.isNotEmpty(),
+            ) { Text(if (saving) "Сохранение…" else "Сохранить") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !saving) { Text("Отмена") }
+        },
+    )
+}
+
+// ====== Редактор заявки на игру (игра/матч; владелец/админ) ======
+
+private class LineEdit(
+    val defenders: MutableList<Long?> = mutableListOf(null, null),
+    val forwards: MutableList<Long?> = mutableListOf(null, null, null),
+)
+
+@Composable
+private fun LineupDialog(
+    event: EventDetail,
+    saving: Boolean,
+    error: String?,
+    onSave: (List<LineupSlot>) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    // Кандидаты — проголосовавшие «Иду», кроме тренеров
+    val yesVoters = event.voters.filter { it.answer == VoteAnswer.YES && !it.isTrainer }
+    val names = event.voters.associate { it.userId to it.fullName }
+
+    val gks = yesVoters.filter { it.positions.contains(Position.GOALKEEPER) }
+    val defs = yesVoters.filter { it.positions.contains(Position.DEFENDER) }
+    val fwds = yesVoters.filter { it.positions.contains(Position.FORWARD) }
+
+    // Исходное состояние из текущей заявки
+    var goalkeeper by remember {
+        mutableStateOf(
+            event.lineup?.firstOrNull { it.role == LineupRole.GOALKEEPER }?.userId,
+        )
+    }
+    val lines = remember {
+        androidx.compose.runtime.mutableStateListOf<LineEdit>().apply {
+            val existing = event.lineup.orEmpty()
+                .filter { it.role != LineupRole.GOALKEEPER }
+                .groupBy { it.lineNumber ?: 0 }
+                .toSortedMap()
+            if (existing.isEmpty()) {
+                add(LineEdit())
+            } else {
+                existing.forEach { (_, slots) ->
+                    val line = LineEdit()
+                    slots.filter { it.role == LineupRole.DEFENDER }
+                        .sortedBy { it.slotNumber }
+                        .forEachIndexed { i, s -> if (i < 2) line.defenders[i] = s.userId }
+                    slots.filter { it.role == LineupRole.FORWARD }
+                        .sortedBy { it.slotNumber }
+                        .forEachIndexed { i, s -> if (i < 3) line.forwards[i] = s.userId }
+                    add(line)
+                }
+            }
+        }
+    }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = { if (!saving) onDismiss() },
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+        ),
+    ) {
+        Card(
+            Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+        ) {
+            Column(
+                Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+            ) {
+                Text(
+                    "Заявка на игру",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(12.dp))
+
+                if (yesVoters.isEmpty()) {
+                    Text("Пока никто не ответил «Иду» — заявку можно будет составить после голосования")
+                } else {
+                    // Вратарь
+                    val usedElsewhereGk = lines.flatMap { it.defenders + it.forwards }
+                        .filterNotNull().toSet()
+                    PlayerDropdown(
+                        label = "Вратарь",
+                        selected = goalkeeper,
+                        candidates = gks.map { it.userId }
+                            .filter { it == goalkeeper || it !in usedElsewhereGk },
+                        names = names,
+                        onSelect = { goalkeeper = it },
+                    )
+
+                    // Звенья
+                    lines.forEachIndexed { lineIndex, line ->
+                        Spacer(Modifier.height(12.dp))
+                        HorizontalDivider()
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Звено ${lineIndex + 1}",
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (lines.size > 1) {
+                                TextButton(onClick = { lines.removeAt(lineIndex) }) {
+                                    Text(
+                                        "Убрать",
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                            }
+                        }
+
+                        val usedInOtherSlots = (
+                            lines.flatMapIndexed { i, l ->
+                                if (i == lineIndex) emptyList()
+                                else l.defenders + l.forwards
+                            } + listOfNotNull(goalkeeper)
+                            ).filterNotNull().toSet()
+
+                        line.defenders.forEachIndexed { slotIndex, current ->
+                            PlayerDropdown(
+                                label = "Защитник ${slotIndex + 1}",
+                                selected = current,
+                                candidates = defs.map { it.userId }
+                                    .filter { it == current || it !in usedInOtherSlots },
+                                names = names,
+                                onSelect = { line.defenders[slotIndex] = it },
+                            )
+                        }
+                        line.forwards.forEachIndexed { slotIndex, current ->
+                            PlayerDropdown(
+                                label = "Нападающий ${slotIndex + 1}",
+                                selected = current,
+                                candidates = fwds.map { it.userId }
+                                    .filter { it == current || it !in usedInOtherSlots },
+                                names = names,
+                                onSelect = { line.forwards[slotIndex] = it },
+                            )
+                        }
+                    }
+
+                    if (lines.size < 4) {
+                        TextButton(onClick = { lines.add(LineEdit()) }) {
+                            Text("+ Добавить звено")
+                        }
+                    }
+                }
+
+                ErrorText(error)
+
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss, enabled = !saving) { Text("Отмена") }
+                    Spacer(Modifier.size(8.dp))
+                    TextButton(
+                        enabled = !saving && yesVoters.isNotEmpty(),
+                        onClick = {
+                            val slots = mutableListOf<LineupSlot>()
+                            goalkeeper?.let {
+                                slots.add(
+                                    LineupSlot(
+                                        lineNumber = null, slotNumber = 1,
+                                        role = LineupRole.GOALKEEPER, userId = it,
+                                    ),
+                                )
+                            }
+                            lines.forEachIndexed { lineIndex, line ->
+                                val lineNumber = lineIndex + 1
+                                line.defenders.forEachIndexed { i, uid ->
+                                    uid?.let {
+                                        slots.add(
+                                            LineupSlot(
+                                                lineNumber = lineNumber, slotNumber = i + 1,
+                                                role = LineupRole.DEFENDER, userId = it,
+                                            ),
+                                        )
+                                    }
+                                }
+                                line.forwards.forEachIndexed { i, uid ->
+                                    uid?.let {
+                                        slots.add(
+                                            LineupSlot(
+                                                lineNumber = lineNumber, slotNumber = i + 1,
+                                                role = LineupRole.FORWARD, userId = it,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+                            onSave(slots)
+                        },
+                    ) { Text(if (saving) "Сохранение…" else "Сохранить") }
+                }
+            }
+        }
+    }
+}
+
+/** Выпадающий список игроков для одного слота. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PlayerDropdown(
+    label: String,
+    selected: Long?,
+    candidates: List<Long>,
+    names: Map<Long, String>,
+    onSelect: (Long?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = Modifier.padding(top = 8.dp),
+    ) {
+        androidx.compose.material3.OutlinedTextField(
+            value = selected?.let { names[it] ?: "user#$it" } ?: "",
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("—") },
+                onClick = {
+                    onSelect(null)
+                    expanded = false
+                },
+            )
+            candidates.forEach { userId ->
+                DropdownMenuItem(
+                    text = { Text(names[userId] ?: "user#$userId") },
+                    onClick = {
+                        onSelect(userId)
+                        expanded = false
+                    },
+                )
             }
         }
     }

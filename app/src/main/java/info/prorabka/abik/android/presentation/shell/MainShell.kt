@@ -174,6 +174,10 @@ fun MainShell(
                     shellViewModel = viewModel,
                     onAddPayment = { rootNavController.navigate(Routes.paymentForm()) },
                     onCreateTeam = { rootNavController.navigate(Routes.ONBOARDING_TEAM) },
+                    onEventClick = { eventId ->
+                        rootNavController.navigate(Routes.eventDetails(eventId))
+                    },
+                    onNotifications = { rootNavController.navigate(Routes.NOTIFICATIONS) },
                 )
             }
             composable(MainTab.SUBSCRIPTION.route) {

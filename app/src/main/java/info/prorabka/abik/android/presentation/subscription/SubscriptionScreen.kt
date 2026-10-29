@@ -5,12 +5,15 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
@@ -30,10 +33,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import coil.compose.AsyncImage
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
 import info.prorabka.abik.android.core.ui.theme.Danger
@@ -79,6 +85,17 @@ fun SubscriptionScreen(
             return@Scaffold
         }
         LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Ошибка сети не должна выглядеть как «нет данных»
+            ui.error?.let { message ->
+                item(key = "error") {
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                }
+            }
             items(ui.rows, key = { it.userId }) { row ->
                 MemberBalanceRow(
                     row = row,
@@ -115,13 +132,25 @@ private fun MemberBalanceRow(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Аватар (пока заглушка — avatarUrl появится в списке участников на бэкенде)
-            Icon(
-                Icons.Default.AccountCircle,
-                contentDescription = null,
-                modifier = Modifier.size(38.dp).padding(end = 8.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
+            // Аватар участника (BE-15: avatarUrl приходит в списке участников)
+            if (row.avatarUrl != null) {
+                AsyncImage(
+                    model = row.avatarUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Icon(
+                    Icons.Default.AccountCircle,
+                    contentDescription = null,
+                    modifier = Modifier.size(38.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(row.name, style = MaterialTheme.typography.bodyLarge)
                 Text(

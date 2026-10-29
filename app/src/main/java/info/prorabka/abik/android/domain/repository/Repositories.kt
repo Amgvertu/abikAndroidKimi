@@ -12,6 +12,7 @@ import info.prorabka.abik.android.domain.model.MemberDetails
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.Position
 import info.prorabka.abik.android.domain.model.Profile
+import info.prorabka.abik.android.domain.model.ProfileFormData
 import info.prorabka.abik.android.domain.model.Region
 import info.prorabka.abik.android.domain.model.RosterItem
 import info.prorabka.abik.android.domain.model.Season
@@ -74,6 +75,7 @@ interface TeamRepository {
     suspend fun transferOwnership(teamId: Long, newOwnerUserId: Long): ApiResult<Unit>
     suspend fun members(teamId: Long): ApiResult<List<TeamMember>>
     suspend fun memberDetails(teamId: Long, userId: Long): ApiResult<MemberDetails>
+    suspend fun updateMemberProfile(teamId: Long, userId: Long, data: ProfileFormData): ApiResult<Unit>
     suspend fun changeRole(teamId: Long, userId: Long, role: MemberRole): ApiResult<Unit>
     suspend fun setJerseyNumber(teamId: Long, userId: Long, number: Int?): ApiResult<Unit>
     suspend fun setTrainer(teamId: Long, userId: Long, isTrainer: Boolean): ApiResult<Unit>

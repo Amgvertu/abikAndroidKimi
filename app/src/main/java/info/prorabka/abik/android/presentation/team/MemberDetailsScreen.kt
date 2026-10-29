@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,12 +54,17 @@ import info.prorabka.abik.android.domain.model.TeamMember
 fun MemberDetailsScreen(
     userId: Long,
     onBack: () -> Unit,
+    onEditProfile: (Long) -> Unit,
     viewModel: MemberDetailsViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
     var showJerseyDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(userId) { viewModel.load(userId) }
+    // Перечитываем карточку и при открытии, и при возврате с редактирования профиля
+    LifecycleResumeEffect(userId) {
+        viewModel.load(userId)
+        onPauseOrDispose { }
+    }
 
     Scaffold(
         topBar = {
@@ -203,6 +209,9 @@ fun MemberDetailsScreen(
             if (ui.isManager && details.status == MemberStatus.ACTIVE) {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                        TextButton(onClick = { onEditProfile(details.userId) }) {
+                            Text("Редактировать профиль")
+                        }
                         TextButton(onClick = { showJerseyDialog = true }) {
                             Text("Игровой номер")
                         }
