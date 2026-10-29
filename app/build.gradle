@@ -22,8 +22,11 @@ android {
         // Полный API-префикс зашит в base URL: и прод, и локальный сервер используют
         // context-path /api/abik (см. application-prod.yml). Nginx на varamy.online
         // проксирует /api/abik/ на бэкенд без переписывания пути.
-        buildConfigField "String", "DEFAULT_BASE_URL", '"https://varamy.online/api/abik/"'
-        buildConfigField "String", "LOCAL_BASE_URL", '"http://192.168.0.119:8083/api/abik/"'
+        // new String(...) — намеренно: обычная строковая константа инлайнится
+        // компилятором в места использования, и gradle build cache потом тащит
+        // СТАРОЕ значение даже после clean (поймано на живом инциденте).
+        buildConfigField "String", "DEFAULT_BASE_URL", 'new String("https://varamy.online/api/abik/")'
+        buildConfigField "String", "LOCAL_BASE_URL", 'new String("http://192.168.0.119:8083/api/abik/")'
     }
 
     buildTypes {
