@@ -168,6 +168,10 @@ fun AppNavHost(
                     type = NavType.LongType
                     defaultValue = -1L
                 },
+                navArgument("date") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
             ),
         ) {
             EventFormScreen(onBack = { navController.popBackStack() })

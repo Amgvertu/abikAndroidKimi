@@ -13,15 +13,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,9 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -44,7 +37,7 @@ import info.prorabka.abik.android.core.ui.components.ErrorText
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.domain.model.ChargeDistribution
 
-/** Создание/редактирование шаблона систематического начисления. */
+/** Создание/редактирование шаблона начисления («Абонемент» / «Регулярка»). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TemplateFormScreen(
@@ -80,58 +73,103 @@ fun TemplateFormScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 16.dp),
         ) {
-            AbikTextField(
-                value = ui.name,
-                onValueChange = viewModel::onName,
-                label = "Название шаблона",
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+            // Вид шаблона (только при создании)
+            if (ui.editTemplateId == null) {
+                Text("Вид шаблона", style = MaterialTheme.typography.titleSmall)
+                Row {
+                    TemplateKind.entries.forEach { kind ->
+                        FilterChip(
+                            selected = ui.kind == kind,
+                            onClick = { viewModel.onKind(kind) },
+                            label = { Text(kind.display) },
+                            modifier = Modifier.padding(end = 8.dp, top = 4.dp),
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
-            TemplateGroupAutocomplete(ui, viewModel)
-            Spacer(modifier = Modifier.height(12.dp))
+            if (ui.kind == TemplateKind.SUBSCRIPTION) {
+                AbikTextField(
+                    value = ui.name,
+                    onValueChange = viewModel::onName,
+                    label = "Название шаблона",
+                )
+                Spacer(modifier = Modifier.height(12.dp))
 
-            if (ui.groupName.isNotBlank() &&
-                ui.groups.any { it.name.equals(ui.groupName.trim(), true) }
-            ) {
-                TemplateSubgroupAutocomplete(ui, viewModel)
+                AbikTextField(
+                    value = ui.dayOfMonth,
+                    onValueChange = viewModel::onDayOfMonth,
+                    label = "День месяца начисления (1–28)",
+                    keyboardType = KeyboardType.Number,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            } else {
+                AbikTextField(
+                    value = ui.season,
+                    onValueChange = viewModel::onSeason,
+                    label = "Сезон (например, 2026/2027)",
+                    keyboardType = KeyboardType.Number,
+                )
+                if (ui.season.isNotBlank()) {
+                    Text(
+                        "Название: ${ui.effectiveName}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
             AbikTextField(
                 value = ui.amountRubles,
                 onValueChange = viewModel::onAmount,
-                label = "Сумма (₽)",
+                label = "Сумма начисления (₽)",
                 keyboardType = KeyboardType.Number,
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            AbikTextField(
-                value = ui.dayOfMonth,
-                onValueChange = viewModel::onDayOfMonth,
-                label = "День месяца (1–28)",
-                keyboardType = KeyboardType.Number,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text("Распределение суммы", style = MaterialTheme.typography.titleSmall)
+            Text("Способ начисления", style = MaterialTheme.typography.titleSmall)
             Row {
                 ChargeDistribution.entries.forEach { dist ->
                     FilterChip(
                         selected = ui.distribution == dist,
                         onClick = { viewModel.onDistribution(dist) },
                         label = { Text(dist.display) },
-                        modifier = Modifier.padding(end = 8.dp),
+                        modifier = Modifier.padding(end = 8.dp, top = 4.dp),
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (ui.kind == TemplateKind.SUBSCRIPTION) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = ui.chargeGoalies,
+                        onCheckedChange = viewModel::onChargeGoalies,
+                    )
+                    Text(
+                        "Начислять абонемент вратарям",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "Участники (${ui.selectedUserIds.size})",
+                    if (ui.kind == TemplateKind.REGULAR) {
+                        "Заявленные игроки (${ui.selectedUserIds.size})"
+                    } else {
+                        "Участники (${ui.selectedUserIds.size})"
+                    },
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f),
                 )
@@ -160,77 +198,6 @@ fun TemplateFormScreen(
                 loading = ui.saving,
             )
             Spacer(modifier = Modifier.height(24.dp))
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TemplateGroupAutocomplete(
-    ui: TemplateFormViewModel.UiState,
-    viewModel: TemplateFormViewModel,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        OutlinedTextField(
-            value = ui.groupName,
-            onValueChange = {
-                viewModel.onGroupName(it)
-                expanded = true
-            },
-            label = { Text("Назначение") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(),
-        )
-        val filtered = ui.groups.filter {
-            ui.groupName.isBlank() || it.name.contains(ui.groupName.trim(), ignoreCase = true)
-        }
-        if (filtered.isNotEmpty()) {
-            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                filtered.forEach { group ->
-                    DropdownMenuItem(
-                        text = { Text(group.name) },
-                        onClick = {
-                            viewModel.onGroupName(group.name)
-                            expanded = false
-                        },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TemplateSubgroupAutocomplete(
-    ui: TemplateFormViewModel.UiState,
-    viewModel: TemplateFormViewModel,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        OutlinedTextField(
-            value = ui.subgroupName,
-            onValueChange = {
-                viewModel.onSubgroupName(it)
-                expanded = true
-            },
-            label = { Text("Подгруппа (необязательно)") },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(),
-        )
-        if (ui.subgroups.isNotEmpty()) {
-            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                ui.subgroups.forEach { subgroup ->
-                    DropdownMenuItem(
-                        text = { Text(subgroup.name) },
-                        onClick = {
-                            viewModel.onSubgroupName(subgroup.name)
-                            expanded = false
-                        },
-                    )
-                }
-            }
         }
     }
 }

@@ -1,5 +1,6 @@
 package info.prorabka.abik.android.presentation.events
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,6 +33,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -59,6 +62,15 @@ private val MONTH_NAMES_GEN = listOf(
 
 private val WEEKDAYS = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
 
+/** Палитра цветных маркеров календаря: цвет = пара (время + тип события). */
+private val MARKER_COLORS = listOf(
+    Color(0xFF1E88E5), Color(0xFF43A047), Color(0xFFE53935),
+    Color(0xFFFB8C00), Color(0xFF8E24AA), Color(0xFF00ACC1),
+)
+
+fun markerColor(key: String): Color =
+    MARKER_COLORS[kotlin.math.abs(key.hashCode()) % MARKER_COLORS.size]
+
 fun formatDayMonth(date: LocalDate): String =
     "${date.dayOfMonth} ${MONTH_NAMES_GEN[date.monthValue - 1]}"
 
@@ -71,7 +83,7 @@ fun formatDateTime(dateIso: String, time: String): String {
 @Composable
 fun EventsScreen(
     onEventClick: (Long) -> Unit,
-    onCreate: () -> Unit,
+    onCreate: (String) -> Unit,
     onCreateTeam: () -> Unit,
     viewModel: EventsViewModel = hiltViewModel(),
 ) {
@@ -108,7 +120,9 @@ fun EventsScreen(
                 MonthCalendar(
                     month = ui.month,
                     selectedDate = ui.selectedDate,
-                    daysWithEvents = ui.daysWithEvents,
+                    dayMarkers = ui.dayMarkerKeys.mapValues { (_, keys) ->
+                        keys.map(::markerColor).distinct().take(4)
+                    },
                     onSelectDate = viewModel::selectDate,
                     onPrev = viewModel::prevMonth,
                     onNext = viewModel::nextMonth,
@@ -142,7 +156,7 @@ fun EventsScreen(
 
             if (ui.isManager) {
                 FloatingActionButton(
-                    onClick = onCreate,
+                    onClick = { onCreate(ui.selectedDate.toString()) },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(16.dp),
@@ -206,7 +220,9 @@ fun EventCard(event: EventListItem, onClick: () -> Unit) {
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Идут: ${event.votesYes} • Под вопросом: ${event.votesMaybe} • Не идут: ${event.votesNo}",
+                    "Идут: ${event.votesYes}" +
+                        (event.votesYesReserve?.takeIf { it > 0 }?.let { " (+$it в резерве)" } ?: "") +
+                        " • Под вопросом: ${event.votesMaybe} • Не идут: ${event.votesNo}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
@@ -226,6 +242,13 @@ fun EventCard(event: EventListItem, onClick: () -> Unit) {
                     )
                 }
             }
+            // Счётчики проголосовавших «Иду» по амплуа (приходят с сервера).
+            Text(
+                "В: ${event.votesYesGoalies}  З: ${event.votesYesDefenders}  Н: ${event.votesYesForwards}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
         }
     }
 }
@@ -234,7 +257,7 @@ fun EventCard(event: EventListItem, onClick: () -> Unit) {
 private fun MonthCalendar(
     month: YearMonth,
     selectedDate: LocalDate,
-    daysWithEvents: Set<LocalDate>,
+    dayMarkers: Map<LocalDate, List<Color>>,
     onSelectDate: (LocalDate) -> Unit,
     onPrev: () -> Unit,
     onNext: () -> Unit,
@@ -283,7 +306,7 @@ private fun MonthCalendar(
                                 date = date,
                                 isSelected = date == selectedDate,
                                 isToday = date == LocalDate.now(),
-                                hasEvents = daysWithEvents.contains(date),
+                                markerColors = dayMarkers[date].orEmpty(),
                                 onClick = { onSelectDate(date) },
                                 modifier = Modifier.weight(1f),
                             )
@@ -300,7 +323,7 @@ private fun DayCell(
     date: LocalDate,
     isSelected: Boolean,
     isToday: Boolean,
-    hasEvents: Boolean,
+    markerColors: List<Color>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -334,15 +357,23 @@ private fun DayCell(
                     else -> MaterialTheme.colorScheme.onSurface
                 },
             )
+            // Дата с событиями обводится кружком; каждый цвет — пара (время + тип события)
+            if (markerColors.isNotEmpty()) {
+                Canvas(Modifier.size(30.dp)) {
+                    val stroke = Stroke(width = 2.dp.toPx())
+                    val sweep = 360f / markerColors.size
+                    val gap = if (markerColors.size > 1) 6f else 0f
+                    markerColors.forEachIndexed { index, color ->
+                        drawArc(
+                            color = color,
+                            startAngle = index * sweep + gap / 2,
+                            sweepAngle = sweep - gap,
+                            useCenter = false,
+                            style = stroke,
+                        )
+                    }
+                }
+            }
         }
-        Box(
-            Modifier
-                .size(5.dp)
-                .background(
-                    if (hasEvents) MaterialTheme.colorScheme.secondary
-                    else androidx.compose.ui.graphics.Color.Transparent,
-                    CircleShape,
-                ),
-        )
     }
 }

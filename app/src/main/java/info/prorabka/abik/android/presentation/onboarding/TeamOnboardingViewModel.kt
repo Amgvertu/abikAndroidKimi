@@ -1,5 +1,6 @@
 package info.prorabka.abik.android.presentation.onboarding
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -9,6 +10,7 @@ import info.prorabka.abik.android.domain.model.City
 import info.prorabka.abik.android.domain.model.Invitation
 import info.prorabka.abik.android.domain.model.Region
 import info.prorabka.abik.android.domain.model.TeamCreateData
+import info.prorabka.abik.android.domain.repository.FileRepository
 import info.prorabka.abik.android.domain.repository.GeoRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,19 +21,18 @@ import javax.inject.Inject
 
 /**
  * Онбординг команды: входящие приглашения + создание своей команды.
+ * Поля по ТЗ: название, регион, город, описание (необяз.), лого (необяз.).
  */
 @HiltViewModel
 class TeamOnboardingViewModel @Inject constructor(
     private val teamRepository: TeamRepository,
     private val geoRepository: GeoRepository,
+    private val fileRepository: FileRepository,
     private val settingsStore: SettingsStore,
 ) : ViewModel() {
 
     companion object {
-        /**
-         * Заглушка логотипа: сервер требует logoUrl при создании команды,
-         * а endpoint загрузки файлов появится позже (backend-api-extension.md, раздел 1).
-         */
+        /** Стандартный логотип, если пользователь не выбрал свой. */
         const val DEFAULT_LOGO_URL = "default://logo"
     }
 
@@ -44,7 +45,7 @@ class TeamOnboardingViewModel @Inject constructor(
         val selectedCity: City? = null,
         val name: String = "",
         val description: String = "",
-        val season: String = "",
+        val logoUri: Uri? = null,
         val saving: Boolean = false,
         val error: String? = null,
         val info: String? = null,
@@ -83,7 +84,7 @@ class TeamOnboardingViewModel @Inject constructor(
     fun selectCity(city: City) = _ui.update { it.copy(selectedCity = city) }
     fun onName(v: String) = _ui.update { it.copy(name = v) }
     fun onDescription(v: String) = _ui.update { it.copy(description = v) }
-    fun onSeason(v: String) = _ui.update { it.copy(season = v) }
+    fun onLogo(uri: Uri?) = _ui.update { it.copy(logoUri = uri) }
 
     fun accept(invitationId: Long, onDone: () -> Unit) {
         viewModelScope.launch {
@@ -123,14 +124,31 @@ class TeamOnboardingViewModel @Inject constructor(
             s.selectedCity == null -> _ui.update { it.copy(error = "Выберите город") }
             else -> viewModelScope.launch {
                 _ui.update { it.copy(saving = true, error = null) }
+                // Лого: выбранное — загружаем на сервер, иначе — стандартный (ТЗ)
+                val logoUrl = when (val uri = s.logoUri) {
+                    null -> DEFAULT_LOGO_URL
+                    else -> when (val uploaded = fileRepository.upload(uri)) {
+                        is ApiResult.Success -> uploaded.data
+                        is ApiResult.HttpError -> {
+                            _ui.update { it.copy(saving = false, error = uploaded.message) }
+                            return@launch
+                        }
+                        is ApiResult.NetworkError -> {
+                            _ui.update {
+                                it.copy(saving = false, error = "Нет соединения с сервером")
+                            }
+                            return@launch
+                        }
+                    }
+                }
                 val result = teamRepository.create(
                     TeamCreateData(
                         name = s.name.trim(),
                         cityId = s.selectedCity!!.id,
                         homeRegionId = s.selectedRegion!!.id,
-                        logoUrl = DEFAULT_LOGO_URL,
+                        logoUrl = logoUrl,
                         description = s.description.ifBlank { null },
-                        season = s.season.ifBlank { null },
+                        season = null,
                     ),
                 )
                 when (result) {

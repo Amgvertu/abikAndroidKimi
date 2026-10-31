@@ -2,18 +2,24 @@ package info.prorabka.abik.android.presentation.events
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -21,10 +27,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -38,15 +41,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import androidx.hilt.navigation.compose.hiltViewModel
 import info.prorabka.abik.android.core.ui.components.EmptyState
 import info.prorabka.abik.android.core.ui.components.ErrorText
@@ -290,13 +303,30 @@ private fun EventContent(
         VoteAnswer.entries.forEach { answer ->
             val group = event.voters.filter { it.answer == answer }
             if (group.isNotEmpty()) {
+                val main = if (answer == VoteAnswer.YES) group.filter { !it.inReserve } else group
+                val reserve = if (answer == VoteAnswer.YES) group.filter { it.inReserve } else emptyList()
                 Spacer(Modifier.height(12.dp))
+                val header = if (answer == VoteAnswer.YES && event.requiredPlayers != null) {
+                    "${answer.display} (${main.size} из ${event.requiredPlayers})"
+                } else {
+                    "${answer.display} (${group.size})"
+                }
                 Text(
-                    "${answer.display} (${group.size})",
+                    header,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
-                VoterGroup(group)
+                VoterGroup(main)
+                if (reserve.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Резерв (${reserve.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                    VoterGroup(reserve)
+                }
             }
         }
 
@@ -509,12 +539,29 @@ private fun SweatersDialog(
 }
 
 // ====== Редактор заявки на игру (игра/матч; владелец/админ) ======
+// Игроки распределяются по слотам звеньев перетаскиванием (long-press + drag).
 
-private class LineEdit(
+/** Идентификатор слота: "gk", "d{звено}_{слот}", "f{звено}_{слот}", "pool". */
+private fun slotAccepts(slotId: String): Position? = when {
+    slotId == "gk" -> Position.GOALKEEPER
+    slotId.startsWith("d") -> Position.DEFENDER
+    slotId.startsWith("f") -> Position.FORWARD
+    else -> null // pool принимает всех
+}
+
+private class LineupDrag(
+    val userId: Long,
+    val from: String,
+    val chipSize: androidx.compose.ui.geometry.Size,
+    var pos: Offset, // позиция пальца в root-координатах
+)
+
+private class LineSlots(
     val defenders: MutableList<Long?> = mutableListOf(null, null),
     val forwards: MutableList<Long?> = mutableListOf(null, null, null),
 )
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LineupDialog(
     event: EventDetail,
@@ -526,10 +573,7 @@ private fun LineupDialog(
     // Кандидаты — проголосовавшие «Иду», кроме тренеров
     val yesVoters = event.voters.filter { it.answer == VoteAnswer.YES && !it.isTrainer }
     val names = event.voters.associate { it.userId to it.fullName }
-
-    val gks = yesVoters.filter { it.positions.contains(Position.GOALKEEPER) }
-    val defs = yesVoters.filter { it.positions.contains(Position.DEFENDER) }
-    val fwds = yesVoters.filter { it.positions.contains(Position.FORWARD) }
+    val positions = event.voters.associate { it.userId to it.positions }
 
     // Исходное состояние из текущей заявки
     var goalkeeper by remember {
@@ -538,16 +582,16 @@ private fun LineupDialog(
         )
     }
     val lines = remember {
-        androidx.compose.runtime.mutableStateListOf<LineEdit>().apply {
+        androidx.compose.runtime.mutableStateListOf<LineSlots>().apply {
             val existing = event.lineup.orEmpty()
                 .filter { it.role != LineupRole.GOALKEEPER }
                 .groupBy { it.lineNumber ?: 0 }
                 .toSortedMap()
             if (existing.isEmpty()) {
-                add(LineEdit())
+                add(LineSlots())
             } else {
                 existing.forEach { (_, slots) ->
-                    val line = LineEdit()
+                    val line = LineSlots()
                     slots.filter { it.role == LineupRole.DEFENDER }
                         .sortedBy { it.slotNumber }
                         .forEachIndexed { i, s -> if (i < 2) line.defenders[i] = s.userId }
@@ -560,8 +604,73 @@ private fun LineupDialog(
         }
     }
 
+    fun getSlot(slotId: String): Long? = when {
+        slotId == "gk" -> goalkeeper
+        slotId.startsWith("d") -> {
+            val (l, i) = slotId.drop(1).split("_").map { it.toInt() }
+            lines.getOrNull(l)?.defenders?.getOrNull(i)
+        }
+        slotId.startsWith("f") -> {
+            val (l, i) = slotId.drop(1).split("_").map { it.toInt() }
+            lines.getOrNull(l)?.forwards?.getOrNull(i)
+        }
+        else -> null
+    }
+
+    fun setSlot(slotId: String, userId: Long?) {
+        when {
+            slotId == "gk" -> goalkeeper = userId
+            slotId.startsWith("d") -> {
+                val (l, i) = slotId.drop(1).split("_").map { it.toInt() }
+                lines.getOrNull(l)?.defenders?.set(i, userId)
+            }
+            slotId.startsWith("f") -> {
+                val (l, i) = slotId.drop(1).split("_").map { it.toInt() }
+                lines.getOrNull(l)?.forwards?.set(i, userId)
+            }
+        }
+    }
+
+    // Перетаскивание
+    var drag by remember { mutableStateOf<LineupDrag?>(null) }
+    val slotBounds = remember { mutableStateMapOf<String, Rect>() }
+    var poolBounds by remember { mutableStateOf<Rect?>(null) }
+    var containerTopLeft by remember { mutableStateOf(Offset.Zero) }
+
+    fun finishDrag(d: LineupDrag) {
+        val userPositions = positions[d.userId].orEmpty()
+        val target = slotBounds.entries
+            .firstOrNull { it.value.contains(d.pos) }?.key
+        when {
+            target != null && slotAccepts(target) in userPositions -> {
+                val displaced = getSlot(target)
+                setSlot(target, d.userId)
+                if (d.from != "pool") {
+                    // Обмен: вытесненный игрок встаёт в исходный слот, если подходит
+                    if (displaced != null &&
+                        slotAccepts(d.from) in positions[displaced].orEmpty()
+                    ) {
+                        setSlot(d.from, displaced)
+                    } else {
+                        setSlot(d.from, null)
+                    }
+                } else if (displaced != null) {
+                    // Вытесненный возвращается в общий список (слот очищен выше)
+                }
+            }
+            poolBounds?.contains(d.pos) == true && d.from != "pool" -> {
+                setSlot(d.from, null)
+            }
+        }
+    }
+
+    val assigned: Set<Long> = buildSet {
+        goalkeeper?.let { add(it) }
+        lines.forEach { l -> (l.defenders + l.forwards).filterNotNull().forEach { add(it) } }
+    }
+
     androidx.compose.ui.window.Dialog(
-        onDismissRequest = { if (!saving) onDismiss() },
+        onDismissRequest = { if (!saving && drag == null) onDismiss() },
         properties = androidx.compose.ui.window.DialogProperties(
             usePlatformDefaultWidth = false,
         ),
@@ -571,189 +680,341 @@ private fun LineupDialog(
                 .fillMaxWidth()
                 .padding(16.dp),
         ) {
-            Column(
-                Modifier
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
+            Box(
+                Modifier.onGloballyPositioned { containerTopLeft = it.boundsInRoot().topLeft },
             ) {
-                Text(
-                    "Заявка на игру",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(Modifier.height(12.dp))
-
-                if (yesVoters.isEmpty()) {
-                    Text("Пока никто не ответил «Иду» — заявку можно будет составить после голосования")
-                } else {
-                    // Вратарь
-                    val usedElsewhereGk = lines.flatMap { it.defenders + it.forwards }
-                        .filterNotNull().toSet()
-                    PlayerDropdown(
-                        label = "Вратарь",
-                        selected = goalkeeper,
-                        candidates = gks.map { it.userId }
-                            .filter { it == goalkeeper || it !in usedElsewhereGk },
-                        names = names,
-                        onSelect = { goalkeeper = it },
+                Column(
+                    Modifier
+                        .verticalScroll(rememberScrollState(), enabled = drag == null)
+                        .padding(16.dp),
+                ) {
+                    Text(
+                        "Заявка на игру",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                     )
+                    Text(
+                        "Перетаскивайте игроков на позиции. Чтобы убрать — перетащите обратно в список.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
 
-                    // Звенья
-                    lines.forEachIndexed { lineIndex, line ->
-                        Spacer(Modifier.height(12.dp))
-                        HorizontalDivider()
-                        Spacer(Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "Звено ${lineIndex + 1}",
-                                style = MaterialTheme.typography.labelLarge,
-                                modifier = Modifier.weight(1f),
-                            )
-                            if (lines.size > 1) {
-                                TextButton(onClick = { lines.removeAt(lineIndex) }) {
+                    if (yesVoters.isEmpty()) {
+                        Text("Пока никто не ответил «Иду» — заявку можно будет составить после голосования")
+                    } else {
+                        // Свободные игроки
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .onGloballyPositioned { poolBounds = it.boundsInRoot() }
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                    RoundedCornerShape(8.dp),
+                                )
+                                .padding(8.dp),
+                        ) {
+                            Column {
+                                Text(
+                                    "Свободные игроки",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                val free = yesVoters.filter { it.userId !in assigned }
+                                if (free.isEmpty()) {
                                     Text(
-                                        "Убрать",
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontSize = 12.sp,
+                                        "Все распределены",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(vertical = 4.dp),
                                     )
+                                }
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    free.forEach { voter ->
+                                        DragChip(
+                                            userId = voter.userId,
+                                            name = names[voter.userId]
+                                                ?: "user#${voter.userId}",
+                                            slotId = "pool",
+                                            drag = drag,
+                                            slotBounds = slotBounds,
+                                            onDragStart = { drag = it },
+                                            onDragMove = { drag?.pos = it },
+                                            onDragEnd = {
+                                                drag?.let { finishDrag(it) }
+                                                drag = null
+                                            },
+                                        )
+                                    }
                                 }
                             }
                         }
 
-                        val usedInOtherSlots = (
-                            lines.flatMapIndexed { i, l ->
-                                if (i == lineIndex) emptyList()
-                                else l.defenders + l.forwards
-                            } + listOfNotNull(goalkeeper)
-                            ).filterNotNull().toSet()
+                        Spacer(Modifier.height(12.dp))
 
-                        line.defenders.forEachIndexed { slotIndex, current ->
-                            PlayerDropdown(
-                                label = "Защитник ${slotIndex + 1}",
-                                selected = current,
-                                candidates = defs.map { it.userId }
-                                    .filter { it == current || it !in usedInOtherSlots },
-                                names = names,
-                                onSelect = { line.defenders[slotIndex] = it },
-                            )
+                        // Вратарь
+                        LineupSlotRow(
+                            label = "Вратарь",
+                            slotId = "gk",
+                            occupant = goalkeeper,
+                            names = names,
+                            drag = drag,
+                            slotBounds = slotBounds,
+                            onDragStart = { drag = it },
+                            onDragMove = { drag?.pos = it },
+                            onDragEnd = {
+                                drag?.let { finishDrag(it) }
+                                drag = null
+                            },
+                        )
+
+                        // Звенья
+                        lines.forEachIndexed { lineIndex, line ->
+                            Spacer(Modifier.height(12.dp))
+                            HorizontalDivider()
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "Звено ${lineIndex + 1}",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                if (lines.size > 1) {
+                                    TextButton(onClick = {
+                                        line.defenders.indices.forEach { line.defenders[it] = null }
+                                        line.forwards.indices.forEach { line.forwards[it] = null }
+                                        lines.removeAt(lineIndex)
+                                    }) {
+                                        Text(
+                                            "Убрать",
+                                            color = MaterialTheme.colorScheme.error,
+                                            fontSize = 12.sp,
+                                        )
+                                    }
+                                }
+                            }
+                            line.defenders.forEachIndexed { i, uid ->
+                                LineupSlotRow(
+                                    label = "Защитник ${i + 1}",
+                                    slotId = "d${lineIndex}_$i",
+                                    occupant = uid,
+                                    names = names,
+                                    drag = drag,
+                                    slotBounds = slotBounds,
+                                    onDragStart = { drag = it },
+                                    onDragMove = { drag?.pos = it },
+                                    onDragEnd = {
+                                        drag?.let { finishDrag(it) }
+                                        drag = null
+                                    },
+                                )
+                            }
+                            line.forwards.forEachIndexed { i, uid ->
+                                LineupSlotRow(
+                                    label = "Нападающий ${i + 1}",
+                                    slotId = "f${lineIndex}_$i",
+                                    occupant = uid,
+                                    names = names,
+                                    drag = drag,
+                                    slotBounds = slotBounds,
+                                    onDragStart = { drag = it },
+                                    onDragMove = { drag?.pos = it },
+                                    onDragEnd = {
+                                        drag?.let { finishDrag(it) }
+                                        drag = null
+                                    },
+                                )
+                            }
                         }
-                        line.forwards.forEachIndexed { slotIndex, current ->
-                            PlayerDropdown(
-                                label = "Нападающий ${slotIndex + 1}",
-                                selected = current,
-                                candidates = fwds.map { it.userId }
-                                    .filter { it == current || it !in usedInOtherSlots },
-                                names = names,
-                                onSelect = { line.forwards[slotIndex] = it },
-                            )
+
+                        if (lines.size < 4) {
+                            TextButton(onClick = { lines.add(LineSlots()) }) {
+                                Text("+ Добавить звено")
+                            }
                         }
                     }
 
-                    if (lines.size < 4) {
-                        TextButton(onClick = { lines.add(LineEdit()) }) {
-                            Text("+ Добавить звено")
-                        }
+                    ErrorText(error)
+
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = onDismiss, enabled = !saving) { Text("Отмена") }
+                        Spacer(Modifier.size(8.dp))
+                        TextButton(
+                            enabled = !saving && yesVoters.isNotEmpty(),
+                            onClick = {
+                                val slots = mutableListOf<LineupSlot>()
+                                goalkeeper?.let {
+                                    slots.add(
+                                        LineupSlot(
+                                            lineNumber = null, slotNumber = 1,
+                                            role = LineupRole.GOALKEEPER, userId = it,
+                                        ),
+                                    )
+                                }
+                                lines.forEachIndexed { lineIndex, line ->
+                                    val lineNumber = lineIndex + 1
+                                    line.defenders.forEachIndexed { i, uid ->
+                                        uid?.let {
+                                            slots.add(
+                                                LineupSlot(
+                                                    lineNumber = lineNumber, slotNumber = i + 1,
+                                                    role = LineupRole.DEFENDER, userId = it,
+                                                ),
+                                            )
+                                        }
+                                    }
+                                    line.forwards.forEachIndexed { i, uid ->
+                                        uid?.let {
+                                            slots.add(
+                                                LineupSlot(
+                                                    lineNumber = lineNumber, slotNumber = i + 1,
+                                                    role = LineupRole.FORWARD, userId = it,
+                                                ),
+                                            )
+                                        }
+                                    }
+                                }
+                                onSave(slots)
+                            },
+                        ) { Text(if (saving) "Сохранение…" else "Сохранить") }
                     }
                 }
 
-                ErrorText(error)
-
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss, enabled = !saving) { Text("Отмена") }
-                    Spacer(Modifier.size(8.dp))
-                    TextButton(
-                        enabled = !saving && yesVoters.isNotEmpty(),
-                        onClick = {
-                            val slots = mutableListOf<LineupSlot>()
-                            goalkeeper?.let {
-                                slots.add(
-                                    LineupSlot(
-                                        lineNumber = null, slotNumber = 1,
-                                        role = LineupRole.GOALKEEPER, userId = it,
-                                    ),
+                // «Призрак» перетаскиваемого игрока поверх контента
+                drag?.let { d ->
+                    Box(
+                        Modifier
+                            .offset {
+                                IntOffset(
+                                    (d.pos.x - containerTopLeft.x - d.chipSize.width / 2)
+                                        .roundToInt(),
+                                    (d.pos.y - containerTopLeft.y - d.chipSize.height / 2)
+                                        .roundToInt(),
                                 )
                             }
-                            lines.forEachIndexed { lineIndex, line ->
-                                val lineNumber = lineIndex + 1
-                                line.defenders.forEachIndexed { i, uid ->
-                                    uid?.let {
-                                        slots.add(
-                                            LineupSlot(
-                                                lineNumber = lineNumber, slotNumber = i + 1,
-                                                role = LineupRole.DEFENDER, userId = it,
-                                            ),
-                                        )
-                                    }
-                                }
-                                line.forwards.forEachIndexed { i, uid ->
-                                    uid?.let {
-                                        slots.add(
-                                            LineupSlot(
-                                                lineNumber = lineNumber, slotNumber = i + 1,
-                                                role = LineupRole.FORWARD, userId = it,
-                                            ),
-                                        )
-                                    }
-                                }
-                            }
-                            onSave(slots)
-                        },
-                    ) { Text(if (saving) "Сохранение…" else "Сохранить") }
+                            .background(
+                                MaterialTheme.colorScheme.primary,
+                                RoundedCornerShape(16.dp),
+                            )
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    ) {
+                        Text(
+                            names[d.userId] ?: "user#${d.userId}",
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-/** Выпадающий список игроков для одного слота. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Строка слота заявки: подпись и место для игрока (drop-зона). */
 @Composable
-private fun PlayerDropdown(
+private fun LineupSlotRow(
     label: String,
-    selected: Long?,
-    candidates: List<Long>,
+    slotId: String,
+    occupant: Long?,
     names: Map<Long, String>,
-    onSelect: (Long?) -> Unit,
+    drag: LineupDrag?,
+    slotBounds: MutableMap<String, Rect>,
+    onDragStart: (LineupDrag) -> Unit,
+    onDragMove: (Offset) -> Unit,
+    onDragEnd: () -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it },
-        modifier = Modifier.padding(top = 8.dp),
-    ) {
-        androidx.compose.material3.OutlinedTextField(
-            value = selected?.let { names[it] ?: "user#$it" } ?: "",
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(label) },
-            trailingIcon = {
-                ExposedDropdownMenuDefaults.TrailingIcon(expanded)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(),
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            DropdownMenuItem(
-                text = { Text("—") },
-                onClick = {
-                    onSelect(null)
-                    expanded = false
-                },
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp)
+            .onGloballyPositioned { slotBounds[slotId] = it.boundsInRoot() }
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                RoundedCornerShape(8.dp),
             )
-            candidates.forEach { userId ->
-                DropdownMenuItem(
-                    text = { Text(names[userId] ?: "user#$userId") },
-                    onClick = {
-                        onSelect(userId)
-                        expanded = false
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(92.dp),
+        )
+        if (occupant != null) {
+            DragChip(
+                userId = occupant,
+                name = names[occupant] ?: "user#$occupant",
+                slotId = slotId,
+                drag = drag,
+                slotBounds = slotBounds,
+                onDragStart = onDragStart,
+                onDragMove = onDragMove,
+                onDragEnd = onDragEnd,
+            )
+        } else {
+            Text(
+                "—",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** Перетаскиваемый чип игрока (long-press → drag). */
+@Composable
+private fun DragChip(
+    userId: Long,
+    name: String,
+    slotId: String,
+    drag: LineupDrag?,
+    slotBounds: MutableMap<String, Rect>,
+    onDragStart: (LineupDrag) -> Unit,
+    onDragMove: (Offset) -> Unit,
+    onDragEnd: () -> Unit,
+) {
+    var chipRect by remember { mutableStateOf(Rect.Zero) }
+    val beingDragged = drag?.userId == userId
+    Box(
+        Modifier
+            .padding(vertical = 2.dp)
+            .onGloballyPositioned { chipRect = it.boundsInRoot() }
+            .pointerInput(userId, slotId) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { start ->
+                        onDragStart(
+                            LineupDrag(
+                                userId = userId,
+                                from = slotId,
+                                chipSize = chipRect.size,
+                                pos = chipRect.topLeft + start,
+                            ),
+                        )
                     },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        onDragMove(chipRect.topLeft + change.position)
+                    },
+                    onDragEnd = onDragEnd,
+                    onDragCancel = onDragEnd,
                 )
             }
-        }
+            .alpha(if (beingDragged) 0.3f else 1f)
+            .background(
+                MaterialTheme.colorScheme.secondaryContainer,
+                RoundedCornerShape(16.dp),
+            )
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        Text(
+            name,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
     }
 }

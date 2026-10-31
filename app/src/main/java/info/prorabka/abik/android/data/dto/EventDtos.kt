@@ -17,6 +17,11 @@ data class EventListItemDto(
     val votesYes: Long = 0,
     val votesNo: Long = 0,
     val votesMaybe: Long = 0,
+    val requiredPlayers: Int? = null,
+    val votesYesGoalies: Int = 0,
+    val votesYesDefenders: Int = 0,
+    val votesYesForwards: Int = 0,
+    val votesYesReserve: Int? = null,
 )
 
 @Serializable
@@ -27,6 +32,7 @@ data class EventVoterDto(
     val positions: Set<String> = emptySet(),
     val isTrainer: Boolean = false,
     val sweaterColor: String? = null,
+    val inReserve: Boolean = false,
 )
 
 @Serializable
@@ -62,6 +68,12 @@ data class EventDetailDto(
     val myVote: String? = null,
     val voters: List<EventVoterDto> = emptyList(),
     val lineup: LineupDto? = null,
+    val requiredPlayers: Int? = null,
+    val chargeMode: String? = null,
+    val chargeAmountKopecks: Long? = null,
+    val chargeDistribution: String? = null,
+    val chargeTemplateId: Long? = null,
+    val charged: Boolean = false,
 )
 
 @Serializable
@@ -80,6 +92,11 @@ data class EventCreateRequestDto(
     val place: String,
     val note: String? = null,
     val recurrence: RecurrenceDto? = null,
+    val requiredPlayers: Int? = null,
+    val chargeMode: String? = null,
+    val chargeAmountKopecks: Long? = null,
+    val chargeDistribution: String? = null,
+    val chargeTemplateId: Long? = null,
 )
 
 @Serializable
@@ -91,6 +108,11 @@ data class EventUpdateRequestDto(
     val time: String,
     val place: String,
     val note: String? = null,
+    val requiredPlayers: Int? = null,
+    val chargeMode: String? = null,
+    val chargeAmountKopecks: Long? = null,
+    val chargeDistribution: String? = null,
+    val chargeTemplateId: Long? = null,
 )
 
 @Serializable

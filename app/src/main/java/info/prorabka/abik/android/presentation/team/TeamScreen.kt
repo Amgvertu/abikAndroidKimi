@@ -22,7 +22,6 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -54,22 +53,26 @@ import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.model.TeamMember
 
 /**
- * Экран «Команда»: информация о команде, список участников.
- * Управляющие: приглашение, редактирование команды, долгий тап на игрока —
- * контекстное меню, долгий тап на логотип — изменить логотип.
+ * Экран «Команда»: список участников (без карточки описания — по ТЗ).
+ * Управляющие: приглашение и редактирование команды — иконки сверху,
+ * долгий тап на игрока — контекстное меню.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TeamScreen(
     onMemberClick: (Long) -> Unit,
     onCreateTeam: () -> Unit,
-    onRoster: () -> Unit,
     viewModel: TeamViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
     var showInviteDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var jerseyDialogMember by remember { mutableStateOf<TeamMember?>(null) }
+
+    // Выбор логотипа команды (из диалога редактирования, управляющие)
+    val pickLogo = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+    ) { uri -> uri?.let(viewModel::changeLogo) }
 
     if (ui.loading && ui.detail == null && !ui.noTeam) {
         LoadingBox()
@@ -81,77 +84,17 @@ fun TeamScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        // --- Шапка команды ---
-        val pickLogo = rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.GetContent(),
-        ) { uri -> uri?.let(viewModel::changeLogo) }
-        Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Логотип: долгий тап (управляющие) — изменить (ТЗ v3)
-                val logoUrl = viewModel.resolveUrl(ui.detail?.logoUrl)
-                val logoModifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .combinedClickable(
-                        onClick = {},
-                        onLongClick = { if (ui.isManager) pickLogo.launch("image/*") },
-                    )
-                if (logoUrl != null) {
-                    AsyncImage(
-                        model = logoUrl,
-                        contentDescription = "Логотип",
-                        modifier = logoModifier,
-                        contentScale = ContentScale.Crop,
-                    )
-                } else {
-                    Icon(
-                        Icons.Default.AccountCircle,
-                        contentDescription = "Логотип",
-                        modifier = logoModifier,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
+        // --- Действия управляющих (без карточки описания — по ТЗ) ---
+        if (ui.isManager) {
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(onClick = { showEditDialog = true }) {
+                    Icon(Icons.Default.Edit, contentDescription = "Редактировать команду")
                 }
-                Spacer(modifier = Modifier.padding(4.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        ui.detail?.name ?: "",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        listOfNotNull(
-                            ui.detail?.cityName,
-                            ui.detail?.season?.let { "Сезон $it" },
-                        ).joinToString(" • "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (ui.isManager) {
-                    IconButton(onClick = { showEditDialog = true }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Редактировать команду")
-                    }
-                    IconButton(onClick = { showInviteDialog = true }) {
-                        Icon(Icons.Default.PersonAdd, contentDescription = "Пригласить игрока")
-                    }
+                IconButton(onClick = { showInviteDialog = true }) {
+                    Icon(Icons.Default.PersonAdd, contentDescription = "Пригласить игрока")
                 }
             }
-            ui.detail?.description?.takeIf { it.isNotBlank() }?.let { description ->
-                Text(
-                    description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                )
-            }
-        }
-
-        // --- Переход к составу регулярки ---
-        TextButton(onClick = onRoster, modifier = Modifier.fillMaxWidth()) {
-            Text("Состав регулярки")
         }
 
         ui.info?.let {
@@ -206,6 +149,7 @@ fun TeamScreen(
                 name = detail.name,
                 description = detail.description.orEmpty(),
                 season = detail.season.orEmpty(),
+                onChangeLogo = { pickLogo.launch("image/*") },
                 onDismiss = { showEditDialog = false },
                 onSave = { name, description, season ->
                     viewModel.updateTeam(name, description, season)
@@ -394,6 +338,7 @@ private fun TeamEditDialog(
     name: String,
     description: String,
     season: String,
+    onChangeLogo: () -> Unit,
     onDismiss: () -> Unit,
     onSave: (name: String, description: String, season: String) -> Unit,
 ) {
@@ -424,6 +369,8 @@ private fun TeamEditDialog(
                     label = "Описание",
                     singleLine = false,
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(onClick = onChangeLogo) { Text("Изменить логотип") }
             }
         },
         confirmButton = {

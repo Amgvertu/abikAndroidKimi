@@ -17,7 +17,7 @@ object Routes {
     const val ROSTER = "roster"
     const val MEMBER_FINANCE = "member_finance/{userId}"
     const val EVENT_DETAILS = "event_details/{eventId}"
-    const val EVENT_FORM = "event_form?eventId={eventId}"
+    const val EVENT_FORM = "event_form?eventId={eventId}&date={date}"
     const val CHARGE_CREATE = "charge_create?userId={userId}&chargeId={chargeId}"
     const val PROFILE_EDIT = "profile_edit"
     const val CHANGE_PHONE = "change_phone"
@@ -33,7 +33,7 @@ object Routes {
     fun memberFinance(userId: Long) = "member_finance/$userId"
     fun memberProfileEdit(userId: Long) = "member_profile_edit/$userId"
     fun eventDetails(eventId: Long) = "event_details/$eventId"
-    fun eventForm(eventId: Long = -1L) = "event_form?eventId=$eventId"
+    fun eventForm(eventId: Long = -1L, date: String = "") = "event_form?eventId=$eventId&date=$date"
     fun chargeCreate(userId: Long = -1L, chargeId: Long = -1L) =
         "charge_create?userId=$userId&chargeId=$chargeId"
     fun templateForm(templateId: Long = -1L) = "template_form?templateId=$templateId"

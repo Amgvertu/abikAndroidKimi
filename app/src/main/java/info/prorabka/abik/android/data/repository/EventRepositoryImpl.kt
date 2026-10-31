@@ -11,6 +11,8 @@ import info.prorabka.abik.android.data.dto.LineupSlotDto
 import info.prorabka.abik.android.data.dto.RecurrenceDto
 import info.prorabka.abik.android.data.dto.SweaterColorItemDto
 import info.prorabka.abik.android.data.dto.VoteRequestDto
+import info.prorabka.abik.android.domain.model.EventChargeDistribution
+import info.prorabka.abik.android.domain.model.EventChargeMode
 import info.prorabka.abik.android.domain.model.EventDetail
 import info.prorabka.abik.android.domain.model.EventFormData
 import info.prorabka.abik.android.domain.model.EventListItem
@@ -49,6 +51,11 @@ class EventRepositoryImpl @Inject constructor(
                 votesYes = dto.votesYes,
                 votesNo = dto.votesNo,
                 votesMaybe = dto.votesMaybe,
+                requiredPlayers = dto.requiredPlayers,
+                votesYesGoalies = dto.votesYesGoalies,
+                votesYesDefenders = dto.votesYesDefenders,
+                votesYesForwards = dto.votesYesForwards,
+                votesYesReserve = dto.votesYesReserve,
             )
         }
     }
@@ -78,6 +85,11 @@ class EventRepositoryImpl @Inject constructor(
                 time = data.time,
                 place = data.place,
                 note = data.note,
+                requiredPlayers = data.requiredPlayers,
+                chargeMode = data.chargeMode.name,
+                chargeAmountKopecks = data.chargeAmountKopecks,
+                chargeDistribution = data.chargeDistribution?.name,
+                chargeTemplateId = data.chargeTemplateId,
             ),
         ).toDomain()
     }
@@ -149,6 +161,16 @@ class EventRepositoryImpl @Inject constructor(
                 userId = dto.userId,
             )
         },
+        requiredPlayers = requiredPlayers,
+        chargeMode = chargeMode?.let {
+            runCatching { EventChargeMode.valueOf(it) }.getOrNull()
+        } ?: EventChargeMode.NONE,
+        chargeAmountKopecks = chargeAmountKopecks,
+        chargeDistribution = chargeDistribution?.let {
+            runCatching { EventChargeDistribution.valueOf(it) }.getOrNull()
+        },
+        chargeTemplateId = chargeTemplateId,
+        charged = charged,
     )
 
     private fun EventVoterDto.toDomain() = EventVoter(
@@ -161,6 +183,7 @@ class EventRepositoryImpl @Inject constructor(
         sweaterColor = sweaterColor?.let {
             runCatching { SweaterColor.valueOf(it) }.getOrNull()
         },
+        inReserve = inReserve,
     )
 
     private fun EventFormData.toCreateDto() = EventCreateRequestDto(
@@ -176,6 +199,11 @@ class EventRepositoryImpl @Inject constructor(
         } else {
             RecurrenceDto(weekdays = weekdays, untilDate = untilDateIso)
         },
+        requiredPlayers = requiredPlayers,
+        chargeMode = chargeMode.name,
+        chargeAmountKopecks = chargeAmountKopecks,
+        chargeDistribution = chargeDistribution?.name,
+        chargeTemplateId = chargeTemplateId,
     )
 
     private fun sectionOf(raw: String): EventSection =

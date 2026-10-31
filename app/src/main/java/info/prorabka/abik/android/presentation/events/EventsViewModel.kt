@@ -50,6 +50,18 @@ class EventsViewModel @Inject constructor(
                 runCatching { LocalDate.parse(it.dateIso) }.getOrNull()
             }.toSet()
 
+        /**
+         * Маркеры дней календаря: дата → ключи «время|раздел» событий этого дня.
+         * Цвет маркера определяется парой (время + тип события) на уровне UI.
+         */
+        val dayMarkerKeys: Map<LocalDate, List<String>>
+            get() = sectionEvents
+                .mapNotNull { e ->
+                    runCatching { LocalDate.parse(e.dateIso) }.getOrNull()?.let { it to e }
+                }
+                .groupBy({ it.first }, { "${it.second.time}|${it.second.section.name}" })
+                .mapValues { (_, keys) -> keys.distinct().sorted() }
+
         val selectedDayEvents: List<EventListItem>
             get() = sectionEvents.filter { it.dateIso == selectedDate.toString() }
                 .sortedBy { it.time }

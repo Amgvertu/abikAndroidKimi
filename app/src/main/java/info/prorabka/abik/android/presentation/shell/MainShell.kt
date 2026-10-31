@@ -199,7 +199,7 @@ fun MainShell(
                     onEventClick = { eventId ->
                         rootNavController.navigate(Routes.eventDetails(eventId))
                     },
-                    onCreate = { rootNavController.navigate(Routes.eventForm()) },
+                    onCreate = { date -> rootNavController.navigate(Routes.eventForm(date = date)) },
                     onCreateTeam = { rootNavController.navigate(Routes.ONBOARDING_TEAM) },
                 )
             }
@@ -209,7 +209,6 @@ fun MainShell(
                         rootNavController.navigate(Routes.memberDetails(userId))
                     },
                     onCreateTeam = { rootNavController.navigate(Routes.ONBOARDING_TEAM) },
-                    onRoster = { rootNavController.navigate(Routes.ROSTER) },
                 )
             }
             composable(MainTab.PROFILE.route) {

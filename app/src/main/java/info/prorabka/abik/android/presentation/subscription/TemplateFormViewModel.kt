@@ -9,6 +9,7 @@ import info.prorabka.abik.android.domain.model.ChargeDistribution
 import info.prorabka.abik.android.domain.model.ChargeGroup
 import info.prorabka.abik.android.domain.model.ChargeSubgroup
 import info.prorabka.abik.android.domain.model.MemberStatus
+import info.prorabka.abik.android.domain.model.Position
 import info.prorabka.abik.android.domain.model.TeamMember
 import info.prorabka.abik.android.domain.repository.ChargeRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
@@ -18,9 +19,20 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/** Вид шаблона по ТЗ «Исправление функционала». */
+enum class TemplateKind(val display: String, val groupName: String) {
+    /** Систематическое ежемесячное начисление участникам по списку. */
+    SUBSCRIPTION("Абонемент", "Абонемент"),
+
+    /** Начисление за регулярку на сезон; применяется из формы события. */
+    REGULAR("Регулярка", "Регулярка"),
+}
+
 /**
- * Создание/редактирование шаблона систематического начисления.
- * «Назначение» маппится на группу (+ опциональную подгруппу), как в разовом начислении.
+ * Создание/редактирование шаблона начисления.
+ * «Абонемент»: дата начисления, участники, чекбокс «начислять вратарям».
+ * «Регулярка»: сезон, сумма, заявленные, способ распределения;
+ * название формируется как «Регулярка. Сезон 2026/2027».
  */
 @HiltViewModel
 class TemplateFormViewModel @Inject constructor(
@@ -34,17 +46,25 @@ class TemplateFormViewModel @Inject constructor(
         val saving: Boolean = false,
         val error: String? = null,
         val editTemplateId: Long? = null,
-        val name: String = "",
+        val kind: TemplateKind = TemplateKind.SUBSCRIPTION,
+        val name: String = "Абонемент",
+        val season: String = "",
+        val chargeGoalies: Boolean = true,
         val groups: List<ChargeGroup> = emptyList(),
-        val subgroups: List<ChargeSubgroup> = emptyList(),
-        val groupName: String = "",
-        val subgroupName: String = "",
         val amountRubles: String = "",
         val dayOfMonth: String = "",
         val distribution: ChargeDistribution = ChargeDistribution.FIXED,
         val members: List<TeamMember> = emptyList(),
         val selectedUserIds: Set<Long> = emptySet(),
-    )
+    ) {
+        /** Итоговое название шаблона (для «Регулярки» — автоматическое). */
+        val effectiveName: String
+            get() = if (kind == TemplateKind.REGULAR) {
+                "Регулярка. Сезон $season"
+            } else {
+                name
+            }
+    }
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
@@ -70,24 +90,28 @@ class TemplateFormViewModel @Inject constructor(
                         val template = t.data.firstOrNull { it.id == templateId }
                         if (template != null) {
                             val group = _ui.value.groups.firstOrNull { it.id == template.groupId }
-                            var subgroupName = ""
-                            if (group != null && template.subgroupId != null) {
-                                when (val s = chargeRepository.subgroups(teamId, group.id)) {
-                                    is ApiResult.Success -> {
-                                        subgroupName = s.data
-                                            .firstOrNull { it.id == template.subgroupId }
-                                            ?.name ?: ""
-                                        _ui.update { it.copy(subgroups = s.data) }
-                                    }
-                                    else -> Unit
-                                }
+                            val kind = if (
+                                group?.name?.equals(
+                                    TemplateKind.REGULAR.groupName,
+                                    ignoreCase = true,
+                                ) == true
+                            ) {
+                                TemplateKind.REGULAR
+                            } else {
+                                TemplateKind.SUBSCRIPTION
+                            }
+                            val season = if (kind == TemplateKind.REGULAR) {
+                                Regex("""Сезон\s+(.+)$""")
+                                    .find(template.name)?.groupValues?.get(1)?.trim().orEmpty()
+                            } else {
+                                ""
                             }
                             _ui.update {
                                 it.copy(
                                     editTemplateId = template.id,
+                                    kind = kind,
                                     name = template.name,
-                                    groupName = group?.name ?: "",
-                                    subgroupName = subgroupName,
+                                    season = season,
                                     amountRubles = (template.amountKopecks / 100).toString(),
                                     dayOfMonth = template.dayOfMonth?.toString() ?: "",
                                     distribution = template.distribution,
@@ -103,23 +127,50 @@ class TemplateFormViewModel @Inject constructor(
         }
     }
 
-    fun onName(v: String) = _ui.update { it.copy(name = v.take(200)) }
-
-    fun onGroupName(v: String) {
-        _ui.update { it.copy(groupName = v, subgroupName = "", subgroups = emptyList()) }
-        val teamId = teamManager.selected.value?.id ?: return
-        val match = _ui.value.groups.firstOrNull { it.name.equals(v.trim(), ignoreCase = true) }
-        if (match != null) {
-            viewModelScope.launch {
-                when (val s = chargeRepository.subgroups(teamId, match.id)) {
-                    is ApiResult.Success -> _ui.update { it.copy(subgroups = s.data) }
-                    else -> Unit
-                }
-            }
+    fun onKind(kind: TemplateKind) {
+        if (_ui.value.editTemplateId != null) return
+        _ui.update {
+            it.copy(
+                kind = kind,
+                name = if (kind == TemplateKind.SUBSCRIPTION && it.name.startsWith("Регулярка")) {
+                    "Абонемент"
+                } else {
+                    it.name
+                },
+            )
         }
     }
 
-    fun onSubgroupName(v: String) = _ui.update { it.copy(subgroupName = v) }
+    fun onName(v: String) = _ui.update { it.copy(name = v.take(200)) }
+
+    fun onSeason(v: String) {
+        // Ввод только цифрами, разделитель подставляется автоматически: 20262027 → 2026/2027
+        val digits = v.filter(Char::isDigit).take(8)
+        val formatted = if (digits.length > 4) {
+            digits.substring(0, 4) + "/" + digits.substring(4)
+        } else {
+            digits
+        }
+        _ui.update { it.copy(season = formatted) }
+    }
+
+    fun onChargeGoalies(checked: Boolean) {
+        _ui.update {
+            val goalieIds = it.members
+                .filter { m -> Position.GOALKEEPER in m.positions }
+                .map { m -> m.userId }
+                .toSet()
+            it.copy(
+                chargeGoalies = checked,
+                selectedUserIds = if (checked) {
+                    it.selectedUserIds + goalieIds
+                } else {
+                    it.selectedUserIds - goalieIds
+                },
+            )
+        }
+    }
+
     fun onAmount(v: String) = _ui.update { it.copy(amountRubles = v.filter(Char::isDigit).take(9)) }
 
     fun onDayOfMonth(v: String) {
@@ -150,11 +201,15 @@ class TemplateFormViewModel @Inject constructor(
         val s = _ui.value
         val teamId = teamManager.selected.value?.id ?: return
         val amount = s.amountRubles.toLongOrNull()
-        val day = s.dayOfMonth.toIntOrNull()
+        val isRegular = s.kind == TemplateKind.REGULAR
+        val day = if (isRegular) 1 else s.dayOfMonth.toIntOrNull()
         when {
-            s.name.isBlank() -> _ui.update { it.copy(error = "Укажите название шаблона") }
-            s.groupName.isBlank() -> _ui.update { it.copy(error = "Укажите назначение") }
-            amount == null || amount <= 0 -> _ui.update { it.copy(error = "Укажите сумму") }
+            isRegular && s.season.isBlank() ->
+                _ui.update { it.copy(error = "Укажите сезон, например 2026/2027") }
+            !isRegular && s.name.isBlank() ->
+                _ui.update { it.copy(error = "Укажите название шаблона") }
+            amount == null || amount <= 0 ->
+                _ui.update { it.copy(error = "Укажите сумму") }
             day == null || day !in 1..28 ->
                 _ui.update { it.copy(error = "День месяца — от 1 до 28") }
             s.selectedUserIds.isEmpty() ->
@@ -162,9 +217,10 @@ class TemplateFormViewModel @Inject constructor(
             else -> viewModelScope.launch {
                 _ui.update { it.copy(saving = true, error = null) }
 
-                var group = s.groups.firstOrNull { it.name.equals(s.groupName.trim(), true) }
+                val groupName = s.kind.groupName
+                var group = s.groups.firstOrNull { it.name.equals(groupName, true) }
                 if (group == null) {
-                    when (val created = chargeRepository.createGroup(teamId, s.groupName.trim())) {
+                    when (val created = chargeRepository.createGroup(teamId, groupName)) {
                         is ApiResult.Success -> group = created.data
                         is ApiResult.HttpError -> {
                             _ui.update { it.copy(saving = false, error = created.message) }
@@ -179,31 +235,12 @@ class TemplateFormViewModel @Inject constructor(
                     }
                 }
 
-                var subgroupId: Long? = null
-                if (s.subgroupName.isNotBlank()) {
-                    val existing = s.subgroups.firstOrNull {
-                        it.name.equals(s.subgroupName.trim(), true)
-                    }
-                    subgroupId = if (existing != null) {
-                        existing.id
-                    } else {
-                        when (
-                            val created = chargeRepository.createSubgroup(
-                                teamId, group!!.id, s.subgroupName.trim(),
-                            )
-                        ) {
-                            is ApiResult.Success -> created.data.id
-                            else -> null
-                        }
-                    }
-                }
-
                 val result = chargeRepository.saveTemplate(
                     teamId = teamId,
                     templateId = s.editTemplateId,
                     groupId = group!!.id,
-                    subgroupId = subgroupId,
-                    name = s.name.trim(),
+                    subgroupId = null,
+                    name = s.effectiveName.trim(),
                     amountKopecks = amount!! * 100,
                     dayOfMonth = day!!,
                     distribution = s.distribution,

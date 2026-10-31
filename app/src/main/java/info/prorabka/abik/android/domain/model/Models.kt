@@ -180,12 +180,28 @@ data class EntryFeeData(
 enum class EventSection(val display: String) {
     TRAINING("Тренировки"),
     REGULAR("Регулярка"),
+    SCRIMMAGE("Двухсторонка"),
 }
 
 enum class EventType(val display: String) {
     TRAINING("Тренировка"),
     GAME("Игра"),
     MATCH("Матч"),
+}
+
+/** Способ начисления за игру (ТЗ «Исправление функционала»). */
+enum class EventChargeMode(val display: String) {
+    NONE("Без начисления"),
+    MANUAL("Вручную"),
+    TEMPLATE("По шаблону"),
+}
+
+/** Кому и как начислять сумму за игру. */
+enum class EventChargeDistribution(val display: String) {
+    EACH_ROSTER("Каждому заявленному в регулярке"),
+    EACH_ATTENDED("Каждому отметившемуся"),
+    SPLIT_ATTENDED("Разделить на всех отметившихся"),
+    SPLIT_ROSTER("Разделить на всех заявленных"),
 }
 
 enum class VoteAnswer(val display: String) {
@@ -214,6 +230,13 @@ data class EventListItem(
     val votesYes: Long,
     val votesNo: Long,
     val votesMaybe: Long,
+    val requiredPlayers: Int? = null,
+    /** Проголосовавшие «Иду» по амплуа: вратари / защитники / нападающие. */
+    val votesYesGoalies: Int = 0,
+    val votesYesDefenders: Int = 0,
+    val votesYesForwards: Int = 0,
+    /** Сколько проголосовавших «Иду» в резерве (сверх requiredPlayers); null — резерва нет. */
+    val votesYesReserve: Int? = null,
 )
 
 data class EventVoter(
@@ -223,6 +246,8 @@ data class EventVoter(
     val positions: Set<Position>,
     val isTrainer: Boolean,
     val sweaterColor: SweaterColor?,
+    /** Игрок проголосовал «Иду», но не влез в лимит requiredPlayers. */
+    val inReserve: Boolean = false,
 )
 
 /** Один слот заявки на игру. lineNumber = null для вратаря. */
@@ -247,6 +272,13 @@ data class EventDetail(
     val myVote: VoteAnswer?,
     val voters: List<EventVoter>,
     val lineup: List<LineupSlot>?,
+    val requiredPlayers: Int? = null,
+    val chargeMode: EventChargeMode = EventChargeMode.NONE,
+    val chargeAmountKopecks: Long? = null,
+    val chargeDistribution: EventChargeDistribution? = null,
+    val chargeTemplateId: Long? = null,
+    /** Начисление по событию уже выполнено. */
+    val charged: Boolean = false,
 )
 
 /** Данные формы создания/редактирования события. weekdays/untilDateIso = null — разовое. */
@@ -260,4 +292,9 @@ data class EventFormData(
     val note: String?,
     val weekdays: Set<Int>?,
     val untilDateIso: String?,
+    val requiredPlayers: Int? = null,
+    val chargeMode: EventChargeMode = EventChargeMode.NONE,
+    val chargeAmountKopecks: Long? = null,
+    val chargeDistribution: EventChargeDistribution? = null,
+    val chargeTemplateId: Long? = null,
 )
