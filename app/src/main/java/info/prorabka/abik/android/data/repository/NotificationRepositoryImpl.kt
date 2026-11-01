@@ -12,6 +12,9 @@ import info.prorabka.abik.android.domain.model.NotificationType
 import info.prorabka.abik.android.domain.repository.DeviceRepository
 import info.prorabka.abik.android.domain.repository.NotificationRepository
 import info.prorabka.abik.android.fcm.DeviceTokenProvider
+import info.prorabka.abik.android.push.HuaweiTokenProvider
+import info.prorabka.abik.android.push.PushProviders
+import info.prorabka.abik.android.push.RuStoreTokenProvider
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
@@ -63,19 +66,35 @@ class NotificationRepositoryImpl @Inject constructor(
 class DeviceRepositoryImpl @Inject constructor(
     private val api: DeviceApi,
     private val tokenProvider: DeviceTokenProvider,
+    private val ruStoreTokenProvider: RuStoreTokenProvider,
+    private val huaweiTokenProvider: HuaweiTokenProvider,
 ) : DeviceRepository {
 
+    /** Регистрируем токены всех доступных провайдеров: сервер перебирает их при отправке. */
     override suspend fun registerCurrentDevice() {
-        val token = tokenProvider.currentToken() ?: return
+        registerToken(PushProviders.FCM) { tokenProvider.currentToken() }
+        registerToken(PushProviders.RUSTORE) { ruStoreTokenProvider.currentToken() }
+        registerToken(PushProviders.HUAWEI) { huaweiTokenProvider.currentToken() }
+    }
+
+    private suspend fun registerToken(provider: String, getToken: suspend () -> String?) {
+        val token = runCatching { getToken() }.getOrNull() ?: return
         runCatching {
-            api.register(DeviceRegisterRequest(token = token, platform = PLATFORM))
-        }.onFailure { Log.w(TAG, "Не удалось зарегистрировать устройство", it) }
+            api.register(
+                DeviceRegisterRequest(token = token, platform = PLATFORM, provider = provider),
+            )
+        }.onFailure { Log.w(TAG, "Не удалось зарегистрировать устройство ($provider)", it) }
     }
 
     override suspend fun unregisterCurrentDevice() {
-        val token = tokenProvider.savedToken ?: return
-        runCatching { api.unregister(token) }
-            .onFailure { Log.w(TAG, "Не удалось отозвать устройство", it) }
+        listOf(
+            tokenProvider.savedToken,
+            ruStoreTokenProvider.savedToken,
+            huaweiTokenProvider.savedToken,
+        ).filterNotNull().forEach { token ->
+            runCatching { api.unregister(token) }
+                .onFailure { Log.w(TAG, "Не удалось отозвать устройство", it) }
+        }
     }
 
     private companion object {

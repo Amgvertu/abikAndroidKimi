@@ -1,9 +1,15 @@
 package info.prorabka.abik.android
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -23,6 +29,17 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    /**
+     * Приложение русскоязычное: принудительно локаль ru для всего дерева
+     * экрана (календарь выбора даты — неделя с понедельника, месяцы и дни
+     * по-русски), независимо от системного языка устройства.
+     */
+    override fun attachBaseContext(newBase: Context) {
+        val config = Configuration(newBase.resources.configuration)
+        config.setLocale(java.util.Locale("ru"))
+        super.attachBaseContext(newBase.createConfigurationContext(config))
+    }
+
     @Inject
     lateinit var settingsStore: SettingsStore
 
@@ -32,9 +49,13 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var teamManager: CurrentTeamManager
 
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        requestNotificationPermissionIfNeeded()
         setContent {
             val themeMode by settingsStore.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
             val dark = when (themeMode) {
@@ -52,5 +73,14 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** Android 13+: без runtime-разрешения push-уведомления не показываются. */
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) return
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 }

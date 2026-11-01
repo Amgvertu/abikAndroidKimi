@@ -1,6 +1,7 @@
 package info.prorabka.abik.android.presentation.events
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -43,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import info.prorabka.abik.android.core.ui.components.AbikButton
 import info.prorabka.abik.android.core.ui.components.AbikTextField
@@ -96,12 +98,15 @@ fun EventFormScreen(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                ) {
                     EventSection.entries.forEach { section ->
                         FilterChip(
                             selected = ui.section == section,
                             onClick = { viewModel.setSection(section) },
-                            label = { Text(section.display) },
+                            label = { Text(section.display, maxLines = 1) },
                         )
                     }
                 }

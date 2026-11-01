@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -104,13 +105,16 @@ fun EventsScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                // Разделы
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Разделы (прокручиваются, если шрифт крупный)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                ) {
                     EventSection.entries.forEach { section ->
                         FilterChip(
                             selected = ui.section == section,
                             onClick = { viewModel.selectSection(section) },
-                            label = { Text(section.display) },
+                            label = { Text(section.display, maxLines = 1) },
                         )
                     }
                 }

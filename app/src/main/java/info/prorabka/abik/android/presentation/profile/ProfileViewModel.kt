@@ -103,7 +103,9 @@ class ProfileViewModel @Inject constructor(
                 }
             }
             when (val inv = teamRepository.incomingInvitations()) {
-                is ApiResult.Success -> _ui.update { it.copy(invitations = inv.data) }
+                is ApiResult.Success -> _ui.update {
+                    it.copy(invitations = inv.data.filter { i -> i.status == "PENDING" })
+                }
                 else -> Unit
             }
         }
@@ -122,6 +124,9 @@ class ProfileViewModel @Inject constructor(
                     _ui.update {
                         it.copy(
                             invitationSaving = false,
+                            // Сразу убираем принятое приглашение из списка,
+                            // чтобы не было повторного нажатия
+                            invitations = it.invitations.filter { i -> i.id != invitation.id },
                             info = "Вы вступили в команду «${invitation.teamName}»",
                         )
                     }

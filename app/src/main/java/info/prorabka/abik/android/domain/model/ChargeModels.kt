@@ -32,7 +32,7 @@ data class ChargeSubgroup(val id: Long, val groupId: Long, val name: String)
 /** Способ распределения суммы шаблона. */
 enum class ChargeDistribution(val display: String) {
     EQUAL("Разделить поровну на участников"),
-    FIXED("Каждому участнику указанную сумму"),
+    FIXED("Каждому участнику"),
 }
 
 /** Шаблон систематического (ежемесячного) начисления. */

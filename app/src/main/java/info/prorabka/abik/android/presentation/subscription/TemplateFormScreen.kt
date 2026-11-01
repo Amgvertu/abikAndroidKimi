@@ -131,13 +131,15 @@ fun TemplateFormScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text("Способ начисления", style = MaterialTheme.typography.titleSmall)
-            Row {
+            Column {
                 ChargeDistribution.entries.forEach { dist ->
                     FilterChip(
                         selected = ui.distribution == dist,
                         onClick = { viewModel.onDistribution(dist) },
                         label = { Text(dist.display) },
-                        modifier = Modifier.padding(end = 8.dp, top = 4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
                     )
                 }
             }

@@ -23,4 +23,6 @@ data class UnreadCountResponse(val count: Long)
 data class DeviceRegisterRequest(
     val token: String,
     val platform: String,
+    /** Провайдер push: FCM, RUSTORE, HUAWEI. */
+    val provider: String = "FCM",
 )

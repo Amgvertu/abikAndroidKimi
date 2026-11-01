@@ -276,7 +276,12 @@ private fun EventContent(
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             VoteAnswer.entries.forEach { answer ->
-                val count = event.voters.count { it.answer == answer }
+                // «Иду» — только основной состав; резерв считается отдельно
+                val count = if (answer == VoteAnswer.YES && event.requiredPlayers != null) {
+                    event.voters.count { it.answer == answer && !it.inReserve }
+                } else {
+                    event.voters.count { it.answer == answer }
+                }
                 FilterChip(
                     selected = event.myVote == answer,
                     onClick = { if (!acting) onVote(answer) },

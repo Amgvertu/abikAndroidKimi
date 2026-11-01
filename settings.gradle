@@ -10,6 +10,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // RuStore SDK
+        maven { url 'https://nexus-external.rustore.ru/repository/maven-rustore-exposed/' }
+        // Huawei HMS SDK
+        maven { url 'https://developer.huawei.com/repo/' }
     }
 }
 rootProject.name = "abik"

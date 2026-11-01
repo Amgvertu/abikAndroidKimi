@@ -33,16 +33,19 @@ class TeamRepositoryImpl @Inject constructor(
 ) : TeamRepository {
 
     override suspend fun myTeams(): ApiResult<List<Team>> = apiCall {
-        teamApi.myTeams().map {
-            Team(
-                id = it.id,
-                name = it.name,
-                cityName = it.cityName,
-                regionName = it.homeRegionName,
-                logoUrl = it.logoUrl,
-                status = it.status,
-            )
-        }
+        // Архивные (удалённые владельцем) команды не показываем в приложении
+        teamApi.myTeams()
+            .filter { it.status != "ARCHIVED" }
+            .map {
+                Team(
+                    id = it.id,
+                    name = it.name,
+                    cityName = it.cityName,
+                    regionName = it.homeRegionName,
+                    logoUrl = it.logoUrl,
+                    status = it.status,
+                )
+            }
     }
 
     override suspend fun detail(teamId: Long): ApiResult<TeamDetail> = apiCall {

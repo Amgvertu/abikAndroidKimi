@@ -7,6 +7,7 @@ import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.core.network.UrlResolver
 import info.prorabka.abik.android.core.util.PhoneUtils
+import info.prorabka.abik.android.domain.model.Invitation
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.TeamCreateData
 import info.prorabka.abik.android.domain.model.TeamDetail
@@ -34,6 +35,7 @@ class TeamViewModel @Inject constructor(
         val noTeam: Boolean = false,
         val detail: TeamDetail? = null,
         val members: List<TeamMember> = emptyList(),
+        val outgoingInvitations: List<Invitation> = emptyList(),
         val error: String? = null,
         val info: String? = null,
     ) {
@@ -65,7 +67,13 @@ class TeamViewModel @Inject constructor(
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, noTeam = false, error = null) }
             when (val d = teamRepository.detail(teamId)) {
-                is ApiResult.Success -> _ui.update { it.copy(detail = d.data) }
+                is ApiResult.Success -> {
+                    _ui.update { it.copy(detail = d.data) }
+                    val manager = d.data.myRole == MemberRole.OWNER ||
+                        d.data.myRole == MemberRole.MODERATOR ||
+                        d.data.myRole == MemberRole.ADMIN
+                    if (manager) loadOutgoingInvitations(teamId)
+                }
                 is ApiResult.HttpError -> _ui.update { it.copy(error = d.message) }
                 is ApiResult.NetworkError -> _ui.update {
                     it.copy(error = "Нет соединения с сервером")
@@ -219,6 +227,61 @@ class TeamViewModel @Inject constructor(
         viewModelScope.launch {
             when (val r = teamRepository.restoreMember(teamId, member.userId)) {
                 is ApiResult.Success -> load(teamId)
+                is ApiResult.HttpError -> _ui.update { it.copy(error = r.message) }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
+    private suspend fun loadOutgoingInvitations(teamId: Long) {
+        when (val r = teamRepository.outgoingInvitations(teamId)) {
+            is ApiResult.Success -> _ui.update { it.copy(outgoingInvitations = r.data) }
+            else -> Unit
+        }
+    }
+
+    /** Отменить исходящее приглашение (управляющие). */
+    fun cancelInvitation(invitation: Invitation) {
+        viewModelScope.launch {
+            when (val r = teamRepository.cancelInvitation(invitation.id)) {
+                is ApiResult.Success -> _ui.update {
+                    it.copy(
+                        outgoingInvitations = it.outgoingInvitations
+                            .filter { i -> i.id != invitation.id },
+                        info = "Приглашение отменено",
+                    )
+                }
+                is ApiResult.HttpError -> _ui.update { it.copy(error = r.message) }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
+    /** Покинуть команду (все, кроме владельца). */
+    fun leaveTeam() {
+        val teamId = currentTeamId() ?: return
+        viewModelScope.launch {
+            when (val r = teamRepository.leave(teamId)) {
+                // refresh переключит на другую команду или покажет заглушку
+                is ApiResult.Success -> teamManager.refresh()
+                is ApiResult.HttpError -> _ui.update { it.copy(error = r.message) }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
+    /** Удалить команду (владелец): сервер переводит её в архив. */
+    fun archiveTeam() {
+        val teamId = currentTeamId() ?: return
+        viewModelScope.launch {
+            when (val r = teamRepository.archive(teamId)) {
+                is ApiResult.Success -> teamManager.refresh()
                 is ApiResult.HttpError -> _ui.update { it.copy(error = r.message) }
                 is ApiResult.NetworkError -> _ui.update {
                     it.copy(error = "Нет соединения с сервером")

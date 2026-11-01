@@ -12,6 +12,18 @@ android {
     namespace 'info.prorabka.abik.android'
     compileSdk 35
 
+    // Общий keystore для debug-сборок: одинаковый отпечаток подписи
+    // на всех компьютерах разработки (важно для FCM/RuStore/Huawei).
+    // Файл keystore/abik-debug.keystore лежит в проекте — не удалять.
+    signingConfigs {
+        debug {
+            storeFile rootProject.file('keystore/abik-debug.keystore')
+            storePassword 'android'
+            keyAlias 'abikdebug'
+            keyPassword 'android'
+        }
+    }
+
     defaultConfig {
         applicationId "info.prorabka.abik.android"
         minSdk 24
@@ -27,6 +39,11 @@ android {
         // СТАРОЕ значение даже после clean (поймано на живом инциденте).
         buildConfigField "String", "DEFAULT_BASE_URL", 'new String("https://varamy.online/api/abik/")'
         buildConfigField "String", "LOCAL_BASE_URL", 'new String("http://192.168.0.119:8083/api/abik/")'
+
+        // Project ID из консоли RuStore (console.rustore.ru → проект → Push).
+        // Пока пусто — RuStore Push не инициализируется. Когда зарегистрируете
+        // проект в RuStore, впишите ID сюда.
+        buildConfigField "String", "RUSTORE_PROJECT_ID", 'new String("3hXUg4XY1qsSRn0Gshfr3k28EoKtWlc9")'
     }
 
     buildTypes {
@@ -57,6 +74,7 @@ dependencies {
     def composeBom = platform('androidx.compose:compose-bom:2024.09.03')
     implementation composeBom
     implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.activity:activity-compose:1.9.3'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6'
     implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.6'
@@ -85,6 +103,14 @@ dependencies {
     implementation platform('com.google.firebase:firebase-bom:34.11.0')
     implementation 'com.google.firebase:firebase-messaging'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1'
+
+    // RuStore Push SDK (репозиторий VK) — требует project ID в BuildConfig.RUSTORE_PROJECT_ID
+    implementation 'ru.rustore.sdk:pushclient:7.5.0'
+
+    // Huawei HMS Push: agconnect-core читает agconnect-services.json (когда появится в app/),
+    // push — получение токена и приём сообщений
+    implementation 'com.huawei.agconnect:agconnect-core:1.9.1.300'
+    implementation 'com.huawei.hms:push:6.11.0.300'
 
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.2'
 }

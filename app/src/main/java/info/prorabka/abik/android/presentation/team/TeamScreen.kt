@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -48,6 +50,7 @@ import coil.compose.AsyncImage
 import info.prorabka.abik.android.core.ui.components.AbikTextField
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
+import info.prorabka.abik.android.domain.model.Invitation
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.model.TeamMember
@@ -67,6 +70,8 @@ fun TeamScreen(
     val ui by viewModel.ui.collectAsState()
     var showInviteDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
+    var showLeaveDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     var jerseyDialogMember by remember { mutableStateOf<TeamMember?>(null) }
 
     // Выбор логотипа команды (из диалога редактирования, управляющие)
@@ -114,8 +119,18 @@ fun TeamScreen(
             )
         }
 
-        // --- Список участников ---
+        // --- Список участников + приглашения + действия ---
         LazyColumn {
+            // Исходящие приглашения (только управляющие, если есть)
+            if (ui.isManager && ui.outgoingInvitations.isNotEmpty()) {
+                item(key = "outgoing_invitations") {
+                    OutgoingInvitationsCard(
+                        invitations = ui.outgoingInvitations,
+                        onCancel = { viewModel.cancelInvitation(it) },
+                    )
+                }
+            }
+
             items(ui.members, key = { it.userId }) { member ->
                 MemberRow(
                     member = member,
@@ -130,7 +145,80 @@ fun TeamScreen(
                 )
                 HorizontalDivider()
             }
+
+            // Нижние действия: удалить (владелец) / покинуть (остальные)
+            item(key = "team_actions") {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    if (ui.isOwner) {
+                        TextButton(onClick = { showDeleteDialog = true }) {
+                            Text(
+                                "Удалить команду",
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    } else {
+                        TextButton(onClick = { showLeaveDialog = true }) {
+                            Text(
+                                "Покинуть команду",
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    if (showLeaveDialog) {
+        AlertDialog(
+            onDismissRequest = { showLeaveDialog = false },
+            title = { Text("Покинуть команду?") },
+            text = {
+                Text(
+                    "Вы выйдете из состава команды«${ui.detail?.name.orEmpty()}». " +
+                        "Ваши долги и история сохранятся, вернуть вас сможет управляющий.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLeaveDialog = false
+                        viewModel.leaveTeam()
+                    },
+                ) { Text("Покинуть", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLeaveDialog = false }) { Text("Отмена") }
+            },
+        )
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Удалить команду?") },
+            text = {
+                Text(
+                    "Команда «${ui.detail?.name.orEmpty()}» будет удалена: " +
+                        "она исчезнет из списков всех участников, начисления остановятся. " +
+                        "Данные сохранятся в архиве.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        viewModel.archiveTeam()
+                    },
+                ) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Отмена") }
+            },
+        )
     }
 
     if (showInviteDialog) {
@@ -296,6 +384,50 @@ private fun MemberRow(
                             onRestore()
                         },
                     )
+                }
+            }
+        }
+    }
+}
+
+/** Исходящие приглашения команды (PENDING) с возможностью отмены. */
+@Composable
+private fun OutgoingInvitationsCard(
+    invitations: List<Invitation>,
+    onCancel: (Invitation) -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Отправленные приглашения",
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            invitations.forEach { invitation ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            invitation.invitedPhone,
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        invitation.expiresAt?.take(10)?.let { date ->
+                            Text(
+                                "Действует до $date",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    TextButton(onClick = { onCancel(invitation) }) {
+                        Text("Отменить", color = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }

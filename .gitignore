@@ -20,6 +20,9 @@ local.properties
 *.keystore
 *.jks
 *.pem
+# Исключение: общий debug-keystore коммитим, чтобы отпечаток подписи
+# был одинаковый на всех компьютерах разработки
+!keystore/abik-debug.keystore
 
 # ---------- Android Studio / IntelliJ ----------
 .idea/
