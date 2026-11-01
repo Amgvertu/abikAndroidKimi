@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -18,6 +19,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,7 +30,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import info.prorabka.abik.android.core.ui.components.AbikButton
@@ -105,11 +111,13 @@ fun TemplateFormScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             } else {
-                AbikTextField(
+                OutlinedTextField(
                     value = ui.season,
                     onValueChange = viewModel::onSeason,
-                    label = "Сезон (например, 2026/2027)",
-                    keyboardType = KeyboardType.Number,
+                    label = { Text("Сезон (например, 2026/2027)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    visualTransformation = SeasonVisualTransformation,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 if (ui.season.isNotBlank()) {
                     Text(
@@ -201,5 +209,28 @@ fun TemplateFormScreen(
             )
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+}
+
+/**
+ * Отображение сезона: цифры «20262027» → «2026/2027».
+ * Слэш — только визуальный, поэтому курсор не скачет при вводе.
+ */
+private object SeasonVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val digits = text.text
+        val out = if (digits.length > 4) {
+            digits.take(4) + "/" + digits.drop(4)
+        } else {
+            digits
+        }
+        val mapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int =
+                if (offset <= 4) offset else offset + 1
+
+            override fun transformedToOriginal(offset: Int): Int =
+                if (offset <= 4) offset else offset - 1
+        }
+        return TransformedText(AnnotatedString(out), mapping)
     }
 }

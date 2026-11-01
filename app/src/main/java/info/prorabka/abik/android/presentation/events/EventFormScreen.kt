@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -58,7 +60,7 @@ import java.time.LocalDate
 private val WEEKDAY_NAMES = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
 
 /** Форма создания/редактирования события (ТЗ «Исправление функционала»). */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun EventFormScreen(
     onBack: () -> Unit,
@@ -220,24 +222,28 @@ fun EventFormScreen(
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
                         FilterChip(
                             selected = ui.chargeMode == EventChargeMode.NONE,
                             onClick = { viewModel.setChargeMode(EventChargeMode.NONE) },
-                            label = { Text("Без начисления") },
+                            label = { Text("Нет", maxLines = 1, fontSize = 11.sp) },
+                            modifier = Modifier.weight(1f),
                         )
                         FilterChip(
                             selected = ui.chargeMode == EventChargeMode.MANUAL,
                             onClick = { viewModel.setChargeMode(EventChargeMode.MANUAL) },
-                            label = { Text("Вручную") },
+                            label = { Text("Вручную", maxLines = 1, fontSize = 11.sp) },
+                            modifier = Modifier.weight(1f),
                         )
-                        if (ui.section == EventSection.REGULAR) {
-                            FilterChip(
-                                selected = ui.chargeMode == EventChargeMode.TEMPLATE,
-                                onClick = { viewModel.setChargeMode(EventChargeMode.TEMPLATE) },
-                                label = { Text("По шаблону") },
-                            )
-                        }
+                        FilterChip(
+                            selected = ui.chargeMode == EventChargeMode.TEMPLATE,
+                            onClick = { viewModel.setChargeMode(EventChargeMode.TEMPLATE) },
+                            label = { Text("По шаблону", maxLines = 1, fontSize = 11.sp) },
+                            modifier = Modifier.weight(1f),
+                        )
                     }
 
                     if (ui.chargeMode == EventChargeMode.MANUAL) {
@@ -263,6 +269,30 @@ fun EventFormScreen(
                                     )
                                     Text(d.display, style = MaterialTheme.typography.bodyMedium)
                                 }
+                            }
+                        }
+                        // Явный список получателей (ТЗ): пустой — по способу начисления
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Кому начислить (необязательно)",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            "Если никто не выбран — получатели определяются способом начисления",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ui.members.forEach { member ->
+                                FilterChip(
+                                    selected = member.userId in ui.chargeMemberIds,
+                                    onClick = { viewModel.toggleChargeMember(member.userId) },
+                                    label = {
+                                        Text(member.displayName, maxLines = 1, fontSize = 12.sp)
+                                    },
+                                )
                             }
                         }
                     }

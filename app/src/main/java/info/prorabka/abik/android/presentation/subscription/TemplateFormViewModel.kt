@@ -29,6 +29,13 @@ enum class TemplateKind(val display: String, val groupName: String) {
 }
 
 /**
+ * Сезон хранится как цифры («20262027»), слэш подставляется
+ * только при отображении — иначе курсор «прыгает» при вводе.
+ */
+private fun formatSeasonDigits(digits: String): String =
+    if (digits.length > 4) digits.take(4) + "/" + digits.drop(4) else digits
+
+/**
  * Создание/редактирование шаблона начисления.
  * «Абонемент»: дата начисления, участники, чекбокс «начислять вратарям».
  * «Регулярка»: сезон, сумма, заявленные, способ распределения;
@@ -60,7 +67,7 @@ class TemplateFormViewModel @Inject constructor(
         /** Итоговое название шаблона (для «Регулярки» — автоматическое). */
         val effectiveName: String
             get() = if (kind == TemplateKind.REGULAR) {
-                "Регулярка. Сезон $season"
+                "Регулярка. Сезон ${formatSeasonDigits(season)}"
             } else {
                 name
             }
@@ -102,7 +109,8 @@ class TemplateFormViewModel @Inject constructor(
                             }
                             val season = if (kind == TemplateKind.REGULAR) {
                                 Regex("""Сезон\s+(.+)$""")
-                                    .find(template.name)?.groupValues?.get(1)?.trim().orEmpty()
+                                    .find(template.name)?.groupValues?.get(1)
+                                    ?.filter(Char::isDigit).orEmpty()
                             } else {
                                 ""
                             }
@@ -144,14 +152,8 @@ class TemplateFormViewModel @Inject constructor(
     fun onName(v: String) = _ui.update { it.copy(name = v.take(200)) }
 
     fun onSeason(v: String) {
-        // Ввод только цифрами, разделитель подставляется автоматически: 20262027 → 2026/2027
-        val digits = v.filter(Char::isDigit).take(8)
-        val formatted = if (digits.length > 4) {
-            digits.substring(0, 4) + "/" + digits.substring(4)
-        } else {
-            digits
-        }
-        _ui.update { it.copy(season = formatted) }
+        // Только цифры, слэш между годами подставляется при отображении
+        _ui.update { it.copy(season = v.filter(Char::isDigit).take(8)) }
     }
 
     fun onChargeGoalies(checked: Boolean) {

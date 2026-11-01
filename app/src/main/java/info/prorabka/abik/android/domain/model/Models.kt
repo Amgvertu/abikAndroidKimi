@@ -277,6 +277,8 @@ data class EventDetail(
     val chargeAmountKopecks: Long? = null,
     val chargeDistribution: EventChargeDistribution? = null,
     val chargeTemplateId: Long? = null,
+    /** Явный список получателей ручного начисления (пусто — по способу начисления). */
+    val chargeMemberIds: Set<Long> = emptySet(),
     /** Начисление по событию уже выполнено. */
     val charged: Boolean = false,
 )
@@ -297,4 +299,6 @@ data class EventFormData(
     val chargeAmountKopecks: Long? = null,
     val chargeDistribution: EventChargeDistribution? = null,
     val chargeTemplateId: Long? = null,
+    /** Явный список получателей ручного начисления; null — не задан. */
+    val chargeMemberIds: Set<Long>? = null,
 )

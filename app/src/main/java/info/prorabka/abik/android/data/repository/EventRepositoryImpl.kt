@@ -90,6 +90,7 @@ class EventRepositoryImpl @Inject constructor(
                 chargeAmountKopecks = data.chargeAmountKopecks,
                 chargeDistribution = data.chargeDistribution?.name,
                 chargeTemplateId = data.chargeTemplateId,
+                chargeMemberIds = data.chargeMemberIds,
             ),
         ).toDomain()
     }
@@ -170,6 +171,7 @@ class EventRepositoryImpl @Inject constructor(
             runCatching { EventChargeDistribution.valueOf(it) }.getOrNull()
         },
         chargeTemplateId = chargeTemplateId,
+        chargeMemberIds = chargeMemberIds.orEmpty(),
         charged = charged,
     )
 
@@ -204,6 +206,7 @@ class EventRepositoryImpl @Inject constructor(
         chargeAmountKopecks = chargeAmountKopecks,
         chargeDistribution = chargeDistribution?.name,
         chargeTemplateId = chargeTemplateId,
+        chargeMemberIds = chargeMemberIds,
     )
 
     private fun sectionOf(raw: String): EventSection =

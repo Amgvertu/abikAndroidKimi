@@ -12,8 +12,11 @@ import info.prorabka.abik.android.domain.model.EventChargeMode
 import info.prorabka.abik.android.domain.model.EventFormData
 import info.prorabka.abik.android.domain.model.EventSection
 import info.prorabka.abik.android.domain.model.EventType
+import info.prorabka.abik.android.domain.model.MemberStatus
+import info.prorabka.abik.android.domain.model.TeamMember
 import info.prorabka.abik.android.domain.repository.ChargeRepository
 import info.prorabka.abik.android.domain.repository.EventRepository
+import info.prorabka.abik.android.domain.repository.TeamRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -27,6 +30,7 @@ class EventFormViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val eventRepository: EventRepository,
     private val chargeRepository: ChargeRepository,
+    private val teamRepository: TeamRepository,
     private val teamManager: CurrentTeamManager,
 ) : ViewModel() {
 
@@ -60,6 +64,10 @@ class EventFormViewModel @Inject constructor(
         val chargeDistribution: EventChargeDistribution = EventChargeDistribution.EACH_ATTENDED,
         val chargeTemplateId: Long? = null,
         val templates: List<ChargeTemplate> = emptyList(),
+        /** Явные получатели ручного начисления (пусто — по способу начисления). */
+        val chargeMemberIds: Set<Long> = emptySet(),
+        /** Активные участники команды — для выбора получателей. */
+        val members: List<TeamMember> = emptyList(),
         // Служебное
         val seriesId: Long? = null,
         val askScope: Boolean = false,
@@ -89,6 +97,19 @@ class EventFormViewModel @Inject constructor(
         presetDate?.let { date -> _ui.update { it.copy(dateIso = date) } }
         if (isEdit) loadEvent()
         loadTemplates()
+        loadMembers()
+    }
+
+    private fun loadMembers() {
+        val teamId = teamManager.selected.value?.id ?: return
+        viewModelScope.launch {
+            when (val m = teamRepository.members(teamId)) {
+                is ApiResult.Success -> _ui.update {
+                    it.copy(members = m.data.filter { member -> member.status == MemberStatus.ACTIVE })
+                }
+                else -> Unit
+            }
+        }
     }
 
     private fun loadTemplates() {
@@ -140,6 +161,7 @@ class EventFormViewModel @Inject constructor(
                             chargeDistribution = e.chargeDistribution
                                 ?: EventChargeDistribution.EACH_ATTENDED,
                             chargeTemplateId = e.chargeTemplateId,
+                            chargeMemberIds = e.chargeMemberIds,
                         )
                     }
                 }
@@ -193,6 +215,17 @@ class EventFormViewModel @Inject constructor(
         it.copy(chargeDistribution = d)
     }
     fun setChargeTemplate(id: Long?) = _ui.update { it.copy(chargeTemplateId = id) }
+
+    /** Переключить участника в списке получателей ручного начисления. */
+    fun toggleChargeMember(userId: Long) = _ui.update {
+        it.copy(
+            chargeMemberIds = if (userId in it.chargeMemberIds) {
+                it.chargeMemberIds - userId
+            } else {
+                it.chargeMemberIds + userId
+            },
+        )
+    }
 
     /** Повторяющаяся/разовая тренировка. Сброс «игровой» у повторяющейся (по ТЗ нет). */
     fun setRepeatWeekly(v: Boolean) = _ui.update {
@@ -319,6 +352,11 @@ class EventFormViewModel @Inject constructor(
             },
             chargeTemplateId = if (effectiveMode == EventChargeMode.TEMPLATE) {
                 s.chargeTemplateId
+            } else {
+                null
+            },
+            chargeMemberIds = if (effectiveMode == EventChargeMode.MANUAL) {
+                s.chargeMemberIds
             } else {
                 null
             },

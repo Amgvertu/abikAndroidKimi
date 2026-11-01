@@ -121,6 +121,30 @@ fun TeamScreen(
 
         // --- Список участников + приглашения + действия ---
         LazyColumn {
+            // Выход из команды / удаление — на видном месте сверху
+            item(key = "team_actions") {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    if (ui.isOwner) {
+                        TextButton(onClick = { showDeleteDialog = true }) {
+                            Text(
+                                "Удалить команду",
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    } else {
+                        TextButton(onClick = { showLeaveDialog = true }) {
+                            Text(
+                                "Покинуть команду",
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                }
+            }
+
             // Исходящие приглашения (только управляющие, если есть)
             if (ui.isManager && ui.outgoingInvitations.isNotEmpty()) {
                 item(key = "outgoing_invitations") {
@@ -144,30 +168,6 @@ fun TeamScreen(
                     onRestore = { viewModel.restore(member) },
                 )
                 HorizontalDivider()
-            }
-
-            // Нижние действия: удалить (владелец) / покинуть (остальные)
-            item(key = "team_actions") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    if (ui.isOwner) {
-                        TextButton(onClick = { showDeleteDialog = true }) {
-                            Text(
-                                "Удалить команду",
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    } else {
-                        TextButton(onClick = { showLeaveDialog = true }) {
-                            Text(
-                                "Покинуть команду",
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    }
-                }
             }
         }
     }
@@ -464,7 +464,7 @@ private fun InviteDialog(onDismiss: () -> Unit, onInvite: (String) -> Unit) {
     )
 }
 
-/** Редактирование названия, описания и сезона команды (управляющие). */
+/** Редактирование названия и описания команды (управляющие). */
 @Composable
 private fun TeamEditDialog(
     name: String,
@@ -476,7 +476,6 @@ private fun TeamEditDialog(
 ) {
     var nameValue by remember { mutableStateOf(name) }
     var descriptionValue by remember { mutableStateOf(description) }
-    var seasonValue by remember { mutableStateOf(season) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -487,12 +486,6 @@ private fun TeamEditDialog(
                     value = nameValue,
                     onValueChange = { nameValue = it },
                     label = "Название",
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                AbikTextField(
-                    value = seasonValue,
-                    onValueChange = { seasonValue = it },
-                    label = "Сезон (например, 2026/27)",
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 AbikTextField(
@@ -507,7 +500,8 @@ private fun TeamEditDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(nameValue, descriptionValue, seasonValue) },
+                // Сезон в форме не редактируется — сохраняется текущее значение
+                onClick = { onSave(nameValue, descriptionValue, season) },
                 enabled = nameValue.isNotBlank(),
             ) { Text("Сохранить") }
         },

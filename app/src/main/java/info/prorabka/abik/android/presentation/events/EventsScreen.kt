@@ -224,9 +224,10 @@ fun EventCard(event: EventListItem, onClick: () -> Unit) {
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Идут: ${event.votesYes}" +
-                        (event.votesYesReserve?.takeIf { it > 0 }?.let { " (+$it в резерве)" } ?: "") +
-                        " • Под вопросом: ${event.votesMaybe} • Не идут: ${event.votesNo}",
+                    // Игра с лимитом: основной состав и резерв отдельно (как в деталях)
+                    event.votesYesReserve?.let { reserve ->
+                        "Идут: ${event.votesYes - reserve} • Резерв: $reserve"
+                    } ?: "Идут: ${event.votesYes} • Под вопросом: ${event.votesMaybe} • Не идут: ${event.votesNo}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
