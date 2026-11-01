@@ -166,7 +166,7 @@ fun EventDetailsScreen(
             event = ui.event!!,
             saving = ui.lineupSaving,
             error = ui.error,
-            onSave = viewModel::setLineup,
+            onSave = { slots, sweaters -> viewModel.setLineupWithSweaters(slots, sweaters) },
             onDismiss = {
                 showLineupDialog = false
                 viewModel.clearMessages()
@@ -566,13 +566,26 @@ private class LineSlots(
     val forwards: MutableList<Long?> = mutableListOf(null, null, null),
 )
 
+/** Цвета маек по игрокам: всем игрокам звена — цвет этого звена. */
+private fun buildSweaterMap(
+    lines: List<LineSlots>,
+    lineSweaters: Map<Int, SweaterColor?>,
+): Map<Long, SweaterColor?> {
+    val result = mutableMapOf<Long, SweaterColor?>()
+    lines.forEachIndexed { index, line ->
+        val color = lineSweaters[index]
+        (line.defenders + line.forwards).filterNotNull().forEach { result[it] = color }
+    }
+    return result
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LineupDialog(
     event: EventDetail,
     saving: Boolean,
     error: String?,
-    onSave: (List<LineupSlot>) -> Unit,
+    onSave: (List<LineupSlot>, Map<Long, SweaterColor?>) -> Unit,
     onDismiss: () -> Unit,
 ) {
     // Кандидаты — проголосовавшие «Иду», кроме тренеров
@@ -605,6 +618,17 @@ private fun LineupDialog(
                         .forEachIndexed { i, s -> if (i < 3) line.forwards[i] = s.userId }
                     add(line)
                 }
+            }
+        }
+    }
+
+    // Цвет маек каждого звена (начальное — по уже назначенным игрокам)
+    val voterColors = event.voters.associate { it.userId to it.sweaterColor }
+    val lineSweaters = remember {
+        mutableStateMapOf<Int, SweaterColor?>().apply {
+            lines.forEachIndexed { index, line ->
+                val ids = (line.defenders + line.forwards).filterNotNull()
+                this[index] = ids.firstNotNullOfOrNull { voterColors[it] }
             }
         }
     }
@@ -646,14 +670,19 @@ private fun LineupDialog(
         val userPositions = positions[d.userId].orEmpty()
         val target = slotBounds.entries
             .firstOrNull { it.value.contains(d.pos) }?.key
+        // Игрок без указанного амплуа — универсал, подходит на любую позицию
+        val targetAccepts = target?.let { slotAccepts(it) }
         when {
-            target != null && slotAccepts(target) in userPositions -> {
+            target != null &&
+                (userPositions.isEmpty() || targetAccepts in userPositions) -> {
                 val displaced = getSlot(target)
                 setSlot(target, d.userId)
                 if (d.from != "pool") {
                     // Обмен: вытесненный игрок встаёт в исходный слот, если подходит
+                    val fromAccepts = slotAccepts(d.from)
+                    val displacedPositions = positions[displaced].orEmpty()
                     if (displaced != null &&
-                        slotAccepts(d.from) in positions[displaced].orEmpty()
+                        (displacedPositions.isEmpty() || fromAccepts in displacedPositions)
                     ) {
                         setSlot(d.from, displaced)
                     } else {
@@ -832,6 +861,30 @@ private fun LineupDialog(
                                     },
                                 )
                             }
+                            // Цвет маек звена
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(top = 4.dp),
+                            ) {
+                                Text(
+                                    "Майки",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.width(92.dp),
+                                )
+                                SweaterColor.entries.forEach { color ->
+                                    FilterChip(
+                                        selected = lineSweaters[lineIndex] == color,
+                                        onClick = {
+                                            lineSweaters[lineIndex] =
+                                                if (lineSweaters[lineIndex] == color) null
+                                                else color
+                                        },
+                                        label = { SweaterDot(color) },
+                                    )
+                                    Spacer(Modifier.size(4.dp))
+                                }
+                            }
                         }
 
                         if (lines.size < 4) {
@@ -882,7 +935,7 @@ private fun LineupDialog(
                                         }
                                     }
                                 }
-                                onSave(slots)
+                                onSave(slots, buildSweaterMap(lines, lineSweaters))
                             },
                         ) { Text(if (saving) "Сохранение…" else "Сохранить") }
                     }

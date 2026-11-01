@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
+import info.prorabka.abik.android.core.prefs.SettingsStore
 import info.prorabka.abik.android.domain.model.ChargeTemplate
 import info.prorabka.abik.android.domain.model.EventChargeDistribution
 import info.prorabka.abik.android.domain.model.EventChargeMode
@@ -13,12 +14,14 @@ import info.prorabka.abik.android.domain.model.EventFormData
 import info.prorabka.abik.android.domain.model.EventSection
 import info.prorabka.abik.android.domain.model.EventType
 import info.prorabka.abik.android.domain.model.MemberStatus
+import info.prorabka.abik.android.domain.model.Position
 import info.prorabka.abik.android.domain.model.TeamMember
 import info.prorabka.abik.android.domain.repository.ChargeRepository
 import info.prorabka.abik.android.domain.repository.EventRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -32,6 +35,7 @@ class EventFormViewModel @Inject constructor(
     private val chargeRepository: ChargeRepository,
     private val teamRepository: TeamRepository,
     private val teamManager: CurrentTeamManager,
+    private val settingsStore: SettingsStore,
 ) : ViewModel() {
 
     /** -1 = создание, иначе редактирование. */
@@ -74,6 +78,8 @@ class EventFormViewModel @Inject constructor(
         val saving: Boolean = false,
         val saved: Boolean = false,
         val error: String? = null,
+        /** Последние места проведения — подсказки под полем «Место». */
+        val recentPlaces: List<String> = emptyList(),
     ) {
         /** Место необязательно только для повторяющейся тренировки (ТЗ). */
         val placeRequired: Boolean
@@ -95,9 +101,28 @@ class EventFormViewModel @Inject constructor(
 
     init {
         presetDate?.let { date -> _ui.update { it.copy(dateIso = date) } }
-        if (isEdit) loadEvent()
+        if (isEdit) loadEvent() else prefillLastPlaceTime()
         loadTemplates()
         loadMembers()
+        viewModelScope.launch {
+            settingsStore.recentEventPlaces.collect { places ->
+                _ui.update { it.copy(recentPlaces = places) }
+            }
+        }
+    }
+
+    /** Подставить место и время последнего события (только при создании). */
+    private fun prefillLastPlaceTime() {
+        viewModelScope.launch {
+            val lastTime = settingsStore.lastEventTime.first()
+            val lastPlace = settingsStore.lastEventPlace.first()
+            _ui.update {
+                it.copy(
+                    time = lastTime ?: it.time,
+                    place = if (it.place.isBlank()) lastPlace.orEmpty() else it.place,
+                )
+            }
+        }
     }
 
     private fun loadMembers() {
@@ -105,7 +130,15 @@ class EventFormViewModel @Inject constructor(
         viewModelScope.launch {
             when (val m = teamRepository.members(teamId)) {
                 is ApiResult.Success -> _ui.update {
-                    it.copy(members = m.data.filter { member -> member.status == MemberStatus.ACTIVE })
+                    // Получатели ручного начисления: без тренеров и вратарей —
+                    // начисления за игру на них не распространяются
+                    it.copy(
+                        members = m.data.filter { member ->
+                            member.status == MemberStatus.ACTIVE &&
+                                !member.isTrainer &&
+                                Position.GOALKEEPER !in member.positions
+                        },
+                    )
                 }
                 else -> Unit
             }
@@ -369,7 +402,10 @@ class EventFormViewModel @Inject constructor(
                 eventRepository.create(teamId, data)
             }
             when (result) {
-                is ApiResult.Success -> _ui.update { it.copy(saving = false, saved = true) }
+                is ApiResult.Success -> {
+                    settingsStore.rememberEventPlaceTime(s.place.trim(), s.time)
+                    _ui.update { it.copy(saving = false, saved = true) }
+                }
                 is ApiResult.HttpError -> _ui.update {
                     it.copy(saving = false, error = result.message)
                 }

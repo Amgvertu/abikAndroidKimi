@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.Card
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -110,6 +111,7 @@ private fun ProfileTab(
     }
     val profile = ui.profile
     var avatarMenu by remember { mutableStateOf(false) }
+    var showAvatarDeleteDialog by remember { mutableStateOf(false) }
     val pickImage = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
     ) { uri -> uri?.let(viewModel::uploadAvatar) }
@@ -179,10 +181,35 @@ private fun ProfileTab(
                                 text = { Text("Удалить аватар") },
                                 onClick = {
                                     avatarMenu = false
-                                    viewModel.removeAvatar()
+                                    showAvatarDeleteDialog = true
                                 },
                             )
                         }
+                    }
+                    if (showAvatarDeleteDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showAvatarDeleteDialog = false },
+                            title = { Text("Удалить аватар?") },
+                            text = { Text("Фото профиля будет удалено.") },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        showAvatarDeleteDialog = false
+                                        viewModel.removeAvatar()
+                                    },
+                                ) {
+                                    Text(
+                                        "Удалить",
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = { showAvatarDeleteDialog = false },
+                                ) { Text("Отмена") }
+                            },
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.padding(6.dp))

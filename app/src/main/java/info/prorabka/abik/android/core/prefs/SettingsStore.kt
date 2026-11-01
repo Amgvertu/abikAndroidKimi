@@ -76,4 +76,35 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
     suspend fun setTeamOnboardingSkipped(skipped: Boolean) {
         context.dataStore.edit { it[keyTeamSkipped] = skipped }
     }
+
+    // --- Запоминание места и времени последнего события ---
+
+    private val keyLastPlace = stringPreferencesKey("last_event_place")
+    private val keyLastTime = stringPreferencesKey("last_event_time")
+    private val keyRecentPlaces = stringPreferencesKey("recent_event_places")
+
+    /** Место последнего созданного события (для предзаполнения формы). */
+    val lastEventPlace: Flow<String?> = context.dataStore.data.map { it[keyLastPlace] }
+
+    /** Время последнего созданного события. */
+    val lastEventTime: Flow<String?> = context.dataStore.data.map { it[keyLastTime] }
+
+    /** До 5 последних мест (свежее — первым) для подсказок в форме. */
+    val recentEventPlaces: Flow<List<String>> = context.dataStore.data.map { prefs ->
+        prefs[keyRecentPlaces]?.split("\n")?.filter { it.isNotBlank() } ?: emptyList()
+    }
+
+    /** Запомнить место и время после успешного сохранения события. */
+    suspend fun rememberEventPlaceTime(place: String, time: String) {
+        context.dataStore.edit { prefs ->
+            if (place.isNotBlank()) {
+                prefs[keyLastPlace] = place
+                val current = prefs[keyRecentPlaces]
+                    ?.split("\n")?.filter { it.isNotBlank() } ?: emptyList()
+                val next = (listOf(place) + current.filter { !it.equals(place, true) }).take(5)
+                prefs[keyRecentPlaces] = next.joinToString("\n")
+            }
+            if (time.isNotBlank()) prefs[keyLastTime] = time
+        }
+    }
 }

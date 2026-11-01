@@ -29,7 +29,8 @@ class EventsViewModel @Inject constructor(
         val loading: Boolean = true,
         val refreshing: Boolean = false,
         val noTeam: Boolean = false,
-        val section: EventSection = EventSection.TRAINING,
+        /** Включённые фильтры разделов; по умолчанию — все. */
+        val sections: Set<EventSection> = EventSection.entries.toSet(),
         val month: YearMonth = YearMonth.now(),
         val selectedDate: LocalDate = LocalDate.now(),
         val events: List<EventListItem> = emptyList(),
@@ -42,9 +43,9 @@ class EventsViewModel @Inject constructor(
                 myRole == MemberRole.MODERATOR
 
         val sectionEvents: List<EventListItem>
-            get() = events.filter { it.section == section }
+            get() = events.filter { it.section in sections }
 
-        /** Дни месяца, в которые есть события выбранного раздела. */
+        /** Дни месяца, в которые есть события включённых разделов. */
         val daysWithEvents: Set<LocalDate>
             get() = sectionEvents.mapNotNull {
                 runCatching { LocalDate.parse(it.dateIso) }.getOrNull()
@@ -124,8 +125,13 @@ class EventsViewModel @Inject constructor(
         }
     }
 
-    fun selectSection(section: EventSection) {
-        _ui.update { it.copy(section = section) }
+    /** Фильтр раздела: тап включает/выключает раздел на календаре. */
+    fun toggleSection(section: EventSection) {
+        _ui.update {
+            val next = if (section in it.sections) it.sections - section
+            else it.sections + section
+            it.copy(sections = next)
+        }
     }
 
     fun selectDate(date: LocalDate) {

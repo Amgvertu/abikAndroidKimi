@@ -209,6 +209,22 @@ class TeamViewModel @Inject constructor(
         }
     }
 
+    /** Назначить/снять тренера команды (только владелец). */
+    fun toggleTrainer(member: TeamMember) {
+        val teamId = currentTeamId() ?: return
+        viewModelScope.launch {
+            when (
+                val r = teamRepository.setTrainer(teamId, member.userId, !member.isTrainer)
+            ) {
+                is ApiResult.Success -> load(teamId)
+                is ApiResult.HttpError -> _ui.update { it.copy(error = r.message) }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
     fun exclude(member: TeamMember) {
         val teamId = currentTeamId() ?: return
         viewModelScope.launch {

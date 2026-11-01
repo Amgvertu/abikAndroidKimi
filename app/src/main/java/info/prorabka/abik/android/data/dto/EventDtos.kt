@@ -22,6 +22,7 @@ data class EventListItemDto(
     val votesYesDefenders: Int = 0,
     val votesYesForwards: Int = 0,
     val votesYesReserve: Int? = null,
+    val myInReserve: Boolean? = null,
 )
 
 @Serializable

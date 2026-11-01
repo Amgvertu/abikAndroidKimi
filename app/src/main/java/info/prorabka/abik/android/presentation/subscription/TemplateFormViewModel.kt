@@ -37,9 +37,11 @@ private fun formatSeasonDigits(digits: String): String =
 
 /**
  * Создание/редактирование шаблона начисления.
- * «Абонемент»: дата начисления, участники, чекбокс «начислять вратарям».
+ * «Абонемент»: дата начисления, участники.
  * «Регулярка»: сезон, сумма, заявленные, способ распределения;
  * название формируется как «Регулярка. Сезон 2026/2027».
+ * Тренеры и вратари в списки получателей не включаются —
+ * абонемент и начисления за регулярку на них не распространяются.
  */
 @HiltViewModel
 class TemplateFormViewModel @Inject constructor(
@@ -56,7 +58,6 @@ class TemplateFormViewModel @Inject constructor(
         val kind: TemplateKind = TemplateKind.SUBSCRIPTION,
         val name: String = "Абонемент",
         val season: String = "",
-        val chargeGoalies: Boolean = true,
         val groups: List<ChargeGroup> = emptyList(),
         val amountRubles: String = "",
         val dayOfMonth: String = "",
@@ -86,8 +87,14 @@ class TemplateFormViewModel @Inject constructor(
             }
             when (val m = teamRepository.members(teamId)) {
                 is ApiResult.Success -> {
-                    val active = m.data.filter { it.status == MemberStatus.ACTIVE }
-                    _ui.update { it.copy(members = active) }
+                    // Тренеры и вратари не платят абонемент и регулярку —
+                    // в списке выбора их не показываем
+                    val chargeable = m.data.filter {
+                        it.status == MemberStatus.ACTIVE &&
+                            !it.isTrainer &&
+                            Position.GOALKEEPER !in it.positions
+                    }
+                    _ui.update { it.copy(members = chargeable) }
                 }
                 else -> Unit
             }
@@ -154,23 +161,6 @@ class TemplateFormViewModel @Inject constructor(
     fun onSeason(v: String) {
         // Только цифры, слэш между годами подставляется при отображении
         _ui.update { it.copy(season = v.filter(Char::isDigit).take(8)) }
-    }
-
-    fun onChargeGoalies(checked: Boolean) {
-        _ui.update {
-            val goalieIds = it.members
-                .filter { m -> Position.GOALKEEPER in m.positions }
-                .map { m -> m.userId }
-                .toSet()
-            it.copy(
-                chargeGoalies = checked,
-                selectedUserIds = if (checked) {
-                    it.selectedUserIds + goalieIds
-                } else {
-                    it.selectedUserIds - goalieIds
-                },
-            )
-        }
     }
 
     fun onAmount(v: String) = _ui.update { it.copy(amountRubles = v.filter(Char::isDigit).take(9)) }

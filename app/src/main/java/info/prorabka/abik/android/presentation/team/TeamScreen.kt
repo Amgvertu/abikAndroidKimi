@@ -20,8 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -57,7 +56,7 @@ import info.prorabka.abik.android.domain.model.TeamMember
 
 /**
  * Экран «Команда»: список участников (без карточки описания — по ТЗ).
- * Управляющие: приглашение и редактирование команды — иконки сверху,
+ * Действия управляющих собраны в меню ⋮ сверху справа,
  * долгий тап на игрока — контекстное меню.
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -72,7 +71,10 @@ fun TeamScreen(
     var showEditDialog by remember { mutableStateOf(false) }
     var showLeaveDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var teamMenuExpanded by remember { mutableStateOf(false) }
     var jerseyDialogMember by remember { mutableStateOf<TeamMember?>(null) }
+    var excludeDialogMember by remember { mutableStateOf<TeamMember?>(null) }
+    var cancelDialogInvitation by remember { mutableStateOf<Invitation?>(null) }
 
     // Выбор логотипа команды (из диалога редактирования, управляющие)
     val pickLogo = rememberLauncherForActivityResult(
@@ -89,15 +91,50 @@ fun TeamScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        // --- Действия управляющих (без карточки описания — по ТЗ) ---
+        // --- Действия управляющих: всё в меню ⋮ ---
         if (ui.isManager) {
             Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
                 Spacer(modifier = Modifier.weight(1f))
-                IconButton(onClick = { showEditDialog = true }) {
-                    Icon(Icons.Default.Edit, contentDescription = "Редактировать команду")
-                }
-                IconButton(onClick = { showInviteDialog = true }) {
-                    Icon(Icons.Default.PersonAdd, contentDescription = "Пригласить игрока")
+                Box {
+                    IconButton(onClick = { teamMenuExpanded = true }) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = "Меню команды",
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = teamMenuExpanded,
+                        onDismissRequest = { teamMenuExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Редактировать команду") },
+                            onClick = {
+                                teamMenuExpanded = false
+                                showEditDialog = true
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Пригласить игрока") },
+                            onClick = {
+                                teamMenuExpanded = false
+                                showInviteDialog = true
+                            },
+                        )
+                        if (ui.isOwner) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "Удалить команду",
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                },
+                                onClick = {
+                                    teamMenuExpanded = false
+                                    showDeleteDialog = true
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -121,20 +158,13 @@ fun TeamScreen(
 
         // --- Список участников + приглашения + действия ---
         LazyColumn {
-            // Выход из команды / удаление — на видном месте сверху
-            item(key = "team_actions") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    if (ui.isOwner) {
-                        TextButton(onClick = { showDeleteDialog = true }) {
-                            Text(
-                                "Удалить команду",
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    } else {
+            // Выход из команды — на видном месте сверху (удаление — в меню ⋮)
+            if (!ui.isOwner) {
+                item(key = "team_actions") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
                         TextButton(onClick = { showLeaveDialog = true }) {
                             Text(
                                 "Покинуть команду",
@@ -150,7 +180,7 @@ fun TeamScreen(
                 item(key = "outgoing_invitations") {
                     OutgoingInvitationsCard(
                         invitations = ui.outgoingInvitations,
-                        onCancel = { viewModel.cancelInvitation(it) },
+                        onCancel = { cancelDialogInvitation = it },
                     )
                 }
             }
@@ -164,7 +194,8 @@ fun TeamScreen(
                     onClick = { onMemberClick(member.userId) },
                     onSetJersey = { jerseyDialogMember = member },
                     onToggleModerator = { viewModel.toggleModerator(member) },
-                    onExclude = { viewModel.exclude(member) },
+                    onToggleTrainer = { viewModel.toggleTrainer(member) },
+                    onExclude = { excludeDialogMember = member },
                     onRestore = { viewModel.restore(member) },
                 )
                 HorizontalDivider()
@@ -260,6 +291,53 @@ fun TeamScreen(
             },
         )
     }
+
+    // Подтверждение исключения участника
+    excludeDialogMember?.let { member ->
+        AlertDialog(
+            onDismissRequest = { excludeDialogMember = null },
+            title = { Text("Исключить из команды?") },
+            text = {
+                Text(
+                    "${member.displayName} будет исключён из команды. " +
+                        "Его долги и история сохранятся, вернуть можно будет позже.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        excludeDialogMember = null
+                        viewModel.exclude(member)
+                    },
+                ) { Text("Исключить", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { excludeDialogMember = null }) { Text("Отмена") }
+            },
+        )
+    }
+
+    // Подтверждение отмены приглашения
+    cancelDialogInvitation?.let { invitation ->
+        AlertDialog(
+            onDismissRequest = { cancelDialogInvitation = null },
+            title = { Text("Отменить приглашение?") },
+            text = {
+                Text("Приглашение для ${invitation.invitedPhone} будет отменено.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        cancelDialogInvitation = null
+                        viewModel.cancelInvitation(invitation)
+                    },
+                ) { Text("Отменить приглашение", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { cancelDialogInvitation = null }) { Text("Назад") }
+            },
+        )
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -272,6 +350,7 @@ private fun MemberRow(
     onClick: () -> Unit,
     onSetJersey: () -> Unit,
     onToggleModerator: () -> Unit,
+    onToggleTrainer: () -> Unit,
     onExclude: () -> Unit,
     onRestore: () -> Unit,
 ) {
@@ -364,6 +443,18 @@ private fun MemberRow(
                     onClick = {
                         menuExpanded = false
                         onToggleModerator()
+                    },
+                )
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            if (member.isTrainer) "Снять тренера"
+                            else "Назначить тренером",
+                        )
+                    },
+                    onClick = {
+                        menuExpanded = false
+                        onToggleTrainer()
                     },
                 )
             }

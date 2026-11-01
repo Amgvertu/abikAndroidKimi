@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -194,6 +195,25 @@ fun EventFormScreen(
                     onValueChange = viewModel::setPlace,
                     label = if (ui.placeRequired) "Место" else "Место (необязательно)",
                 )
+                // Подсказки: места, введённые ранее
+                val placeHints = ui.recentPlaces
+                    .filter { !it.equals(ui.place, ignoreCase = true) }
+                    .take(4)
+                if (placeHints.isNotEmpty()) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .padding(top = 6.dp)
+                            .horizontalScroll(rememberScrollState()),
+                    ) {
+                        placeHints.forEach { hint ->
+                            AssistChip(
+                                onClick = { viewModel.setPlace(hint) },
+                                label = { Text(hint, maxLines = 1) },
+                            )
+                        }
+                    }
+                }
 
                 // --- Разовая тренировка: чекбокс «Игровая» ---
                 if (ui.section == EventSection.TRAINING && !ui.repeatWeekly) {

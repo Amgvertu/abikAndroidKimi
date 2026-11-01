@@ -143,6 +143,42 @@ class EventDetailsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Сохранить заявку и цвета маек звеньев одной кнопкой:
+     * сначала заявка, затем цвета (оба действия — на сервере).
+     */
+    fun setLineupWithSweaters(slots: List<LineupSlot>, sweaters: Map<Long, SweaterColor?>) {
+        val teamId = teamManager.selected.value?.id ?: return
+        viewModelScope.launch {
+            _ui.update { it.copy(lineupSaving = true, error = null) }
+            when (val r = eventRepository.setLineup(teamId, eventId, slots)) {
+                is ApiResult.Success -> {
+                    when (val s = eventRepository.setSweaters(teamId, eventId, sweaters)) {
+                        is ApiResult.Success -> {
+                            _ui.update {
+                                it.copy(lineupSaving = false, lineupSaved = true,
+                                    info = "Заявка сохранена")
+                            }
+                            load()
+                        }
+                        is ApiResult.HttpError -> _ui.update {
+                            it.copy(lineupSaving = false, error = s.message)
+                        }
+                        is ApiResult.NetworkError -> _ui.update {
+                            it.copy(lineupSaving = false, error = "Нет соединения с сервером")
+                        }
+                    }
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(lineupSaving = false, error = r.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(lineupSaving = false, error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
     /** Сбросить флаги после закрытия диалогов свитеров/заявки. */
     fun consumeActionFlags() = _ui.update {
         it.copy(sweatersSaved = false, lineupSaved = false)

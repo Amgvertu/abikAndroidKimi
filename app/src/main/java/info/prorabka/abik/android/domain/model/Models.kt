@@ -237,6 +237,8 @@ data class EventListItem(
     val votesYesForwards: Int = 0,
     /** Сколько проголосовавших «Иду» в резерве (сверх requiredPlayers); null — резерва нет. */
     val votesYesReserve: Int? = null,
+    /** true — я проголосовал «Иду», но попал в резерв. */
+    val myInReserve: Boolean? = null,
 )
 
 data class EventVoter(

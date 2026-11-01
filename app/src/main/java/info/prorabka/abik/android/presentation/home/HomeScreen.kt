@@ -196,7 +196,8 @@ private fun NearestEventCard(event: EventListItem?, onClick: (Long) -> Unit) {
                     )
                     event.myVote?.let { vote ->
                         Text(
-                            text = "Мой ответ: ${vote.display}",
+                            text = "Мой ответ: ${vote.display}" +
+                                if (event.myInReserve == true) " (в резерве)" else "",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary,
                         )

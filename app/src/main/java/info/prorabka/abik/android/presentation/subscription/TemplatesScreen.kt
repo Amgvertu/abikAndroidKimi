@@ -24,6 +24,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -33,6 +36,7 @@ import info.prorabka.abik.android.core.ui.components.ErrorText
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.util.kopecksToRubles
 import info.prorabka.abik.android.domain.model.ChargeDistribution
+import info.prorabka.abik.android.domain.model.ChargeTemplate
 
 /** Шаблоны систематических (ежемесячных) начислений команды. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,6 +48,7 @@ fun TemplatesScreen(
     viewModel: TemplatesViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    var deactivateTemplate by remember { mutableStateOf<ChargeTemplate?>(null) }
 
     LaunchedEffect(Unit) { viewModel.load() }
 
@@ -59,8 +64,10 @@ fun TemplatesScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onCreateTemplate) {
-                Icon(Icons.Default.Add, contentDescription = "Новый шаблон")
+            if (ui.isManager) {
+                FloatingActionButton(onClick = onCreateTemplate) {
+                    Icon(Icons.Default.Add, contentDescription = "Новый шаблон")
+                }
             }
         },
     ) { padding ->
@@ -76,7 +83,7 @@ fun TemplatesScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 6.dp),
-                        onClick = { onEditTemplate(template.id) },
+                        onClick = { if (ui.isManager) onEditTemplate(template.id) },
                     ) {
                         Row(
                             modifier = Modifier.padding(16.dp),
@@ -105,7 +112,15 @@ fun TemplatesScreen(
                             }
                             Switch(
                                 checked = template.active,
-                                onCheckedChange = { viewModel.toggleActive(template) },
+                                onCheckedChange = {
+                                    if (template.active) {
+                                        // Отключение останавливает начисления — подтверждаем
+                                        deactivateTemplate = template
+                                    } else {
+                                        viewModel.toggleActive(template)
+                                    }
+                                },
+                                enabled = ui.isManager,
                             )
                         }
                     }
@@ -113,5 +128,32 @@ fun TemplatesScreen(
             }
         }
         ErrorText(ui.error)
+    }
+
+    // Подтверждение отключения шаблона
+    deactivateTemplate?.let { template ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deactivateTemplate = null },
+            title = { Text("Отключить шаблон?") },
+            text = {
+                Text(
+                    "«${template.name}» перестанет формировать начисления. " +
+                        "Уже созданные начисления сохранятся.",
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        deactivateTemplate = null
+                        viewModel.toggleActive(template)
+                    },
+                ) { Text("Отключить", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { deactivateTemplate = null },
+                ) { Text("Отмена") }
+            },
+        )
     }
 }

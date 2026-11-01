@@ -2,7 +2,6 @@ package info.prorabka.abik.android.presentation.events
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +33,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -105,15 +106,16 @@ fun EventsScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                // Разделы (прокручиваются, если шрифт крупный)
+                // Фильтры разделов (прокручиваются, если шрифт крупный);
+                // тап включает/выключает раздел на календаре
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                 ) {
                     EventSection.entries.forEach { section ->
                         FilterChip(
-                            selected = ui.section == section,
-                            onClick = { viewModel.selectSection(section) },
+                            selected = section in ui.sections,
+                            onClick = { viewModel.toggleSection(section) },
                             label = { Text(section.display, maxLines = 1) },
                         )
                     }
@@ -332,6 +334,7 @@ private fun DayCell(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val todayColor = MaterialTheme.colorScheme.primary
     Column(
         modifier = modifier
             .padding(2.dp)
@@ -346,9 +349,17 @@ private fun DayCell(
                         isSelected -> Modifier.background(
                             MaterialTheme.colorScheme.primary, CircleShape,
                         )
-                        isToday -> Modifier.border(
-                            1.dp, MaterialTheme.colorScheme.primary, CircleShape,
-                        )
+                        // Текущая дата выделяется подчёркиванием
+                        isToday -> Modifier.drawBehind {
+                            val stroke = 2.dp.toPx()
+                            val y = size.height - stroke / 2 - 1.dp.toPx()
+                            drawLine(
+                                color = todayColor,
+                                start = Offset(size.width * 0.2f, y),
+                                end = Offset(size.width * 0.8f, y),
+                                strokeWidth = stroke,
+                            )
+                        }
                         else -> Modifier
                     },
                 ),

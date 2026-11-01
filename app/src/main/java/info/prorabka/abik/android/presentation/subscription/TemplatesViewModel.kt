@@ -7,7 +7,9 @@ import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.domain.model.ChargeGroup
 import info.prorabka.abik.android.domain.model.ChargeTemplate
+import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.repository.ChargeRepository
+import info.prorabka.abik.android.domain.repository.TeamRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -18,6 +20,7 @@ import javax.inject.Inject
 @HiltViewModel
 class TemplatesViewModel @Inject constructor(
     private val chargeRepository: ChargeRepository,
+    private val teamRepository: TeamRepository,
     private val teamManager: CurrentTeamManager,
 ) : ViewModel() {
 
@@ -25,8 +28,15 @@ class TemplatesViewModel @Inject constructor(
         val loading: Boolean = true,
         val templates: List<ChargeTemplate> = emptyList(),
         val groups: Map<Long, String> = emptyMap(),
+        val myRole: MemberRole? = null,
         val error: String? = null,
-    )
+    ) {
+        /** Создавать и менять шаблоны могут только управляющие. */
+        val isManager: Boolean
+            get() = myRole == MemberRole.OWNER ||
+                myRole == MemberRole.ADMIN ||
+                myRole == MemberRole.MODERATOR
+    }
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
@@ -35,6 +45,10 @@ class TemplatesViewModel @Inject constructor(
         val teamId = teamManager.selected.value?.id ?: return
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
+            when (val d = teamRepository.detail(teamId)) {
+                is ApiResult.Success -> _ui.update { it.copy(myRole = d.data.myRole) }
+                else -> Unit
+            }
             when (val g = chargeRepository.groups(teamId)) {
                 is ApiResult.Success -> _ui.update {
                     it.copy(groups = g.data.associate { grp -> grp.id to grp.name })

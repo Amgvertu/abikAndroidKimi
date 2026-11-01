@@ -153,23 +153,6 @@ fun TemplateFormScreen(
             }
             Spacer(modifier = Modifier.height(12.dp))
 
-            if (ui.kind == TemplateKind.SUBSCRIPTION) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(
-                        checked = ui.chargeGoalies,
-                        onCheckedChange = viewModel::onChargeGoalies,
-                    )
-                    Text(
-                        "Начислять абонемент вратарям",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
