@@ -230,9 +230,12 @@ class ChargeRepositoryImpl @Inject constructor(
         teamId: Long,
         name: String,
         memberIds: Set<Long>,
-    ): ApiResult<Unit> = apiCall {
-        api.createChargeList(teamId, ChargeListRequestDto(name = name, memberIds = memberIds))
-        Unit
+    ): ApiResult<ChargeList> = apiCall {
+        val dto = api.createChargeList(
+            teamId,
+            ChargeListRequestDto(name = name, memberIds = memberIds),
+        )
+        ChargeList(id = dto.id, name = dto.name, memberIds = dto.memberIds)
     }
 
     override suspend fun updateChargeList(

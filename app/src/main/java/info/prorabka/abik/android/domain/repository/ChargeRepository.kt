@@ -69,7 +69,7 @@ interface ChargeRepository {
 
     suspend fun chargeLists(teamId: Long): ApiResult<List<ChargeList>>
 
-    suspend fun createChargeList(teamId: Long, name: String, memberIds: Set<Long>): ApiResult<Unit>
+    suspend fun createChargeList(teamId: Long, name: String, memberIds: Set<Long>): ApiResult<ChargeList>
 
     suspend fun updateChargeList(
         teamId: Long,

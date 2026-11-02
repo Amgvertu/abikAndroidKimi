@@ -20,20 +20,23 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,23 +50,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import coil.compose.AsyncImage
 import info.prorabka.abik.android.core.ui.components.AbikTextField
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
+import info.prorabka.abik.android.domain.model.ChargeList
 import info.prorabka.abik.android.domain.model.Invitation
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.model.Position
-import info.prorabka.abik.android.domain.model.RosterItem
 import info.prorabka.abik.android.domain.model.TeamMember
 
 /**
- * Экран «Команда»: две вкладки — «Вся команда» и «Регулярка» (состав сезона).
- * Сверху счётчики по амплуа (В/З/Н/Т), ниже список с сортировкой по амплуа.
- * Долгий тап на вкладке «Регулярка» — режим редактирования состава (управляющие).
- * Действия управляющих собраны в меню ⋮ сверху справа,
- * долгий тап на игрока — контекстное меню.
+ * Экран «Команда»: вся команда и произвольные общие списки участников.
+ * Счётчики по амплуа находятся над вкладками, игроки сгруппированы по амплуа.
+ * «+» создаёт список, долгий тап по его вкладке включает редактирование состава.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -83,8 +85,23 @@ fun TeamScreen(
     var excludeDialogMember by remember { mutableStateOf<TeamMember?>(null) }
     var cancelDialogInvitation by remember { mutableStateOf<Invitation?>(null) }
     var selectedTab by remember { mutableStateOf(0) }
-    var rosterEditMode by remember { mutableStateOf(false) }
-    var rosterRemoveTarget by remember { mutableStateOf<RosterItem?>(null) }
+    var listEditMode by remember { mutableStateOf(false) }
+    var showCreateListDialog by remember { mutableStateOf(false) }
+    var addToListMember by remember { mutableStateOf<TeamMember?>(null) }
+    var listRemoveTarget by remember { mutableStateOf<Pair<ChargeList, TeamMember>?>(null) }
+
+    LaunchedEffect(ui.chargeLists.size) {
+        if (selectedTab > ui.chargeLists.size) {
+            selectedTab = 0
+            listEditMode = false
+        }
+    }
+
+    // После редактирования или удаления в «Списках получателях» обновляем вкладки.
+    LifecycleResumeEffect(Unit) {
+        viewModel.refreshChargeLists()
+        onPauseOrDispose { }
+    }
 
     // Выбор логотипа команды (из диалога редактирования, управляющие)
     val pickLogo = rememberLauncherForActivityResult(
@@ -100,11 +117,37 @@ fun TeamScreen(
         return
     }
 
+    val selectedList = if (selectedTab > 0) {
+        ui.chargeLists.getOrNull(selectedTab - 1)
+    } else {
+        null
+    }
+    val displayedMembers = if (selectedList == null) {
+        ui.members
+    } else {
+        ui.members.filter { it.userId in selectedList.memberIds }
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        // --- Действия управляющих: всё в меню ⋮ ---
-        if (ui.isManager) {
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                Spacer(modifier = Modifier.weight(1f))
+        // Счётчики текущей вкладки и действия команды — в одной строке.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PositionCounters(
+                goalies = displayedMembers.count {
+                    !it.isTrainer && it.positions.contains(Position.GOALKEEPER)
+                },
+                defenders = displayedMembers.count {
+                    !it.isTrainer && it.positions.contains(Position.DEFENDER)
+                },
+                forwards = displayedMembers.count {
+                    !it.isTrainer && it.positions.contains(Position.FORWARD)
+                },
+                trainers = displayedMembers.count { it.isTrainer },
+                modifier = Modifier.weight(1f),
+            )
+            if (ui.isManager) {
                 Box {
                     IconButton(onClick = { teamMenuExpanded = true }) {
                         Icon(
@@ -166,61 +209,66 @@ fun TeamScreen(
             )
         }
 
-        // --- Вкладки: вся команда / состав регулярки ---
-        TabRow(selectedTabIndex = selectedTab) {
+        // Основная вкладка, затем пользовательские списки и кнопка создания.
+        ScrollableTabRow(
+            selectedTabIndex = selectedTab.coerceAtMost(ui.chargeLists.size),
+            edgePadding = 0.dp,
+        ) {
             Tab(
                 selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
+                onClick = {
+                    selectedTab = 0
+                    listEditMode = false
+                },
             ) {
                 Text("Вся команда", modifier = Modifier.padding(vertical = 12.dp))
             }
-            // Долгий тап по вкладке — режим редактирования состава (управляющие)
-            Box(
-                modifier = Modifier
-                    .combinedClickable(
-                        onClick = { selectedTab = 1 },
-                        onLongClick = {
-                            if (ui.isManager) {
-                                selectedTab = 1
-                                rosterEditMode = !rosterEditMode
-                            }
+            ui.chargeLists.forEachIndexed { index, list ->
+                val tabIndex = index + 1
+                Box(
+                    modifier = Modifier
+                        .combinedClickable(
+                            onClick = {
+                                selectedTab = tabIndex
+                                listEditMode = false
+                            },
+                            onLongClick = {
+                                if (ui.isManager) {
+                                    selectedTab = tabIndex
+                                    listEditMode = !listEditMode
+                                }
+                            },
+                        )
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        list.name,
+                        maxLines = 1,
+                        color = if (selectedTab == tabIndex) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
                         },
                     )
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center,
-            ) {
+                }
+            }
+            if (ui.isManager) {
                 Text(
-                    "Регулярка",
-                    color = if (selectedTab == 1) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
+                    "+",
+                    modifier = Modifier
+                        .combinedClickable(onClick = { showCreateListDialog = true })
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.headlineMedium,
                 )
             }
         }
 
         if (selectedTab == 0) {
-            // ===== Вся команда =====
-            val trainers = ui.members.count { it.isTrainer }
-            PositionCounters(
-                goalies = ui.members.count {
-                    !it.isTrainer && it.positions.contains(Position.GOALKEEPER)
-                },
-                defenders = ui.members.count {
-                    !it.isTrainer && it.positions.contains(Position.DEFENDER)
-                },
-                forwards = ui.members.count {
-                    !it.isTrainer && it.positions.contains(Position.FORWARD)
-                },
-                trainers = trainers,
-            )
-            val sortedMembers = ui.members.sortedWith(
-                compareBy({ positionOrder(it.positions) }, { it.displayName }),
-            )
-
-            LazyColumn {
-                // Выход из команды — на видном месте сверху (удаление — в меню ⋮)
+            // ===== Вся команда, сгруппированная по амплуа =====
+            val groups = groupMembersByPosition(ui.members)
+            LazyColumn(modifier = Modifier.weight(1f)) {
                 if (!ui.isOwner) {
                     item(key = "team_actions") {
                         Row(
@@ -237,7 +285,6 @@ fun TeamScreen(
                     }
                 }
 
-                // Исходящие приглашения (только управляющие, если есть)
                 if (ui.isManager && ui.outgoingInvitations.isNotEmpty()) {
                     item(key = "outgoing_invitations") {
                         OutgoingInvitationsCard(
@@ -247,101 +294,93 @@ fun TeamScreen(
                     }
                 }
 
-                items(sortedMembers, key = { it.userId }) { member ->
-                    MemberRow(
-                        member = member,
-                        avatarUrl = viewModel.resolveUrl(member.avatarUrl),
-                        isManager = ui.isManager,
-                        isOwner = ui.isOwner,
-                        onClick = { onMemberClick(member.userId) },
-                        onAddPayment = { onAddPayment(member.userId) },
-                        onSetJersey = { jerseyDialogMember = member },
-                        onToggleModerator = { viewModel.toggleModerator(member) },
-                        onToggleTrainer = { viewModel.toggleTrainer(member) },
-                        onExclude = { excludeDialogMember = member },
-                        onRestore = { viewModel.restore(member) },
-                    )
-                    HorizontalDivider()
+                groups.forEach { group ->
+                    item(key = "team_group_${group.title}") {
+                        PositionGroupHeader(group.title)
+                    }
+                    items(group.members, key = { it.userId }) { member ->
+                        Box(modifier = Modifier.padding(start = 12.dp)) {
+                            MemberRow(
+                                member = member,
+                                avatarUrl = viewModel.resolveUrl(member.avatarUrl),
+                                isManager = ui.isManager,
+                                isOwner = ui.isOwner,
+                                showAddToList = ui.isManager && ui.chargeLists.isNotEmpty(),
+                                onClick = { onMemberClick(member.userId) },
+                                onAddPayment = { onAddPayment(member.userId) },
+                                onAddToList = { addToListMember = member },
+                                onSetJersey = { jerseyDialogMember = member },
+                                onToggleModerator = { viewModel.toggleModerator(member) },
+                                onToggleTrainer = { viewModel.toggleTrainer(member) },
+                                onExclude = { excludeDialogMember = member },
+                                onRestore = { viewModel.restore(member) },
+                            )
+                        }
+                        HorizontalDivider()
+                    }
                 }
             }
         } else {
-            // ===== Состав регулярки (текущий сезон) =====
-            val season = ui.detail?.season
-            if (season.isNullOrBlank()) {
+            // ===== Пользовательский список, тоже сгруппированный по амплуа =====
+            val currentList = selectedList
+            if (currentList == null) {
                 Text(
-                    "Сезон команды не указан — состав регулярки недоступен",
+                    "Список не найден",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(vertical = 16.dp),
                 )
             } else {
-                val trainersById = ui.members.filter { it.isTrainer }.map { it.userId }.toSet()
-                PositionCounters(
-                    goalies = ui.roster.count {
-                        it.userId !in trainersById && it.positions.contains(Position.GOALKEEPER)
-                    },
-                    defenders = ui.roster.count {
-                        it.userId !in trainersById && it.positions.contains(Position.DEFENDER)
-                    },
-                    forwards = ui.roster.count {
-                        it.userId !in trainersById && it.positions.contains(Position.FORWARD)
-                    },
-                    trainers = ui.roster.count { it.userId in trainersById },
-                )
-                if (rosterEditMode) {
+                val groups = groupMembersByPosition(displayedMembers)
+                val candidates = ui.members.filter {
+                    it.status == MemberStatus.ACTIVE && it.userId !in currentList.memberIds
+                }
+                if (listEditMode) {
                     Text(
-                        "Редактирование состава сезона $season. " +
+                        "Редактирование списка «${currentList.name}». " +
                             "Долгий тап по вкладке — завершить.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(vertical = 4.dp),
                     )
                 }
-                val sortedRoster = ui.roster.sortedWith(
-                    compareBy({ positionOrder(it.positions) }, { it.fullName }),
-                )
-                LazyColumn {
-                    items(sortedRoster, key = { "roster_${it.userId}" }) { item ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    item.fullName +
-                                        if (item.userId in trainersById) " • Тренер" else "",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                )
-                                if (item.positions.isNotEmpty()) {
-                                    Text(
-                                        item.positions.sortedBy { it.ordinal }
-                                            .joinToString("/") { it.display },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                            if (rosterEditMode) {
-                                TextButton(onClick = { rosterRemoveTarget = item }) {
-                                    Text(
-                                        "Исключить",
-                                        color = MaterialTheme.colorScheme.error,
-                                    )
-                                }
-                            }
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    groups.forEach { group ->
+                        item(key = "list_${currentList.id}_group_${group.title}") {
+                            PositionGroupHeader(group.title)
                         }
-                        HorizontalDivider()
+                        items(
+                            group.members,
+                            key = { "list_${currentList.id}_member_${it.userId}" },
+                        ) { member ->
+                            ListMemberRow(
+                                member = member,
+                                editMode = listEditMode,
+                                enabled = !ui.listSaving,
+                                onRemove = {
+                                    listRemoveTarget = currentList to member
+                                },
+                            )
+                            HorizontalDivider()
+                        }
                     }
-
-                    if (rosterEditMode && ui.rosterCandidates.isNotEmpty()) {
-                        item(key = "roster_candidates_header") {
+                    if (groups.isEmpty() && !listEditMode) {
+                        item(key = "list_empty") {
                             Text(
-                                "Добавить в состав",
-                                style = MaterialTheme.typography.titleSmall,
-                                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                                "Список пока пуст",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 16.dp),
                             )
                         }
-                        items(ui.rosterCandidates, key = { "candidate_${it.userId}" }) { member ->
+                    }
+                    if (listEditMode && candidates.isNotEmpty()) {
+                        item(key = "list_candidates_header") {
+                            Text(
+                                "Добавить в список",
+                                style = MaterialTheme.typography.titleSmall,
+                                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                            )
+                        }
+                        items(candidates, key = { "candidate_${it.userId}" }) { member ->
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -352,25 +391,13 @@ fun TeamScreen(
                                     modifier = Modifier.weight(1f),
                                 )
                                 TextButton(
-                                    enabled = !ui.rosterSaving,
-                                    onClick = { viewModel.addToRoster(member.userId) },
+                                    enabled = !ui.listSaving,
+                                    onClick = {
+                                        viewModel.addToChargeList(currentList.id, member.userId)
+                                    },
                                 ) { Text("Добавить") }
                             }
                             HorizontalDivider()
-                        }
-                    }
-
-                    if (sortedRoster.isEmpty() && !rosterEditMode) {
-                        item(key = "roster_empty") {
-                            Text(
-                                "Состав регулярки пока пуст" +
-                                    if (ui.isManager) {
-                                        " — долгий тап по вкладке «Регулярка», чтобы заполнить"
-                                    } else "",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(vertical = 16.dp),
-                            )
                         }
                     }
                 }
@@ -378,22 +405,51 @@ fun TeamScreen(
         }
     }
 
-    // Подтверждение исключения из состава регулярки
-    rosterRemoveTarget?.let { item ->
+    // Создание общего списка через «+».
+    if (showCreateListDialog) {
+        CreateChargeListDialog(
+            members = ui.members.filter { it.status == MemberStatus.ACTIVE },
+            saving = ui.listSaving,
+            onDismiss = { showCreateListDialog = false },
+            onSave = { name, memberIds ->
+                viewModel.createChargeList(name, memberIds) { created ->
+                    showCreateListDialog = false
+                    selectedTab = viewModel.ui.value.chargeLists
+                        .indexOfFirst { it.id == created.id } + 1
+                }
+            },
+        )
+    }
+
+    // Включение игрока в выбранный список из контекстного меню.
+    addToListMember?.let { member ->
+        AddToChargeListDialog(
+            member = member,
+            lists = ui.chargeLists,
+            onDismiss = { addToListMember = null },
+            onSelect = { list ->
+                viewModel.addToChargeList(list.id, member.userId)
+                addToListMember = null
+            },
+        )
+    }
+
+    // Подтверждение исключения из пользовательского списка.
+    listRemoveTarget?.let { (list, member) ->
         AlertDialog(
-            onDismissRequest = { rosterRemoveTarget = null },
-            title = { Text("Исключить из состава?") },
-            text = { Text("${item.fullName}\nНачисления и платежи сохранятся.") },
+            onDismissRequest = { listRemoveTarget = null },
+            title = { Text("Исключить из списка?") },
+            text = { Text("${member.displayName}\nСписок: ${list.name}") },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        rosterRemoveTarget = null
-                        viewModel.removeFromRoster(item.userId)
+                        listRemoveTarget = null
+                        viewModel.removeFromChargeList(list.id, member.userId)
                     },
                 ) { Text("Исключить", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { rosterRemoveTarget = null }) { Text("Отмена") }
+                TextButton(onClick = { listRemoveTarget = null }) { Text("Отмена") }
             },
         )
     }
@@ -542,8 +598,10 @@ private fun MemberRow(
     avatarUrl: String?,
     isManager: Boolean,
     isOwner: Boolean,
+    showAddToList: Boolean,
     onClick: () -> Unit,
     onAddPayment: () -> Unit,
+    onAddToList: () -> Unit,
     onSetJersey: () -> Unit,
     onToggleModerator: () -> Unit,
     onToggleTrainer: () -> Unit,
@@ -635,6 +693,15 @@ private fun MemberRow(
                     onClick()
                 },
             )
+            if (showAddToList) {
+                DropdownMenuItem(
+                    text = { Text("Включить в список") },
+                    onClick = {
+                        menuExpanded = false
+                        onAddToList()
+                    },
+                )
+            }
             if (isOwner && member.role != MemberRole.OWNER) {
                 DropdownMenuItem(
                     text = {
@@ -686,21 +753,191 @@ private fun MemberRow(
 
 /** Счётчики участников по амплуа: вратари/защитники/нападающие/тренеры. */
 @Composable
-private fun PositionCounters(goalies: Int, defenders: Int, forwards: Int, trainers: Int) {
+private fun PositionCounters(
+    goalies: Int,
+    defenders: Int,
+    forwards: Int,
+    trainers: Int,
+    modifier: Modifier = Modifier,
+) {
     Text(
         "В: $goalies   З: $defenders   Н: $forwards   Т: $trainers",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(vertical = 8.dp),
+        modifier = modifier.padding(vertical = 8.dp),
     )
 }
 
-/** Порядок сортировки по амплуа: вратари → защитники → нападающие → без амплуа. */
-private fun positionOrder(positions: Set<Position>): Int = when {
-    positions.contains(Position.GOALKEEPER) -> 0
-    positions.contains(Position.DEFENDER) -> 1
-    positions.contains(Position.FORWARD) -> 2
-    else -> 3
+private data class PositionGroup(
+    val title: String,
+    val members: List<TeamMember>,
+)
+
+/** Каждый игрок показывается один раз; тренеры и игроки без амплуа не теряются. */
+private fun groupMembersByPosition(members: List<TeamMember>): List<PositionGroup> {
+    val grouped = members.groupBy { member ->
+        when {
+            member.isTrainer -> 3
+            member.positions.contains(Position.GOALKEEPER) -> 0
+            member.positions.contains(Position.DEFENDER) -> 1
+            member.positions.contains(Position.FORWARD) -> 2
+            else -> 4
+        }
+    }
+    return listOf(
+        0 to "Вратари",
+        1 to "Защитники",
+        2 to "Нападающие",
+        3 to "Тренеры",
+        4 to "Без амплуа",
+    ).mapNotNull { (index, title) ->
+        grouped[index]
+            ?.sortedBy { it.displayName }
+            ?.let { PositionGroup(title, it) }
+    }
+}
+
+@Composable
+private fun PositionGroupHeader(title: String) {
+    Text(
+        title,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+    )
+}
+
+/** Строка игрока на вкладке списка: номер + ФИ, с отступом от заголовка группы. */
+@Composable
+private fun ListMemberRow(
+    member: TeamMember,
+    editMode: Boolean,
+    enabled: Boolean,
+    onRemove: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            member.jerseyNumber?.toString() ?: "—",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.width(40.dp),
+        )
+        Text(
+            member.displayName + if (member.isTrainer) " • Тренер" else "",
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
+        if (editMode) {
+            TextButton(enabled = enabled, onClick = onRemove) {
+                Text("Исключить", color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+}
+
+/** Создание списка с начальным составом; дальше состав редактируется на вкладке. */
+@Composable
+private fun CreateChargeListDialog(
+    members: List<TeamMember>,
+    saving: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (String, Set<Long>) -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    var checked by remember { mutableStateOf(emptySet<Long>()) }
+
+    AlertDialog(
+        onDismissRequest = { if (!saving) onDismiss() },
+        title = { Text("Новый список") },
+        text = {
+            Column {
+                AbikTextField(
+                    value = name,
+                    onValueChange = { name = it.take(200) },
+                    label = "Название",
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Участники (${checked.size})",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                LazyColumn(Modifier.height(300.dp)) {
+                    items(members, key = { it.userId }) { member ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = member.userId in checked,
+                                onCheckedChange = { on ->
+                                    checked = if (on) checked + member.userId
+                                    else checked - member.userId
+                                },
+                            )
+                            Text(member.displayName)
+                        }
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = name.isNotBlank() && checked.isNotEmpty() && !saving,
+                onClick = { onSave(name, checked) },
+            ) { Text(if (saving) "Сохранение…" else "Создать") }
+        },
+        dismissButton = {
+            TextButton(enabled = !saving, onClick = onDismiss) { Text("Отмена") }
+        },
+    )
+}
+
+/** Выбор списка при долгом тапе на игроке во «Вся команда». */
+@Composable
+private fun AddToChargeListDialog(
+    member: TeamMember,
+    lists: List<ChargeList>,
+    onDismiss: () -> Unit,
+    onSelect: (ChargeList) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Включить в список") },
+        text = {
+            Column {
+                Text(
+                    member.displayName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                LazyColumn(Modifier.height(300.dp)) {
+                    items(lists, key = { it.id }) { list ->
+                        val alreadyAdded = member.userId in list.memberIds
+                        TextButton(
+                            enabled = !alreadyAdded,
+                            onClick = { onSelect(list) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                list.name + if (alreadyAdded) " — уже в списке" else "",
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Закрыть") }
+        },
+    )
 }
 
 /** Исходящие приглашения команды (PENDING) с возможностью отмены. */

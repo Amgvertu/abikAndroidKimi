@@ -7,16 +7,14 @@ import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.core.network.UrlResolver
 import info.prorabka.abik.android.core.util.PhoneUtils
+import info.prorabka.abik.android.domain.model.ChargeList
 import info.prorabka.abik.android.domain.model.Invitation
 import info.prorabka.abik.android.domain.model.MemberRole
-import info.prorabka.abik.android.domain.model.MemberStatus
-import info.prorabka.abik.android.domain.model.RosterItem
-import info.prorabka.abik.android.domain.model.RosterStatus
 import info.prorabka.abik.android.domain.model.TeamCreateData
 import info.prorabka.abik.android.domain.model.TeamDetail
 import info.prorabka.abik.android.domain.model.TeamMember
+import info.prorabka.abik.android.domain.repository.ChargeRepository
 import info.prorabka.abik.android.domain.repository.FileRepository
-import info.prorabka.abik.android.domain.repository.RosterRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +25,7 @@ import javax.inject.Inject
 @HiltViewModel
 class TeamViewModel @Inject constructor(
     private val teamRepository: TeamRepository,
-    private val rosterRepository: RosterRepository,
+    private val chargeRepository: ChargeRepository,
     private val teamManager: CurrentTeamManager,
     private val fileRepository: FileRepository,
     private val urlResolver: UrlResolver,
@@ -41,9 +39,9 @@ class TeamViewModel @Inject constructor(
         val detail: TeamDetail? = null,
         val members: List<TeamMember> = emptyList(),
         val outgoingInvitations: List<Invitation> = emptyList(),
-        /** Активный состав регулярки текущего сезона. */
-        val roster: List<RosterItem> = emptyList(),
-        val rosterSaving: Boolean = false,
+        /** Общие именованные списки команды и получателей начислений. */
+        val chargeLists: List<ChargeList> = emptyList(),
+        val listSaving: Boolean = false,
         val error: String? = null,
         val info: String? = null,
     ) {
@@ -52,15 +50,6 @@ class TeamViewModel @Inject constructor(
                 detail?.myRole == MemberRole.MODERATOR ||
                 detail?.myRole == MemberRole.ADMIN
         val isOwner: Boolean get() = detail?.myRole == MemberRole.OWNER
-
-        /** Активные участники команды, не входящие в состав регулярки. */
-        val rosterCandidates: List<TeamMember>
-            get() {
-                val inRoster = roster.map { it.userId }.toSet()
-                return members.filter {
-                    it.userId !in inRoster && it.status == MemberStatus.ACTIVE
-                }
-            }
     }
 
     private val _ui = MutableStateFlow(UiState())
@@ -100,61 +89,95 @@ class TeamViewModel @Inject constructor(
                 is ApiResult.Success -> _ui.update { it.copy(members = m.data) }
                 else -> Unit
             }
-            loadRoster(teamId)
+            loadChargeLists(teamId)
             _ui.update { it.copy(loading = false) }
         }
     }
 
-    /** Активный состав регулярки текущего сезона команды. */
-    private suspend fun loadRoster(teamId: Long) {
-        val season = _ui.value.detail?.season?.takeIf { it.isNotBlank() } ?: return
-        when (val r = rosterRepository.roster(teamId, season)) {
-            is ApiResult.Success -> _ui.update {
-                it.copy(roster = r.data.filter { item -> item.status == RosterStatus.ACTIVE })
-            }
-            else -> Unit
-        }
+    /** Обновить вкладки после возврата из экрана «Списки получателей». */
+    fun refreshChargeLists() {
+        val teamId = currentTeamId() ?: return
+        viewModelScope.launch { loadChargeLists(teamId) }
     }
 
-    /** Добавить игрока в состав регулярки (управляющие, текущий сезон). */
-    fun addToRoster(userId: Long) {
-        val teamId = currentTeamId() ?: return
-        val season = _ui.value.detail?.season?.takeIf { it.isNotBlank() } ?: return
-        viewModelScope.launch {
-            _ui.update { it.copy(rosterSaving = true, error = null) }
-            when (val r = rosterRepository.addMember(teamId, season, userId, null)) {
-                is ApiResult.Success -> {
-                    _ui.update { it.copy(rosterSaving = false, info = "Игрок добавлен в состав") }
-                    loadRoster(teamId)
-                }
-                is ApiResult.HttpError -> _ui.update {
-                    it.copy(rosterSaving = false, error = r.message)
-                }
-                is ApiResult.NetworkError -> _ui.update {
-                    it.copy(rosterSaving = false, error = "Нет соединения с сервером")
-                }
+    /** Списки на вкладках команды — те же списки, что используются в начислениях. */
+    private suspend fun loadChargeLists(teamId: Long) {
+        when (val r = chargeRepository.chargeLists(teamId)) {
+            is ApiResult.Success -> _ui.update { it.copy(chargeLists = r.data) }
+            is ApiResult.HttpError -> _ui.update { it.copy(error = r.message) }
+            is ApiResult.NetworkError -> _ui.update {
+                it.copy(error = "Нет соединения с сервером")
             }
         }
     }
 
-    /** Исключить игрока из состава регулярки (управляющие, текущий сезон). */
-    fun removeFromRoster(userId: Long) {
+    /** Создать общий список команды и сразу вернуть его для открытия вкладки. */
+    fun createChargeList(name: String, memberIds: Set<Long>, onCreated: (ChargeList) -> Unit) {
         val teamId = currentTeamId() ?: return
-        val season = _ui.value.detail?.season?.takeIf { it.isNotBlank() } ?: return
+        if (name.isBlank()) {
+            _ui.update { it.copy(error = "Укажите название списка") }
+            return
+        }
+        if (memberIds.isEmpty()) {
+            _ui.update { it.copy(error = "Выберите хотя бы одного участника") }
+            return
+        }
         viewModelScope.launch {
-            _ui.update { it.copy(rosterSaving = true, error = null) }
-            when (val r = rosterRepository.removeMember(teamId, season, userId)) {
+            _ui.update { it.copy(listSaving = true, error = null) }
+            when (val r = chargeRepository.createChargeList(teamId, name.trim(), memberIds)) {
                 is ApiResult.Success -> {
                     _ui.update {
-                        it.copy(rosterSaving = false, info = "Игрок исключён из состава")
+                        it.copy(listSaving = false, info = "Список «${r.data.name}» создан")
                     }
-                    loadRoster(teamId)
+                    loadChargeLists(teamId)
+                    onCreated(r.data)
                 }
                 is ApiResult.HttpError -> _ui.update {
-                    it.copy(rosterSaving = false, error = r.message)
+                    it.copy(listSaving = false, error = r.message)
                 }
                 is ApiResult.NetworkError -> _ui.update {
-                    it.copy(rosterSaving = false, error = "Нет соединения с сервером")
+                    it.copy(listSaving = false, error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
+    fun addToChargeList(listId: Long, userId: Long) {
+        val list = _ui.value.chargeLists.find { it.id == listId } ?: return
+        if (userId in list.memberIds) return
+        updateChargeListMembers(list, list.memberIds + userId, "Игрок добавлен в список")
+    }
+
+    fun removeFromChargeList(listId: Long, userId: Long) {
+        val list = _ui.value.chargeLists.find { it.id == listId } ?: return
+        updateChargeListMembers(list, list.memberIds - userId, "Игрок исключён из списка")
+    }
+
+    private fun updateChargeListMembers(
+        list: ChargeList,
+        memberIds: Set<Long>,
+        successMessage: String,
+    ) {
+        val teamId = currentTeamId() ?: return
+        viewModelScope.launch {
+            _ui.update { it.copy(listSaving = true, error = null) }
+            when (
+                val r = chargeRepository.updateChargeList(
+                    teamId = teamId,
+                    listId = list.id,
+                    name = list.name,
+                    memberIds = memberIds,
+                )
+            ) {
+                is ApiResult.Success -> {
+                    _ui.update { it.copy(listSaving = false, info = successMessage) }
+                    loadChargeLists(teamId)
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(listSaving = false, error = r.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(listSaving = false, error = "Нет соединения с сервером")
                 }
             }
         }
