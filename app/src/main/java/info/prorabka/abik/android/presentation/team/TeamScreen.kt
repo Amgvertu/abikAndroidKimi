@@ -89,11 +89,19 @@ fun TeamScreen(
     var showCreateListDialog by remember { mutableStateOf(false) }
     var addToListMember by remember { mutableStateOf<TeamMember?>(null) }
     var listRemoveTarget by remember { mutableStateOf<Pair<ChargeList, TeamMember>?>(null) }
+    var listDeleteTarget by remember { mutableStateOf<ChargeList?>(null) }
 
     LaunchedEffect(ui.chargeLists.size) {
         if (selectedTab > ui.chargeLists.size) {
             selectedTab = 0
             listEditMode = false
+        }
+    }
+
+    LaunchedEffect(ui.info, ui.error) {
+        if (ui.info != null || ui.error != null) {
+            kotlinx.coroutines.delay(4_000)
+            viewModel.clearMessages()
         }
     }
 
@@ -225,6 +233,7 @@ fun TeamScreen(
             }
             ui.chargeLists.forEachIndexed { index, list ->
                 val tabIndex = index + 1
+                var tabMenuExpanded by remember(list.id) { mutableStateOf(false) }
                 Box(
                     modifier = Modifier
                         .combinedClickable(
@@ -233,10 +242,7 @@ fun TeamScreen(
                                 listEditMode = false
                             },
                             onLongClick = {
-                                if (ui.isManager) {
-                                    selectedTab = tabIndex
-                                    listEditMode = !listEditMode
-                                }
+                                if (ui.isManager) tabMenuExpanded = true
                             },
                         )
                         .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -251,6 +257,36 @@ fun TeamScreen(
                             MaterialTheme.colorScheme.onSurfaceVariant
                         },
                     )
+                    DropdownMenu(
+                        expanded = tabMenuExpanded,
+                        onDismissRequest = { tabMenuExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (selectedTab == tabIndex && listEditMode) {
+                                        "Завершить редактирование"
+                                    } else {
+                                        "Редактировать список"
+                                    },
+                                )
+                            },
+                            onClick = {
+                                tabMenuExpanded = false
+                                listEditMode = if (selectedTab == tabIndex) !listEditMode else true
+                                selectedTab = tabIndex
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text("Удалить список", color = MaterialTheme.colorScheme.error)
+                            },
+                            onClick = {
+                                tabMenuExpanded = false
+                                listDeleteTarget = list
+                            },
+                        )
+                    }
                 }
             }
             if (ui.isManager) {
@@ -268,7 +304,11 @@ fun TeamScreen(
         if (selectedTab == 0) {
             // ===== Вся команда, сгруппированная по амплуа =====
             val groups = groupMembersByPosition(ui.members)
-            LazyColumn(modifier = Modifier.weight(1f)) {
+            Box(modifier = Modifier.weight(1f)) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp),
+                ) {
                 if (!ui.isOwner) {
                     item(key = "team_actions") {
                         Row(
@@ -319,6 +359,17 @@ fun TeamScreen(
                         HorizontalDivider()
                     }
                 }
+                }
+                if (ui.isManager) {
+                    androidx.compose.material3.FloatingActionButton(
+                        onClick = { showInviteDialog = true },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp),
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Пригласить игрока")
+                    }
+                }
             }
         } else {
             // ===== Пользовательский список, тоже сгруппированный по амплуа =====
@@ -356,6 +407,7 @@ fun TeamScreen(
                                 member = member,
                                 editMode = listEditMode,
                                 enabled = !ui.listSaving,
+                                isManager = ui.isManager,
                                 onRemove = {
                                     listRemoveTarget = currentList to member
                                 },
@@ -414,6 +466,7 @@ fun TeamScreen(
             onSave = { name, memberIds ->
                 viewModel.createChargeList(name, memberIds) { created ->
                     showCreateListDialog = false
+                    listEditMode = false
                     selectedTab = viewModel.ui.value.chargeLists
                         .indexOfFirst { it.id == created.id } + 1
                 }
@@ -450,6 +503,28 @@ fun TeamScreen(
             },
             dismissButton = {
                 TextButton(onClick = { listRemoveTarget = null }) { Text("Отмена") }
+            },
+        )
+    }
+
+    listDeleteTarget?.let { list ->
+        AlertDialog(
+            onDismissRequest = { listDeleteTarget = null },
+            title = { Text("Удалить список?") },
+            text = { Text("Список «${list.name}» будет удалён. Состав команды не изменится.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        listDeleteTarget = null
+                        viewModel.deleteChargeList(list) {
+                            selectedTab = 0
+                            listEditMode = false
+                        }
+                    },
+                ) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { listDeleteTarget = null }) { Text("Отмена") }
             },
         )
     }
@@ -809,35 +884,55 @@ private fun PositionGroupHeader(title: String) {
 }
 
 /** Строка игрока на вкладке списка: номер + ФИ, с отступом от заголовка группы. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ListMemberRow(
     member: TeamMember,
     editMode: Boolean,
     enabled: Boolean,
+    isManager: Boolean,
     onRemove: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            member.jerseyNumber?.toString() ?: "—",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.width(40.dp),
-        )
-        Text(
-            member.displayName + if (member.isTrainer) " • Тренер" else "",
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f),
-        )
-        if (editMode) {
-            TextButton(enabled = enabled, onClick = onRemove) {
-                Text("Исключить", color = MaterialTheme.colorScheme.error)
+    var menuExpanded by remember(member.userId) { mutableStateOf(false) }
+    Box {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    enabled = enabled,
+                    onClick = {},
+                    onLongClick = { if (isManager) menuExpanded = true },
+                )
+                .padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                member.jerseyNumber?.toString() ?: "—",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.width(40.dp),
+            )
+            Text(
+                member.displayName + if (member.isTrainer) " • Тренер" else "",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f),
+            )
+            if (editMode) {
+                TextButton(enabled = enabled, onClick = onRemove) {
+                    Text("Исключить", color = MaterialTheme.colorScheme.error)
+                }
             }
+        }
+        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Исключить из списка", color = MaterialTheme.colorScheme.error) },
+                enabled = enabled,
+                onClick = {
+                    menuExpanded = false
+                    onRemove()
+                },
+            )
         }
     }
 }

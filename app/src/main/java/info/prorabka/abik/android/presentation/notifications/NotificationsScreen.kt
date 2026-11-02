@@ -19,18 +19,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +47,8 @@ import info.prorabka.abik.android.core.ui.components.ErrorText
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.util.isoDateTimeToDisplay
 import info.prorabka.abik.android.domain.model.AppNotification
+import info.prorabka.abik.android.domain.model.Invitation
+import info.prorabka.abik.android.domain.model.NotificationType
 
 /** Центр уведомлений: лента, «прочитать все», тап = прочитано. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,8 +58,18 @@ fun NotificationsScreen(
     viewModel: NotificationsViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(ui.info, ui.error) {
+        val message = ui.info ?: ui.error
+        if (message != null) {
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearMessages()
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Уведомления") },
@@ -100,9 +118,25 @@ fun NotificationsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(ui.items, key = { it.id }) { notification ->
+                    val invitation = if (
+                        notification.type == NotificationType.INVITATION &&
+                        notification.title == "Приглашение в команду"
+                    ) {
+                        notification.teamId?.let(ui.pendingInvitations::get)
+                    } else {
+                        null
+                    }
                     NotificationItem(
                         notification = notification,
+                        invitation = invitation,
+                        saving = ui.invitationSavingId != null,
                         onClick = { viewModel.onNotificationClick(notification) },
+                        onAccept = {
+                            invitation?.let { viewModel.acceptInvitation(notification, it) }
+                        },
+                        onDecline = {
+                            invitation?.let { viewModel.declineInvitation(notification, it) }
+                        },
                     )
                 }
             }
@@ -111,7 +145,14 @@ fun NotificationsScreen(
 }
 
 @Composable
-private fun NotificationItem(notification: AppNotification, onClick: () -> Unit) {
+private fun NotificationItem(
+    notification: AppNotification,
+    invitation: Invitation?,
+    saving: Boolean,
+    onClick: () -> Unit,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit,
+) {
     val containerColor = if (notification.isRead) {
         MaterialTheme.colorScheme.surface
     } else {
@@ -154,6 +195,17 @@ private fun NotificationItem(notification: AppNotification, onClick: () -> Unit)
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (invitation != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(enabled = !saving, onClick = onAccept) {
+                            Text(if (saving) "Подождите…" else "Принять")
+                        }
+                        OutlinedButton(enabled = !saving, onClick = onDecline) {
+                            Text("Отклонить")
+                        }
+                    }
+                }
             }
         }
     }

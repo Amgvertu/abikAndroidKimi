@@ -153,6 +153,31 @@ class TeamViewModel @Inject constructor(
         updateChargeListMembers(list, list.memberIds - userId, "Игрок исключён из списка")
     }
 
+    fun deleteChargeList(list: ChargeList, onDeleted: () -> Unit) {
+        val teamId = currentTeamId() ?: return
+        viewModelScope.launch {
+            _ui.update { it.copy(listSaving = true, error = null) }
+            when (val r = chargeRepository.deleteChargeList(teamId, list.id)) {
+                is ApiResult.Success -> {
+                    _ui.update {
+                        it.copy(
+                            chargeLists = it.chargeLists.filter { item -> item.id != list.id },
+                            listSaving = false,
+                            info = "Список «${list.name}» удалён",
+                        )
+                    }
+                    onDeleted()
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(listSaving = false, error = r.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(listSaving = false, error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
     private fun updateChargeListMembers(
         list: ChargeList,
         memberIds: Set<Long>,
