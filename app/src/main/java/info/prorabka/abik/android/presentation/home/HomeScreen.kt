@@ -187,10 +187,11 @@ private fun NearestEventCard(event: EventListItem?, onClick: (Long) -> Unit) {
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        // Игра с лимитом: основной состав и резерв отдельно (как в деталях)
+                        // Игра с лимитом: основной состав и резерв отдельно (как в деталях).
+                        // «Под вопросом» в карточках не показываем — только в деталях события.
                         text = event.votesYesReserve?.let { reserve ->
-                            "Идут: ${event.votesYes - reserve} • Резерв: $reserve"
-                        } ?: "Идут: ${event.votesYes} • Под вопросом: ${event.votesMaybe} • Не идут: ${event.votesNo}",
+                            "Идут: ${event.votesYes - reserve} • Резерв: $reserve • Не идут: ${event.votesNo}"
+                        } ?: "Идут: ${event.votesYes} • Не идут: ${event.votesNo}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

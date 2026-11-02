@@ -7,6 +7,7 @@ import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.domain.model.ChargeDistribution
 import info.prorabka.abik.android.domain.model.ChargeGroup
+import info.prorabka.abik.android.domain.model.ChargeList
 import info.prorabka.abik.android.domain.model.ChargeSubgroup
 import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.model.Position
@@ -64,6 +65,8 @@ class TemplateFormViewModel @Inject constructor(
         val distribution: ChargeDistribution = ChargeDistribution.FIXED,
         val members: List<TeamMember> = emptyList(),
         val selectedUserIds: Set<Long> = emptySet(),
+        /** Именованные списки получателей (для быстрого выбора). */
+        val lists: List<ChargeList> = emptyList(),
     ) {
         /** Итоговое название шаблона (для «Регулярки» — автоматическое). */
         val effectiveName: String
@@ -83,6 +86,10 @@ class TemplateFormViewModel @Inject constructor(
             _ui.update { it.copy(loading = true, error = null) }
             when (val g = chargeRepository.groups(teamId)) {
                 is ApiResult.Success -> _ui.update { it.copy(groups = g.data) }
+                else -> Unit
+            }
+            when (val l = chargeRepository.chargeLists(teamId)) {
+                is ApiResult.Success -> _ui.update { it.copy(lists = l.data) }
                 else -> Unit
             }
             when (val m = teamRepository.members(teamId)) {
@@ -187,6 +194,12 @@ class TemplateFormViewModel @Inject constructor(
 
     fun selectAll() = _ui.update {
         it.copy(selectedUserIds = it.members.map { m -> m.userId }.toSet())
+    }
+
+    /** Подставить участников именованного списка в выбранных (пересечение с доступными). */
+    fun applyList(list: ChargeList) = _ui.update {
+        val memberIds = it.members.map { m -> m.userId }.toSet()
+        it.copy(selectedUserIds = list.memberIds.intersect(memberIds))
     }
 
     fun save(onDone: () -> Unit) {

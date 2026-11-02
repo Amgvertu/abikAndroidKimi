@@ -28,6 +28,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
@@ -166,6 +169,29 @@ fun TemplateFormScreen(
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f),
                 )
+                // Подставить получателей из именованного списка
+                if (ui.lists.isNotEmpty()) {
+                    androidx.compose.foundation.layout.Box {
+                        var listsExpanded by remember { mutableStateOf(false) }
+                        TextButton(onClick = { listsExpanded = true }) {
+                            Text("Из списка")
+                        }
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = listsExpanded,
+                            onDismissRequest = { listsExpanded = false },
+                        ) {
+                            ui.lists.forEach { list ->
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text("${list.name} (${list.memberIds.size})") },
+                                    onClick = {
+                                        listsExpanded = false
+                                        viewModel.applyList(list)
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
                 TextButton(onClick = viewModel::selectAll) { Text("Выбрать всех") }
             }
             Column(modifier = Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {

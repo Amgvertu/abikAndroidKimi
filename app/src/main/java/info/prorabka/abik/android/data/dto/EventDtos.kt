@@ -21,6 +21,7 @@ data class EventListItemDto(
     val votesYesGoalies: Int = 0,
     val votesYesDefenders: Int = 0,
     val votesYesForwards: Int = 0,
+    val votesYesTrainers: Int = 0,
     val votesYesReserve: Int? = null,
     val myInReserve: Boolean? = null,
 )

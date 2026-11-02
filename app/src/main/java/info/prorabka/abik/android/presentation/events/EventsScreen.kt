@@ -226,17 +226,18 @@ fun EventCard(event: EventListItem, onClick: () -> Unit) {
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    // Игра с лимитом: основной состав и резерв отдельно (как в деталях)
+                    // Игра с лимитом: основной состав и резерв отдельно (как в деталях).
+                    // «Под вопросом» в карточках не показываем — только в деталях события.
                     event.votesYesReserve?.let { reserve ->
-                        "Идут: ${event.votesYes - reserve} • Резерв: $reserve"
-                    } ?: "Идут: ${event.votesYes} • Под вопросом: ${event.votesMaybe} • Не идут: ${event.votesNo}",
+                        "Идут: ${event.votesYes - reserve} • Резерв: $reserve • Не идут: ${event.votesNo}"
+                    } ?: "Идут: ${event.votesYes} • Не идут: ${event.votesNo}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
                 event.myVote?.let { vote ->
                     Text(
-                        vote.display,
+                        vote.display + if (event.myInReserve == true) " (в резерве)" else "",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.secondary,
@@ -251,7 +252,8 @@ fun EventCard(event: EventListItem, onClick: () -> Unit) {
             }
             // Счётчики проголосовавших «Иду» по амплуа (приходят с сервера).
             Text(
-                "В: ${event.votesYesGoalies}  З: ${event.votesYesDefenders}  Н: ${event.votesYesForwards}",
+                "В: ${event.votesYesGoalies}  З: ${event.votesYesDefenders}  " +
+                    "Н: ${event.votesYesForwards}  Т: ${event.votesYesTrainers}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp),

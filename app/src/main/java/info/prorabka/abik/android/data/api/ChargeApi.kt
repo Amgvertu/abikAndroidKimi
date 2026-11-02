@@ -5,6 +5,8 @@ import info.prorabka.abik.android.data.dto.ChargeCreateManualRequestDto
 import info.prorabka.abik.android.data.dto.ChargeDto
 import info.prorabka.abik.android.data.dto.ChargeGroupDto
 import info.prorabka.abik.android.data.dto.ChargeGroupRequestDto
+import info.prorabka.abik.android.data.dto.ChargeListDto
+import info.prorabka.abik.android.data.dto.ChargeListRequestDto
 import info.prorabka.abik.android.data.dto.ChargeSubgroupDto
 import info.prorabka.abik.android.data.dto.ChargeSubgroupRequestDto
 import info.prorabka.abik.android.data.dto.ChargeTemplateDto
@@ -127,4 +129,28 @@ interface ChargeApi {
         @Path("teamId") teamId: Long,
         @Path("templateId") templateId: Long,
     ): ChargeTemplateDto
+
+    // --- Списки получателей ---
+
+    @GET("v1/teams/{teamId}/charge-lists")
+    suspend fun listChargeLists(@Path("teamId") teamId: Long): List<ChargeListDto>
+
+    @POST("v1/teams/{teamId}/charge-lists")
+    suspend fun createChargeList(
+        @Path("teamId") teamId: Long,
+        @Body body: ChargeListRequestDto,
+    ): ChargeListDto
+
+    @PUT("v1/teams/{teamId}/charge-lists/{listId}")
+    suspend fun updateChargeList(
+        @Path("teamId") teamId: Long,
+        @Path("listId") listId: Long,
+        @Body body: ChargeListRequestDto,
+    ): ChargeListDto
+
+    @DELETE("v1/teams/{teamId}/charge-lists/{listId}")
+    suspend fun deleteChargeList(
+        @Path("teamId") teamId: Long,
+        @Path("listId") listId: Long,
+    ): MessageResponse
 }

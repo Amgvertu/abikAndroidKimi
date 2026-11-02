@@ -4,6 +4,7 @@ import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.domain.model.Charge
 import info.prorabka.abik.android.domain.model.ChargeDistribution
 import info.prorabka.abik.android.domain.model.ChargeGroup
+import info.prorabka.abik.android.domain.model.ChargeList
 import info.prorabka.abik.android.domain.model.ChargeSubgroup
 import info.prorabka.abik.android.domain.model.ChargeTemplate
 
@@ -63,4 +64,19 @@ interface ChargeRepository {
     ): ApiResult<Unit>
 
     suspend fun setTemplateActive(teamId: Long, templateId: Long, active: Boolean): ApiResult<Unit>
+
+    // --- Списки получателей ---
+
+    suspend fun chargeLists(teamId: Long): ApiResult<List<ChargeList>>
+
+    suspend fun createChargeList(teamId: Long, name: String, memberIds: Set<Long>): ApiResult<Unit>
+
+    suspend fun updateChargeList(
+        teamId: Long,
+        listId: Long,
+        name: String,
+        memberIds: Set<Long>,
+    ): ApiResult<Unit>
+
+    suspend fun deleteChargeList(teamId: Long, listId: Long): ApiResult<Unit>
 }

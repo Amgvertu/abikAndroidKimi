@@ -6,12 +6,14 @@ import info.prorabka.abik.android.data.api.ChargeApi
 import info.prorabka.abik.android.data.dto.ChargeCancelRequestDto
 import info.prorabka.abik.android.data.dto.ChargeCreateManualRequestDto
 import info.prorabka.abik.android.data.dto.ChargeGroupRequestDto
+import info.prorabka.abik.android.data.dto.ChargeListRequestDto
 import info.prorabka.abik.android.data.dto.ChargeSubgroupRequestDto
 import info.prorabka.abik.android.data.dto.ChargeTemplateRequestDto
 import info.prorabka.abik.android.data.dto.ChargeUpdateRequestDto
 import info.prorabka.abik.android.domain.model.Charge
 import info.prorabka.abik.android.domain.model.ChargeDistribution
 import info.prorabka.abik.android.domain.model.ChargeGroup
+import info.prorabka.abik.android.domain.model.ChargeList
 import info.prorabka.abik.android.domain.model.ChargeStatus
 import info.prorabka.abik.android.domain.model.ChargeSubgroup
 import info.prorabka.abik.android.domain.model.ChargeTemplate
@@ -213,6 +215,38 @@ class ChargeRepositoryImpl @Inject constructor(
         } else {
             api.deactivateTemplate(teamId, templateId)
         }
+        Unit
+    }
+
+    // --- Списки получателей ---
+
+    override suspend fun chargeLists(teamId: Long): ApiResult<List<ChargeList>> = apiCall {
+        api.listChargeLists(teamId).map { dto ->
+            ChargeList(id = dto.id, name = dto.name, memberIds = dto.memberIds)
+        }
+    }
+
+    override suspend fun createChargeList(
+        teamId: Long,
+        name: String,
+        memberIds: Set<Long>,
+    ): ApiResult<Unit> = apiCall {
+        api.createChargeList(teamId, ChargeListRequestDto(name = name, memberIds = memberIds))
+        Unit
+    }
+
+    override suspend fun updateChargeList(
+        teamId: Long,
+        listId: Long,
+        name: String,
+        memberIds: Set<Long>,
+    ): ApiResult<Unit> = apiCall {
+        api.updateChargeList(teamId, listId, ChargeListRequestDto(name = name, memberIds = memberIds))
+        Unit
+    }
+
+    override suspend fun deleteChargeList(teamId: Long, listId: Long): ApiResult<Unit> = apiCall {
+        api.deleteChargeList(teamId, listId)
         Unit
     }
 }

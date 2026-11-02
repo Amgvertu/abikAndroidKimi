@@ -49,3 +49,10 @@ data class ChargeTemplate(
     val active: Boolean,
     val memberIds: Set<Long>,
 )
+
+/** Именованный список получателей начислений. */
+data class ChargeList(
+    val id: Long,
+    val name: String,
+    val memberIds: Set<Long>,
+)

@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -149,6 +150,29 @@ fun ChargeCreateScreen(
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.weight(1f),
                     )
+                    // Подставить получателей из именованного списка
+                    if (ui.lists.isNotEmpty()) {
+                        Box {
+                            var listsExpanded by remember { mutableStateOf(false) }
+                            TextButton(onClick = { listsExpanded = true }) {
+                                Text("Из списка")
+                            }
+                            DropdownMenu(
+                                expanded = listsExpanded,
+                                onDismissRequest = { listsExpanded = false },
+                            ) {
+                                ui.lists.forEach { list ->
+                                    DropdownMenuItem(
+                                        text = { Text("${list.name} (${list.memberIds.size})") },
+                                        onClick = {
+                                            listsExpanded = false
+                                            viewModel.applyList(list)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
                     val allSelected = ui.members.isNotEmpty() &&
                         ui.selectedUserIds.containsAll(ui.members.map { it.userId })
                     TextButton(onClick = viewModel::toggleSelectAll) {

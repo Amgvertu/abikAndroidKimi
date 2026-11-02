@@ -235,6 +235,8 @@ data class EventListItem(
     val votesYesGoalies: Int = 0,
     val votesYesDefenders: Int = 0,
     val votesYesForwards: Int = 0,
+    /** Тренеры среди проголосовавших «Иду» (их амплуа не учитывается). */
+    val votesYesTrainers: Int = 0,
     /** Сколько проголосовавших «Иду» в резерве (сверх requiredPlayers); null — резерва нет. */
     val votesYesReserve: Int? = null,
     /** true — я проголосовал «Иду», но попал в резерв. */

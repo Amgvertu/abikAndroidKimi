@@ -55,6 +55,7 @@ class EventRepositoryImpl @Inject constructor(
                 votesYesGoalies = dto.votesYesGoalies,
                 votesYesDefenders = dto.votesYesDefenders,
                 votesYesForwards = dto.votesYesForwards,
+                votesYesTrainers = dto.votesYesTrainers,
                 votesYesReserve = dto.votesYesReserve,
                 myInReserve = dto.myInReserve,
             )

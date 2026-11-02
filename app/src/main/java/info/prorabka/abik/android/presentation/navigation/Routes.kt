@@ -24,6 +24,7 @@ object Routes {
     const val ADMIN = "admin"
     const val CHARGE_TEMPLATES = "charge_templates"
     const val TEMPLATE_FORM = "template_form?templateId={templateId}"
+    const val CHARGE_LISTS = "charge_lists"
 
     fun registerConfirm(phone: String) = "register_confirm/$phone"
     fun forgotConfirm(phone: String) = "forgot_confirm/$phone"

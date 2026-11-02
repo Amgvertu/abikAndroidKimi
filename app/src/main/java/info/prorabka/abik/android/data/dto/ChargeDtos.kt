@@ -106,3 +106,18 @@ data class ChargeTemplateRequestDto(
     val memberIds: Set<Long>,
     val active: Boolean? = null,
 )
+
+// --- Именованные списки получателей начислений ---
+
+@Serializable
+data class ChargeListDto(
+    val id: Long,
+    val name: String,
+    val memberIds: Set<Long> = emptySet(),
+)
+
+@Serializable
+data class ChargeListRequestDto(
+    val name: String,
+    val memberIds: Set<Long>,
+)

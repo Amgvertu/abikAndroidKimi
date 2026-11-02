@@ -119,8 +119,10 @@ fun MainShell(
                         }
                     }
                     ShellMenu(
+                        isManager = ui.isManager,
                         onReports = { rootNavController.navigate(Routes.REPORTS) },
                         onTemplates = { rootNavController.navigate(Routes.CHARGE_TEMPLATES) },
+                        onLists = { rootNavController.navigate(Routes.CHARGE_LISTS) },
                         onLogout = {
                             viewModel.logout {
                                 rootNavController.navigate(Routes.LOGIN) {
@@ -207,6 +209,9 @@ fun MainShell(
                 TeamScreen(
                     onMemberClick = { userId ->
                         rootNavController.navigate(Routes.memberDetails(userId))
+                    },
+                    onAddPayment = { userId ->
+                        rootNavController.navigate(Routes.paymentForm(userId = userId))
                     },
                     onCreateTeam = { rootNavController.navigate(Routes.ONBOARDING_TEAM) },
                 )
@@ -304,7 +309,13 @@ private fun BalanceChip(balanceKopecks: Long) {
 }
 
 @Composable
-private fun ShellMenu(onReports: () -> Unit, onTemplates: () -> Unit, onLogout: () -> Unit) {
+private fun ShellMenu(
+    isManager: Boolean,
+    onReports: () -> Unit,
+    onTemplates: () -> Unit,
+    onLists: () -> Unit,
+    onLogout: () -> Unit,
+) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) {
@@ -318,13 +329,23 @@ private fun ShellMenu(onReports: () -> Unit, onTemplates: () -> Unit, onLogout: 
                     onReports()
                 },
             )
-            DropdownMenuItem(
-                text = { Text("Шаблоны начислений") },
-                onClick = {
-                    expanded = false
-                    onTemplates()
-                },
-            )
+            // Шаблоны и списки получателей — только управляющим
+            if (isManager) {
+                DropdownMenuItem(
+                    text = { Text("Шаблоны начислений") },
+                    onClick = {
+                        expanded = false
+                        onTemplates()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("Списки получателей") },
+                    onClick = {
+                        expanded = false
+                        onLists()
+                    },
+                )
+            }
             DropdownMenuItem(
                 text = { Text("Выйти") },
                 onClick = {

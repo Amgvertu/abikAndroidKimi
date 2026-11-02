@@ -71,6 +71,17 @@ import info.prorabka.abik.android.domain.model.LineupSlot
 import info.prorabka.abik.android.domain.model.Position
 import info.prorabka.abik.android.domain.model.SweaterColor
 import info.prorabka.abik.android.domain.model.VoteAnswer
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+
+/** Событие уже прошло: момент окончания = указанные дата и время. */
+private fun isEventPast(dateIso: String, time: String): Boolean {
+    val date = runCatching { LocalDate.parse(dateIso) }.getOrNull() ?: return false
+    val localTime = runCatching { LocalTime.parse(time) }.getOrNull()
+        ?: return date.isBefore(LocalDate.now())
+    return !LocalDateTime.of(date, localTime).isAfter(LocalDateTime.now())
+}
 
 /** Детали события: информация, голосование, списки, заявка (просмотр). */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -273,6 +284,16 @@ private fun EventContent(
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
+        // Опрос закрывается в указанное время события (момент окончания)
+        val pollClosed = isEventPast(event.dateIso, event.time)
+        if (pollClosed) {
+            Text(
+                "Опрос завершён",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             VoteAnswer.entries.forEach { answer ->
@@ -285,6 +306,7 @@ private fun EventContent(
                 FilterChip(
                     selected = event.myVote == answer,
                     onClick = { if (!acting) onVote(answer) },
+                    enabled = !acting && !pollClosed,
                     label = { Text("${answer.display} ($count)") },
                 )
             }
@@ -359,7 +381,7 @@ private fun EventContent(
     }
 }
 
-/** Список проголосовавших с группировкой по амплуа. */
+/** Список проголосовавших с группировкой по амплуа. Тренеры — отдельная группа. */
 @Composable
 private fun VoterGroup(voters: List<EventVoter>) {
     val order = listOf(
@@ -367,11 +389,13 @@ private fun VoterGroup(voters: List<EventVoter>) {
         Position.DEFENDER to "Защитники",
         Position.FORWARD to "Нападающие",
     )
+    val trainers = voters.filter { it.isTrainer }
+    val players = voters.filter { !it.isTrainer }
     Card(Modifier.fillMaxWidth().padding(top = 4.dp)) {
         Column(Modifier.padding(12.dp)) {
             var first = true
             order.forEach { (position, label) ->
-                val inPosition = voters.filter { it.positions.contains(position) }
+                val inPosition = players.filter { it.positions.contains(position) }
                 if (inPosition.isNotEmpty()) {
                     if (!first) Spacer(Modifier.height(6.dp))
                     first = false
@@ -383,15 +407,25 @@ private fun VoterGroup(voters: List<EventVoter>) {
                     inPosition.forEach { VoterRow(it) }
                 }
             }
-            val withoutPosition = voters.filter { it.positions.isEmpty() }
+            val withoutPosition = players.filter { it.positions.isEmpty() }
             if (withoutPosition.isNotEmpty()) {
                 if (!first) Spacer(Modifier.height(6.dp))
+                first = false
                 Text(
                     "Без амплуа",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 withoutPosition.forEach { VoterRow(it) }
+            }
+            if (trainers.isNotEmpty()) {
+                if (!first) Spacer(Modifier.height(6.dp))
+                Text(
+                    "Тренер",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                trainers.forEach { VoterRow(it) }
             }
         }
     }
@@ -400,7 +434,8 @@ private fun VoterGroup(voters: List<EventVoter>) {
 @Composable
 private fun VoterRow(voter: EventVoter) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        // Отступ списка под заголовком группы
+        Modifier.fillMaxWidth().padding(start = 16.dp, top = 2.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         voter.sweaterColor?.let { color ->
@@ -408,14 +443,6 @@ private fun VoterRow(voter: EventVoter) {
             Spacer(Modifier.size(6.dp))
         }
         Text(voter.fullName, style = MaterialTheme.typography.bodyMedium)
-        if (voter.isTrainer) {
-            Spacer(Modifier.size(6.dp))
-            Text(
-                "тренер",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
     }
 }
 

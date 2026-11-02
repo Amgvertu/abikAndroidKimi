@@ -19,6 +19,7 @@ import info.prorabka.abik.android.presentation.auth.LoginScreen
 import info.prorabka.abik.android.presentation.auth.RegisterScreen
 import info.prorabka.abik.android.presentation.events.EventDetailsScreen
 import info.prorabka.abik.android.presentation.events.EventFormScreen
+import info.prorabka.abik.android.presentation.lists.ListsScreen
 import info.prorabka.abik.android.presentation.notifications.NotificationsScreen
 import info.prorabka.abik.android.presentation.onboarding.OnboardingProfileScreen
 import info.prorabka.abik.android.presentation.onboarding.OnboardingTeamScreen
@@ -241,6 +242,9 @@ fun AppNavHost(
                 },
                 onBack = { navController.popBackStack() },
             )
+        }
+        composable(Routes.CHARGE_LISTS) {
+            ListsScreen(onBack = { navController.popBackStack() })
         }
         composable(
             route = Routes.TEMPLATE_FORM,

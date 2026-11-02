@@ -9,10 +9,14 @@ import info.prorabka.abik.android.core.network.UrlResolver
 import info.prorabka.abik.android.core.util.PhoneUtils
 import info.prorabka.abik.android.domain.model.Invitation
 import info.prorabka.abik.android.domain.model.MemberRole
+import info.prorabka.abik.android.domain.model.MemberStatus
+import info.prorabka.abik.android.domain.model.RosterItem
+import info.prorabka.abik.android.domain.model.RosterStatus
 import info.prorabka.abik.android.domain.model.TeamCreateData
 import info.prorabka.abik.android.domain.model.TeamDetail
 import info.prorabka.abik.android.domain.model.TeamMember
 import info.prorabka.abik.android.domain.repository.FileRepository
+import info.prorabka.abik.android.domain.repository.RosterRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +27,7 @@ import javax.inject.Inject
 @HiltViewModel
 class TeamViewModel @Inject constructor(
     private val teamRepository: TeamRepository,
+    private val rosterRepository: RosterRepository,
     private val teamManager: CurrentTeamManager,
     private val fileRepository: FileRepository,
     private val urlResolver: UrlResolver,
@@ -36,6 +41,9 @@ class TeamViewModel @Inject constructor(
         val detail: TeamDetail? = null,
         val members: List<TeamMember> = emptyList(),
         val outgoingInvitations: List<Invitation> = emptyList(),
+        /** Активный состав регулярки текущего сезона. */
+        val roster: List<RosterItem> = emptyList(),
+        val rosterSaving: Boolean = false,
         val error: String? = null,
         val info: String? = null,
     ) {
@@ -44,6 +52,15 @@ class TeamViewModel @Inject constructor(
                 detail?.myRole == MemberRole.MODERATOR ||
                 detail?.myRole == MemberRole.ADMIN
         val isOwner: Boolean get() = detail?.myRole == MemberRole.OWNER
+
+        /** Активные участники команды, не входящие в состав регулярки. */
+        val rosterCandidates: List<TeamMember>
+            get() {
+                val inRoster = roster.map { it.userId }.toSet()
+                return members.filter {
+                    it.userId !in inRoster && it.status == MemberStatus.ACTIVE
+                }
+            }
     }
 
     private val _ui = MutableStateFlow(UiState())
@@ -83,7 +100,63 @@ class TeamViewModel @Inject constructor(
                 is ApiResult.Success -> _ui.update { it.copy(members = m.data) }
                 else -> Unit
             }
+            loadRoster(teamId)
             _ui.update { it.copy(loading = false) }
+        }
+    }
+
+    /** Активный состав регулярки текущего сезона команды. */
+    private suspend fun loadRoster(teamId: Long) {
+        val season = _ui.value.detail?.season?.takeIf { it.isNotBlank() } ?: return
+        when (val r = rosterRepository.roster(teamId, season)) {
+            is ApiResult.Success -> _ui.update {
+                it.copy(roster = r.data.filter { item -> item.status == RosterStatus.ACTIVE })
+            }
+            else -> Unit
+        }
+    }
+
+    /** Добавить игрока в состав регулярки (управляющие, текущий сезон). */
+    fun addToRoster(userId: Long) {
+        val teamId = currentTeamId() ?: return
+        val season = _ui.value.detail?.season?.takeIf { it.isNotBlank() } ?: return
+        viewModelScope.launch {
+            _ui.update { it.copy(rosterSaving = true, error = null) }
+            when (val r = rosterRepository.addMember(teamId, season, userId, null)) {
+                is ApiResult.Success -> {
+                    _ui.update { it.copy(rosterSaving = false, info = "Игрок добавлен в состав") }
+                    loadRoster(teamId)
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(rosterSaving = false, error = r.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(rosterSaving = false, error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
+    /** Исключить игрока из состава регулярки (управляющие, текущий сезон). */
+    fun removeFromRoster(userId: Long) {
+        val teamId = currentTeamId() ?: return
+        val season = _ui.value.detail?.season?.takeIf { it.isNotBlank() } ?: return
+        viewModelScope.launch {
+            _ui.update { it.copy(rosterSaving = true, error = null) }
+            when (val r = rosterRepository.removeMember(teamId, season, userId)) {
+                is ApiResult.Success -> {
+                    _ui.update {
+                        it.copy(rosterSaving = false, info = "Игрок исключён из состава")
+                    }
+                    loadRoster(teamId)
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(rosterSaving = false, error = r.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(rosterSaving = false, error = "Нет соединения с сервером")
+                }
+            }
         }
     }
 

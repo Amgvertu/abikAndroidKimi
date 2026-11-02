@@ -9,6 +9,7 @@ import info.prorabka.abik.android.core.util.filterMoneyInput
 import info.prorabka.abik.android.core.util.kopecksToInput
 import info.prorabka.abik.android.core.util.parseMoneyToKopecks
 import info.prorabka.abik.android.domain.model.ChargeGroup
+import info.prorabka.abik.android.domain.model.ChargeList
 import info.prorabka.abik.android.domain.model.ChargeSubgroup
 import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.model.TeamMember
@@ -51,6 +52,8 @@ class ChargeCreateViewModel @Inject constructor(
         val note: String = "",
         val members: List<TeamMember> = emptyList(),
         val selectedUserIds: Set<Long> = emptySet(),
+        /** Именованные списки получателей (для быстрого выбора). */
+        val lists: List<ChargeList> = emptyList(),
         val editChargeId: Long? = null,
         /** Уже оплаченная сумма (в режиме редактирования) — ниже неё уменьшать нельзя. */
         val paidKopecks: Long = 0,
@@ -76,6 +79,10 @@ class ChargeCreateViewModel @Inject constructor(
             }
             when (val g = chargeRepository.groups(teamId)) {
                 is ApiResult.Success -> _ui.update { it.copy(groups = g.data) }
+                else -> Unit
+            }
+            when (val l = chargeRepository.chargeLists(teamId)) {
+                is ApiResult.Success -> _ui.update { it.copy(lists = l.data) }
                 else -> Unit
             }
             when (val m = teamRepository.members(teamId)) {
@@ -173,6 +180,12 @@ class ChargeCreateViewModel @Inject constructor(
         it.copy(
             selectedUserIds = if (it.selectedUserIds.containsAll(all)) emptySet() else all,
         )
+    }
+
+    /** Подставить участников именованного списка в выбранных. */
+    fun applyList(list: ChargeList) = _ui.update {
+        val memberIds = it.members.map { m -> m.userId }.toSet()
+        it.copy(selectedUserIds = list.memberIds.intersect(memberIds))
     }
 
     fun save(onDone: () -> Unit) {

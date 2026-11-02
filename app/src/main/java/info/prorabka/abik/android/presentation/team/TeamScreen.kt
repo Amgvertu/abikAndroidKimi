@@ -29,6 +29,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,10 +54,14 @@ import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
 import info.prorabka.abik.android.domain.model.Invitation
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.MemberStatus
+import info.prorabka.abik.android.domain.model.Position
+import info.prorabka.abik.android.domain.model.RosterItem
 import info.prorabka.abik.android.domain.model.TeamMember
 
 /**
- * Экран «Команда»: список участников (без карточки описания — по ТЗ).
+ * Экран «Команда»: две вкладки — «Вся команда» и «Регулярка» (состав сезона).
+ * Сверху счётчики по амплуа (В/З/Н/Т), ниже список с сортировкой по амплуа.
+ * Долгий тап на вкладке «Регулярка» — режим редактирования состава (управляющие).
  * Действия управляющих собраны в меню ⋮ сверху справа,
  * долгий тап на игрока — контекстное меню.
  */
@@ -63,6 +69,7 @@ import info.prorabka.abik.android.domain.model.TeamMember
 @Composable
 fun TeamScreen(
     onMemberClick: (Long) -> Unit,
+    onAddPayment: (Long) -> Unit,
     onCreateTeam: () -> Unit,
     viewModel: TeamViewModel = hiltViewModel(),
 ) {
@@ -75,6 +82,9 @@ fun TeamScreen(
     var jerseyDialogMember by remember { mutableStateOf<TeamMember?>(null) }
     var excludeDialogMember by remember { mutableStateOf<TeamMember?>(null) }
     var cancelDialogInvitation by remember { mutableStateOf<Invitation?>(null) }
+    var selectedTab by remember { mutableStateOf(0) }
+    var rosterEditMode by remember { mutableStateOf(false) }
+    var rosterRemoveTarget by remember { mutableStateOf<RosterItem?>(null) }
 
     // Выбор логотипа команды (из диалога редактирования, управляющие)
     val pickLogo = rememberLauncherForActivityResult(
@@ -156,51 +166,236 @@ fun TeamScreen(
             )
         }
 
-        // --- Список участников + приглашения + действия ---
-        LazyColumn {
-            // Выход из команды — на видном месте сверху (удаление — в меню ⋮)
-            if (!ui.isOwner) {
-                item(key = "team_actions") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        TextButton(onClick = { showLeaveDialog = true }) {
+        // --- Вкладки: вся команда / состав регулярки ---
+        TabRow(selectedTabIndex = selectedTab) {
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+            ) {
+                Text("Вся команда", modifier = Modifier.padding(vertical = 12.dp))
+            }
+            // Долгий тап по вкладке — режим редактирования состава (управляющие)
+            Box(
+                modifier = Modifier
+                    .combinedClickable(
+                        onClick = { selectedTab = 1 },
+                        onLongClick = {
+                            if (ui.isManager) {
+                                selectedTab = 1
+                                rosterEditMode = !rosterEditMode
+                            }
+                        },
+                    )
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "Регулярка",
+                    color = if (selectedTab == 1) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+        }
+
+        if (selectedTab == 0) {
+            // ===== Вся команда =====
+            val trainers = ui.members.count { it.isTrainer }
+            PositionCounters(
+                goalies = ui.members.count {
+                    !it.isTrainer && it.positions.contains(Position.GOALKEEPER)
+                },
+                defenders = ui.members.count {
+                    !it.isTrainer && it.positions.contains(Position.DEFENDER)
+                },
+                forwards = ui.members.count {
+                    !it.isTrainer && it.positions.contains(Position.FORWARD)
+                },
+                trainers = trainers,
+            )
+            val sortedMembers = ui.members.sortedWith(
+                compareBy({ positionOrder(it.positions) }, { it.displayName }),
+            )
+
+            LazyColumn {
+                // Выход из команды — на видном месте сверху (удаление — в меню ⋮)
+                if (!ui.isOwner) {
+                    item(key = "team_actions") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            TextButton(onClick = { showLeaveDialog = true }) {
+                                Text(
+                                    "Покинуть команду",
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Исходящие приглашения (только управляющие, если есть)
+                if (ui.isManager && ui.outgoingInvitations.isNotEmpty()) {
+                    item(key = "outgoing_invitations") {
+                        OutgoingInvitationsCard(
+                            invitations = ui.outgoingInvitations,
+                            onCancel = { cancelDialogInvitation = it },
+                        )
+                    }
+                }
+
+                items(sortedMembers, key = { it.userId }) { member ->
+                    MemberRow(
+                        member = member,
+                        avatarUrl = viewModel.resolveUrl(member.avatarUrl),
+                        isManager = ui.isManager,
+                        isOwner = ui.isOwner,
+                        onClick = { onMemberClick(member.userId) },
+                        onAddPayment = { onAddPayment(member.userId) },
+                        onSetJersey = { jerseyDialogMember = member },
+                        onToggleModerator = { viewModel.toggleModerator(member) },
+                        onToggleTrainer = { viewModel.toggleTrainer(member) },
+                        onExclude = { excludeDialogMember = member },
+                        onRestore = { viewModel.restore(member) },
+                    )
+                    HorizontalDivider()
+                }
+            }
+        } else {
+            // ===== Состав регулярки (текущий сезон) =====
+            val season = ui.detail?.season
+            if (season.isNullOrBlank()) {
+                Text(
+                    "Сезон команды не указан — состав регулярки недоступен",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(vertical = 16.dp),
+                )
+            } else {
+                val trainersById = ui.members.filter { it.isTrainer }.map { it.userId }.toSet()
+                PositionCounters(
+                    goalies = ui.roster.count {
+                        it.userId !in trainersById && it.positions.contains(Position.GOALKEEPER)
+                    },
+                    defenders = ui.roster.count {
+                        it.userId !in trainersById && it.positions.contains(Position.DEFENDER)
+                    },
+                    forwards = ui.roster.count {
+                        it.userId !in trainersById && it.positions.contains(Position.FORWARD)
+                    },
+                    trainers = ui.roster.count { it.userId in trainersById },
+                )
+                if (rosterEditMode) {
+                    Text(
+                        "Редактирование состава сезона $season. " +
+                            "Долгий тап по вкладке — завершить.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                }
+                val sortedRoster = ui.roster.sortedWith(
+                    compareBy({ positionOrder(it.positions) }, { it.fullName }),
+                )
+                LazyColumn {
+                    items(sortedRoster, key = { "roster_${it.userId}" }) { item ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    item.fullName +
+                                        if (item.userId in trainersById) " • Тренер" else "",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                                if (item.positions.isNotEmpty()) {
+                                    Text(
+                                        item.positions.sortedBy { it.ordinal }
+                                            .joinToString("/") { it.display },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            if (rosterEditMode) {
+                                TextButton(onClick = { rosterRemoveTarget = item }) {
+                                    Text(
+                                        "Исключить",
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            }
+                        }
+                        HorizontalDivider()
+                    }
+
+                    if (rosterEditMode && ui.rosterCandidates.isNotEmpty()) {
+                        item(key = "roster_candidates_header") {
                             Text(
-                                "Покинуть команду",
-                                color = MaterialTheme.colorScheme.error,
+                                "Добавить в состав",
+                                style = MaterialTheme.typography.titleSmall,
+                                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                            )
+                        }
+                        items(ui.rosterCandidates, key = { "candidate_${it.userId}" }) { member ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    member.displayName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                TextButton(
+                                    enabled = !ui.rosterSaving,
+                                    onClick = { viewModel.addToRoster(member.userId) },
+                                ) { Text("Добавить") }
+                            }
+                            HorizontalDivider()
+                        }
+                    }
+
+                    if (sortedRoster.isEmpty() && !rosterEditMode) {
+                        item(key = "roster_empty") {
+                            Text(
+                                "Состав регулярки пока пуст" +
+                                    if (ui.isManager) {
+                                        " — долгий тап по вкладке «Регулярка», чтобы заполнить"
+                                    } else "",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(vertical = 16.dp),
                             )
                         }
                     }
                 }
             }
-
-            // Исходящие приглашения (только управляющие, если есть)
-            if (ui.isManager && ui.outgoingInvitations.isNotEmpty()) {
-                item(key = "outgoing_invitations") {
-                    OutgoingInvitationsCard(
-                        invitations = ui.outgoingInvitations,
-                        onCancel = { cancelDialogInvitation = it },
-                    )
-                }
-            }
-
-            items(ui.members, key = { it.userId }) { member ->
-                MemberRow(
-                    member = member,
-                    avatarUrl = viewModel.resolveUrl(member.avatarUrl),
-                    isManager = ui.isManager,
-                    isOwner = ui.isOwner,
-                    onClick = { onMemberClick(member.userId) },
-                    onSetJersey = { jerseyDialogMember = member },
-                    onToggleModerator = { viewModel.toggleModerator(member) },
-                    onToggleTrainer = { viewModel.toggleTrainer(member) },
-                    onExclude = { excludeDialogMember = member },
-                    onRestore = { viewModel.restore(member) },
-                )
-                HorizontalDivider()
-            }
         }
+    }
+
+    // Подтверждение исключения из состава регулярки
+    rosterRemoveTarget?.let { item ->
+        AlertDialog(
+            onDismissRequest = { rosterRemoveTarget = null },
+            title = { Text("Исключить из состава?") },
+            text = { Text("${item.fullName}\nНачисления и платежи сохранятся.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        rosterRemoveTarget = null
+                        viewModel.removeFromRoster(item.userId)
+                    },
+                ) { Text("Исключить", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { rosterRemoveTarget = null }) { Text("Отмена") }
+            },
+        )
     }
 
     if (showLeaveDialog) {
@@ -348,6 +543,7 @@ private fun MemberRow(
     isManager: Boolean,
     isOwner: Boolean,
     onClick: () -> Unit,
+    onAddPayment: () -> Unit,
     onSetJersey: () -> Unit,
     onToggleModerator: () -> Unit,
     onToggleTrainer: () -> Unit,
@@ -419,6 +615,13 @@ private fun MemberRow(
 
         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
             DropdownMenuItem(
+                text = { Text("Внести платёж") },
+                onClick = {
+                    menuExpanded = false
+                    onAddPayment()
+                },
+            )
+            DropdownMenuItem(
                 text = { Text("Игровой номер") },
                 onClick = {
                     menuExpanded = false
@@ -479,6 +682,25 @@ private fun MemberRow(
             }
         }
     }
+}
+
+/** Счётчики участников по амплуа: вратари/защитники/нападающие/тренеры. */
+@Composable
+private fun PositionCounters(goalies: Int, defenders: Int, forwards: Int, trainers: Int) {
+    Text(
+        "В: $goalies   З: $defenders   Н: $forwards   Т: $trainers",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(vertical = 8.dp),
+    )
+}
+
+/** Порядок сортировки по амплуа: вратари → защитники → нападающие → без амплуа. */
+private fun positionOrder(positions: Set<Position>): Int = when {
+    positions.contains(Position.GOALKEEPER) -> 0
+    positions.contains(Position.DEFENDER) -> 1
+    positions.contains(Position.FORWARD) -> 2
+    else -> 3
 }
 
 /** Исходящие приглашения команды (PENDING) с возможностью отмены. */
