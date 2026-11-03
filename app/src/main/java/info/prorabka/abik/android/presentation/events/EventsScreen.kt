@@ -59,7 +59,6 @@ import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
 import info.prorabka.abik.android.domain.model.EventListItem
 import info.prorabka.abik.android.domain.model.EventSection
-import info.prorabka.abik.android.domain.model.MemberRole
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -152,10 +151,9 @@ fun EventsScreen(
                     eventsByDate = ui.sectionEvents.mapNotNull { event ->
                         runCatching { LocalDate.parse(event.dateIso) }.getOrNull()?.let { it to event }
                     }.groupBy({ it.first }, { it.second }),
-                    // Участники (включая тренеров) и модераторы могут отметиться
-                    // долгим тапом по дате; владельцы и админы — как прежде, нет.
-                    allowAttend = ui.myRole == MemberRole.MEMBER ||
-                        ui.myRole == MemberRole.MODERATOR,
+                    // Все активные участники команды могут открыть голосование
+                    // долгим тапом по дате, независимо от роли.
+                    allowAttend = ui.myRole != null,
                     onAttend = ::openAttendance,
                     onSelectDate = viewModel::selectDate,
                     onPrev = viewModel::prevMonth,

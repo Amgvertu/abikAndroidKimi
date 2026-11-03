@@ -235,8 +235,18 @@ fun TeamScreen(
                     selectedTab = 0
                     listEditMode = false
                 },
+                selectedContentColor = MaterialTheme.colorScheme.primary,
+                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ) {
-                Text("Вся команда", modifier = Modifier.padding(vertical = 12.dp))
+                Text(
+                    "Вся команда",
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    color = if (selectedTab == 0) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
             }
             ui.chargeLists.forEachIndexed { index, list ->
                 val tabIndex = index + 1

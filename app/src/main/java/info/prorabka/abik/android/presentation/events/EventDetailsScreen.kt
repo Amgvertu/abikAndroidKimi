@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -613,7 +615,13 @@ private fun SweatersDialog(
         onDismissRequest = { if (!saving && drag == null) onDismiss() },
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        Card(Modifier.fillMaxSize().padding(8.dp)) {
+        Card(
+            Modifier
+                .fillMaxSize()
+                .padding(8.dp)
+                .navigationBarsPadding()
+                .imePadding(),
+        ) {
             Box(Modifier.onGloballyPositioned { containerTopLeft = it.boundsInRoot().topLeft }) {
                 Column(Modifier.fillMaxSize().padding(12.dp)) {
                     Text(
