@@ -7,6 +7,12 @@ enum class StickHand(val display: String) {
     RIGHT("Правый"),
 }
 
+enum class PlayerStatus(val display: String) {
+    AMATEUR("Любитель"),
+    DYUSSH_STUDENT("Ученик ДЮСШ"),
+    SPORTS_SCHOOL("Спортшкольник"),
+}
+
 enum class Position(val display: String) {
     GOALKEEPER("Вратарь"),
     DEFENDER("Защитник"),
@@ -34,6 +40,7 @@ data class Profile(
     val weightKg: Int,
     val stickHand: StickHand,
     val positions: Set<Position>,
+    val playerStatus: PlayerStatus,
     val jerseySize: String?,
     val coversSize: String?,
     val gaitersSize: String?,
@@ -82,7 +89,10 @@ data class TeamMember(
     val positions: Set<Position> = emptySet(),
     val avatarUrl: String? = null,
 ) {
-    val displayName: String get() = "$lastName $firstName".trim().ifBlank { phone }
+    val displayName: String
+        get() = "$lastName $firstName".trim().ifBlank {
+            info.prorabka.abik.android.core.util.PhoneUtils.formatInput(phone)
+        }
 }
 
 /** BE-07: карточка участника команды — членство + профиль. */
@@ -108,6 +118,7 @@ data class ProfileFormData(
     val weightKg: Int,
     val stickHand: StickHand,
     val positions: Set<Position>,
+    val playerStatus: PlayerStatus,
     val jerseySize: String?,
     val coversSize: String?,
     val gaitersSize: String?,

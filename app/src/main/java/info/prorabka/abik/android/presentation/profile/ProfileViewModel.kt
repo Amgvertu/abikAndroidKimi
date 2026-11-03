@@ -202,6 +202,7 @@ class ProfileViewModel @Inject constructor(
                 weightKg = profile.weightKg,
                 stickHand = profile.stickHand,
                 positions = profile.positions,
+                playerStatus = profile.playerStatus,
                 jerseySize = profile.jerseySize,
                 coversSize = profile.coversSize,
                 gaitersSize = profile.gaitersSize,

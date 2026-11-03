@@ -42,6 +42,7 @@ import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import info.prorabka.abik.android.BuildConfig
 import info.prorabka.abik.android.core.ui.components.AbikButton
+import info.prorabka.abik.android.core.ui.components.AbikPullToRefresh
 import info.prorabka.abik.android.core.ui.components.DateField
 import info.prorabka.abik.android.core.ui.components.ErrorText
 import info.prorabka.abik.android.core.ui.components.LoadingBox
@@ -88,14 +89,18 @@ fun ReportsScreen(
             LoadingBox(Modifier.padding(padding))
             return@Scaffold
         }
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        AbikPullToRefresh(
+            loading = ui.loading,
+            onRefresh = viewModel::load,
+            modifier = Modifier.padding(padding),
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
             // --- Сводка ---
             ui.summary?.let { summary ->
                 Card(modifier = Modifier.fillMaxWidth()) {
@@ -234,6 +239,7 @@ fun ReportsScreen(
                     )
                 }
             }
+        }
         }
     }
 }

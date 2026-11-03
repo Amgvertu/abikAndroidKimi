@@ -40,6 +40,7 @@ import info.prorabka.abik.android.core.ui.components.AbikButton
 import info.prorabka.abik.android.core.ui.components.AbikTextField
 import info.prorabka.abik.android.core.ui.components.ErrorText
 import info.prorabka.abik.android.core.ui.components.LoadingBox
+import info.prorabka.abik.android.domain.model.PlayerStatus
 import info.prorabka.abik.android.domain.model.Position
 import info.prorabka.abik.android.domain.model.StickHand
 import java.time.Instant
@@ -138,17 +139,42 @@ fun ProfileFormScreen(
         }
         Spacer(modifier = Modifier.height(16.dp))
 
+        StringChoiceDropdown(
+            value = ui.playerStatus.name,
+            options = PlayerStatus.entries.map { it.name to it.display },
+            label = "Статус",
+            onSelect = { value -> viewModel.onPlayerStatus(PlayerStatus.valueOf(value)) },
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
         Text(
             "Дополнительно (необязательно)",
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(modifier = Modifier.height(8.dp))
-        AbikTextField(value = ui.jerseySize, onValueChange = viewModel::onJerseySize, label = "Размер джерси")
+        val emptySize = listOf("" to "Не указан")
+        StringChoiceDropdown(
+            value = ui.jerseySize,
+            options = emptySize + listOf("46", "48", "50", "52", "54", "56", "58").map { it to it },
+            label = "Размер джерси",
+            onSelect = viewModel::onJerseySize,
+        )
         Spacer(modifier = Modifier.height(12.dp))
-        AbikTextField(value = ui.coversSize, onValueChange = viewModel::onCoversSize, label = "Размер чехлов")
+        val letterSizes = emptySize + listOf("S", "M", "L", "XL", "XXL").map { it to it }
+        StringChoiceDropdown(
+            value = ui.coversSize,
+            options = letterSizes,
+            label = "Размер чехлов",
+            onSelect = viewModel::onCoversSize,
+        )
         Spacer(modifier = Modifier.height(12.dp))
-        AbikTextField(value = ui.gaitersSize, onValueChange = viewModel::onGaitersSize, label = "Размер гамаш")
+        StringChoiceDropdown(
+            value = ui.gaitersSize,
+            options = letterSizes,
+            label = "Размер гамаш",
+            onSelect = viewModel::onGaitersSize,
+        )
 
         ErrorText(ui.error)
         Spacer(modifier = Modifier.height(16.dp))

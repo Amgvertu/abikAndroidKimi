@@ -322,15 +322,15 @@ private fun ShellMenu(
             Icon(Icons.Default.Menu, contentDescription = "Меню")
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text("Отчёты") },
-                onClick = {
-                    expanded = false
-                    onReports()
-                },
-            )
-            // Шаблоны и списки получателей — только управляющим
+            // Отчёты, шаблоны и списки — только управляющим.
             if (isManager) {
+                DropdownMenuItem(
+                    text = { Text("Отчёты") },
+                    onClick = {
+                        expanded = false
+                        onReports()
+                    },
+                )
                 DropdownMenuItem(
                     text = { Text("Шаблоны начислений") },
                     onClick = {
@@ -339,7 +339,7 @@ private fun ShellMenu(
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Списки получателей") },
+                    text = { Text("Списки") },
                     onClick = {
                         expanded = false
                         onLists()

@@ -110,7 +110,7 @@ fun ChangePhoneScreen(
 
                 ChangePhoneViewModel.Step.NEW_CODE -> {
                     Text(
-                        "Код отправлен на ${ui.newPhone}",
+                        "Код отправлен на ${info.prorabka.abik.android.core.util.PhoneUtils.formatInput(ui.newPhone)}",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Spacer(modifier = Modifier.height(16.dp))

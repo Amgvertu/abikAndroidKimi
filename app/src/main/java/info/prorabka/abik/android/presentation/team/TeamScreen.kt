@@ -52,9 +52,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import coil.compose.AsyncImage
+import info.prorabka.abik.android.core.ui.components.AbikPullToRefresh
 import info.prorabka.abik.android.core.ui.components.AbikTextField
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
+import info.prorabka.abik.android.core.util.PhoneUtils
+import info.prorabka.abik.android.core.util.phoneToDisplay
 import info.prorabka.abik.android.domain.model.ChargeList
 import info.prorabka.abik.android.domain.model.Invitation
 import info.prorabka.abik.android.domain.model.MemberRole
@@ -136,8 +139,12 @@ fun TeamScreen(
         ui.members.filter { it.userId in selectedList.memberIds }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        // Счётчики текущей вкладки и действия команды — в одной строке.
+    AbikPullToRefresh(
+        loading = ui.loading,
+        onRefresh = { ui.detail?.let { viewModel.load(it.id) } },
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+            // Счётчики текущей вкладки и действия команды — в одной строке.
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -455,6 +462,7 @@ fun TeamScreen(
                 }
             }
         }
+        }
     }
 
     // Создание общего списка через «+».
@@ -649,7 +657,7 @@ fun TeamScreen(
             onDismissRequest = { cancelDialogInvitation = null },
             title = { Text("Отменить приглашение?") },
             text = {
-                Text("Приглашение для ${invitation.invitedPhone} будет отменено.")
+                Text("Приглашение для ${invitation.invitedPhone.phoneToDisplay()} будет отменено.")
             },
             confirmButton = {
                 TextButton(
@@ -1059,7 +1067,7 @@ private fun OutgoingInvitationsCard(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            invitation.invitedPhone,
+                            invitation.invitedPhone.phoneToDisplay(),
                             style = MaterialTheme.typography.bodyLarge,
                         )
                         invitation.expiresAt?.take(10)?.let { date ->
@@ -1094,7 +1102,7 @@ private fun InviteDialog(onDismiss: () -> Unit, onInvite: (String) -> Unit) {
                 Spacer(modifier = Modifier.height(8.dp))
                 AbikTextField(
                     value = phone,
-                    onValueChange = { phone = it },
+                    onValueChange = { phone = PhoneUtils.inputDigits(it) },
                     label = "Номер телефона",
                     keyboardType = KeyboardType.Phone,
                 )

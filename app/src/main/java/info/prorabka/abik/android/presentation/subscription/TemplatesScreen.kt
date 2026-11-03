@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import info.prorabka.abik.android.core.ui.components.AbikPullToRefresh
 import info.prorabka.abik.android.core.ui.components.EmptyState
 import info.prorabka.abik.android.core.ui.components.ErrorText
 import info.prorabka.abik.android.core.ui.components.LoadingBox
@@ -71,7 +72,11 @@ fun TemplatesScreen(
             }
         },
     ) { padding ->
-        when {
+        AbikPullToRefresh(
+            loading = ui.loading,
+            onRefresh = viewModel::load,
+        ) {
+            when {
             ui.loading -> LoadingBox(Modifier.padding(padding))
             ui.templates.isEmpty() -> EmptyState(
                 "Шаблонов пока нет.\nСоздайте шаблон, чтобы начисления формировались автоматически каждый месяц.",
@@ -126,6 +131,7 @@ fun TemplatesScreen(
                     }
                 }
             }
+        }
         }
         ErrorText(ui.error)
     }

@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import coil.compose.AsyncImage
+import info.prorabka.abik.android.core.ui.components.AbikPullToRefresh
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
 import info.prorabka.abik.android.core.ui.theme.Danger
@@ -71,6 +72,19 @@ fun SubscriptionScreen(
         onPauseOrDispose { }
     }
 
+    if (!ui.loading && !ui.isManager) {
+        ui.rows.singleOrNull()?.let { own ->
+            MemberFinanceScreen(
+                userId = own.userId,
+                onBack = {},
+                onEditPayment = {},
+                onEditCharge = {},
+                showTopBar = false,
+            )
+            return
+        }
+    }
+
     Scaffold(
         floatingActionButton = {
             if (ui.isManager) {
@@ -84,27 +98,33 @@ fun SubscriptionScreen(
             LoadingBox(Modifier.padding(padding))
             return@Scaffold
         }
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // Ошибка сети не должна выглядеть как «нет данных»
-            ui.error?.let { message ->
-                item(key = "error") {
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(16.dp),
-                    )
+        AbikPullToRefresh(
+            loading = ui.loading,
+            onRefresh = viewModel::reload,
+            modifier = Modifier.padding(padding),
+        ) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                // Ошибка сети не должна выглядеть как «нет данных»
+                ui.error?.let { message ->
+                    item(key = "error") {
+                        Text(
+                            text = message,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    }
                 }
-            }
-            items(ui.rows, key = { it.userId }) { row ->
-                MemberBalanceRow(
-                    row = row,
-                    isManager = ui.isManager,
-                    onClick = { onMemberClick(row.userId) },
-                    onPayment = { onAddPayment(row.userId) },
-                    onCharge = { onAddCharge(row.userId) },
-                )
-                HorizontalDivider()
+                items(ui.rows, key = { it.userId }) { row ->
+                    MemberBalanceRow(
+                        row = row,
+                        isManager = ui.isManager,
+                        onClick = { onMemberClick(row.userId) },
+                        onPayment = { onAddPayment(row.userId) },
+                        onCharge = { onAddCharge(row.userId) },
+                    )
+                    HorizontalDivider()
+                }
             }
         }
     }

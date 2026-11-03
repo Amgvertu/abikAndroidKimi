@@ -8,6 +8,7 @@ import info.prorabka.abik.android.data.dto.PhoneChangeSendNewRequest
 import info.prorabka.abik.android.data.dto.SmsCodeRequest
 import info.prorabka.abik.android.data.dto.UserProfileRequest
 import info.prorabka.abik.android.data.dto.UserProfileResponse
+import info.prorabka.abik.android.domain.model.PlayerStatus
 import info.prorabka.abik.android.domain.model.Position
 import info.prorabka.abik.android.domain.model.Profile
 import info.prorabka.abik.android.domain.model.StickHand
@@ -45,6 +46,7 @@ class UserRepositoryImpl @Inject constructor(
         weightKg: Int,
         stickHand: StickHand,
         positions: Set<Position>,
+        playerStatus: PlayerStatus,
         jerseySize: String?,
         coversSize: String?,
         gaitersSize: String?,
@@ -61,6 +63,7 @@ class UserRepositoryImpl @Inject constructor(
                 weightKg = weightKg,
                 stickHand = stickHand.name,
                 positions = positions.map { it.name }.toSet(),
+                playerStatus = playerStatus.name,
                 jerseySize = jerseySize,
                 coversSize = coversSize,
                 gaitersSize = gaitersSize,
@@ -105,6 +108,7 @@ fun UserProfileResponse.toDomain(): Profile = Profile(
     weightKg = weightKg,
     stickHand = runCatching { StickHand.valueOf(stickHand) }.getOrDefault(StickHand.RIGHT),
     positions = positions.mapNotNull { runCatching { Position.valueOf(it) }.getOrNull() }.toSet(),
+    playerStatus = runCatching { PlayerStatus.valueOf(playerStatus) }.getOrDefault(PlayerStatus.AMATEUR),
     jerseySize = jerseySize,
     coversSize = coversSize,
     gaitersSize = gaitersSize,

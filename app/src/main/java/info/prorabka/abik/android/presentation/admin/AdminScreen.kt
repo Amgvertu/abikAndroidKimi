@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import info.prorabka.abik.android.core.ui.components.AbikButton
+import info.prorabka.abik.android.core.ui.components.AbikPullToRefresh
 import info.prorabka.abik.android.core.ui.components.AbikTextField
 import info.prorabka.abik.android.core.ui.components.EmptyState
 import info.prorabka.abik.android.core.ui.components.ErrorText
@@ -74,7 +75,11 @@ fun AdminScreen(
             )
         },
     ) { padding ->
-        when {
+        AbikPullToRefresh(
+            loading = ui.loading,
+            onRefresh = viewModel::load,
+        ) {
+            when {
             ui.loading -> LoadingBox(Modifier.padding(padding))
             ui.forbidden -> EmptyState("Доступ только для суперадмина", Modifier.padding(padding))
             else -> Column(modifier = Modifier.padding(padding)) {
@@ -101,6 +106,7 @@ fun AdminScreen(
                     )
                 }
             }
+        }
         }
     }
 

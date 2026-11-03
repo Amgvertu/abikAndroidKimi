@@ -33,7 +33,9 @@ class RegisterViewModel @Inject constructor(
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
 
-    fun onPhoneChange(v: String) = _ui.update { it.copy(phone = v, error = null) }
+    fun onPhoneChange(v: String) = _ui.update {
+        it.copy(phone = PhoneUtils.inputDigits(v), error = null)
+    }
     fun onPasswordChange(v: String) = _ui.update { it.copy(password = v, error = null) }
     fun onPasswordRepeatChange(v: String) = _ui.update { it.copy(passwordRepeat = v, error = null) }
     fun onAcceptedPdChange(v: Boolean) = _ui.update { it.copy(acceptedPd = v, error = null) }

@@ -7,6 +7,7 @@ import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.core.prefs.SettingsStore
 import info.prorabka.abik.android.domain.model.City
+import info.prorabka.abik.android.domain.model.PlayerStatus
 import info.prorabka.abik.android.domain.model.Position
 import info.prorabka.abik.android.domain.model.Profile
 import info.prorabka.abik.android.domain.model.ProfileFormData
@@ -55,6 +56,7 @@ class ProfileFormViewModel @Inject constructor(
         val weight: String = "",
         val stickHand: StickHand = StickHand.RIGHT,
         val positions: Set<Position> = emptySet(),
+        val playerStatus: PlayerStatus = PlayerStatus.AMATEUR,
         val jerseySize: String = "",
         val coversSize: String = "",
         val gaitersSize: String = "",
@@ -126,6 +128,7 @@ class ProfileFormViewModel @Inject constructor(
                 weight = profile.weightKg.toString(),
                 stickHand = profile.stickHand,
                 positions = profile.positions,
+                playerStatus = profile.playerStatus,
                 jerseySize = profile.jerseySize.orEmpty(),
                 coversSize = profile.coversSize.orEmpty(),
                 gaitersSize = profile.gaitersSize.orEmpty(),
@@ -169,6 +172,7 @@ class ProfileFormViewModel @Inject constructor(
     fun onHeight(v: String) = _ui.update { it.copy(height = v.filter(Char::isDigit).take(3)) }
     fun onWeight(v: String) = _ui.update { it.copy(weight = v.filter(Char::isDigit).take(3)) }
     fun onStickHand(v: StickHand) = _ui.update { it.copy(stickHand = v) }
+    fun onPlayerStatus(v: PlayerStatus) = _ui.update { it.copy(playerStatus = v) }
     fun togglePosition(p: Position) = _ui.update {
         it.copy(
             positions = if (p in it.positions) it.positions - p else it.positions + p,
@@ -215,6 +219,7 @@ class ProfileFormViewModel @Inject constructor(
                                 weightKg = weight!!,
                                 stickHand = s.stickHand,
                                 positions = s.positions,
+                                playerStatus = s.playerStatus,
                                 jerseySize = s.jerseySize.ifBlank { null },
                                 coversSize = s.coversSize.ifBlank { null },
                                 gaitersSize = s.gaitersSize.ifBlank { null },
@@ -233,6 +238,7 @@ class ProfileFormViewModel @Inject constructor(
                         weightKg = weight!!,
                         stickHand = s.stickHand,
                         positions = s.positions,
+                        playerStatus = s.playerStatus,
                         jerseySize = s.jerseySize.ifBlank { null },
                         coversSize = s.coversSize.ifBlank { null },
                         gaitersSize = s.gaitersSize.ifBlank { null },

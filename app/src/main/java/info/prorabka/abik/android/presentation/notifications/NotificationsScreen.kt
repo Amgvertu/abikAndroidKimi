@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import info.prorabka.abik.android.core.ui.components.AbikPullToRefresh
 import info.prorabka.abik.android.core.ui.components.EmptyState
 import info.prorabka.abik.android.core.ui.components.ErrorText
 import info.prorabka.abik.android.core.ui.components.LoadingBox
@@ -95,7 +96,11 @@ fun NotificationsScreen(
             )
         },
     ) { padding ->
-        when {
+        AbikPullToRefresh(
+            loading = ui.loading,
+            onRefresh = viewModel::refresh,
+        ) {
+            when {
             ui.loading && ui.items.isEmpty() -> LoadingBox(Modifier.padding(padding))
             ui.error != null && ui.items.isEmpty() -> Column(
                 modifier = Modifier.padding(padding).fillMaxSize(),
@@ -140,6 +145,7 @@ fun NotificationsScreen(
                     )
                 }
             }
+        }
         }
     }
 }

@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import info.prorabka.abik.android.core.ui.components.AbikPullToRefresh
 import info.prorabka.abik.android.core.ui.components.AbikTextField
 import info.prorabka.abik.android.core.ui.components.EmptyState
 import info.prorabka.abik.android.core.ui.components.ErrorText
@@ -66,7 +67,7 @@ fun ListsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Списки получателей") },
+                title = { Text("Списки") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
@@ -80,8 +81,13 @@ fun ListsScreen(
             }
         },
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
-            when {
+        AbikPullToRefresh(
+            loading = ui.loading,
+            onRefresh = viewModel::load,
+            modifier = Modifier.padding(padding),
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                when {
                 ui.loading && ui.lists.isEmpty() -> LoadingBox()
                 ui.lists.isEmpty() -> EmptyState(
                     "Списков пока нет.\nСоздайте список, чтобы быстро выбирать получателей начислений.",
@@ -132,6 +138,7 @@ fun ListsScreen(
                     }
                 }
             }
+        }
         }
     }
 

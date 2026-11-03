@@ -111,6 +111,7 @@ class TeamRepositoryImpl @Inject constructor(
                 weightKg = data.weightKg,
                 stickHand = data.stickHand.name,
                 positions = data.positions.map { it.name }.toSet(),
+                playerStatus = data.playerStatus.name,
                 jerseySize = data.jerseySize,
                 coversSize = data.coversSize,
                 gaitersSize = data.gaitersSize,

@@ -32,7 +32,9 @@ class ForgotPasswordViewModel @Inject constructor(
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
 
-    fun onPhoneChange(v: String) = _ui.update { it.copy(phone = v, error = null) }
+    fun onPhoneChange(v: String) = _ui.update {
+        it.copy(phone = PhoneUtils.inputDigits(v), error = null)
+    }
     fun onCodeChange(v: String) = _ui.update { it.copy(code = v.filter(Char::isDigit).take(4), error = null) }
     fun onNewPasswordChange(v: String) = _ui.update { it.copy(newPassword = v, error = null) }
     fun onNewPasswordRepeatChange(v: String) = _ui.update { it.copy(newPasswordRepeat = v, error = null) }

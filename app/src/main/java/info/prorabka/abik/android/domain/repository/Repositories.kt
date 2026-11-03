@@ -10,6 +10,7 @@ import info.prorabka.abik.android.domain.model.Invitation
 import info.prorabka.abik.android.domain.model.LineupSlot
 import info.prorabka.abik.android.domain.model.MemberDetails
 import info.prorabka.abik.android.domain.model.MemberRole
+import info.prorabka.abik.android.domain.model.PlayerStatus
 import info.prorabka.abik.android.domain.model.Position
 import info.prorabka.abik.android.domain.model.Profile
 import info.prorabka.abik.android.domain.model.ProfileFormData
@@ -48,6 +49,7 @@ interface UserRepository {
         weightKg: Int,
         stickHand: StickHand,
         positions: Set<Position>,
+        playerStatus: PlayerStatus,
         jerseySize: String?,
         coversSize: String?,
         gaitersSize: String?,

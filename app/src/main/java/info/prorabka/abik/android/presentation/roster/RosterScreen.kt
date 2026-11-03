@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import info.prorabka.abik.android.core.ui.components.AbikPullToRefresh
 import info.prorabka.abik.android.core.ui.components.AbikTextField
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
@@ -101,8 +102,13 @@ fun RosterScreen(
             return@Scaffold
         }
 
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
-            // --- Выбор сезона ---
+        AbikPullToRefresh(
+            loading = ui.loading,
+            onRefresh = viewModel::load,
+            modifier = Modifier.padding(padding),
+        ) {
+            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                // --- Выбор сезона ---
             SeasonDropdown(
                 seasons = ui.seasons.map { it.name to it.isCurrent },
                 selected = ui.selectedSeason,
@@ -198,6 +204,7 @@ fun RosterScreen(
                     HorizontalDivider()
                 }
             }
+        }
         }
     }
 

@@ -10,6 +10,7 @@ import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.repository.FinanceRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
+import info.prorabka.abik.android.domain.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -21,6 +22,7 @@ class SubscriptionViewModel @Inject constructor(
     private val teamManager: CurrentTeamManager,
     private val teamRepository: TeamRepository,
     private val financeRepository: FinanceRepository,
+    private val userRepository: UserRepository,
     private val urlResolver: UrlResolver,
 ) : ViewModel() {
 
@@ -80,14 +82,21 @@ class SubscriptionViewModel @Inject constructor(
             val balances = (financeRepository.balances(teamId) as? ApiResult.Success)?.data
                 ?.associateBy { it.userId }
                 ?: emptyMap()
+            val isManager = role == MemberRole.OWNER ||
+                role == MemberRole.MODERATOR ||
+                role == MemberRole.ADMIN
+            val myUserId = if (isManager) {
+                null
+            } else {
+                (userRepository.me() as? ApiResult.Success)?.data?.id
+            }
 
             _ui.update {
                 it.copy(
                     loading = false,
-                    isManager = role == MemberRole.OWNER ||
-                        role == MemberRole.MODERATOR ||
-                        role == MemberRole.ADMIN,
+                    isManager = isManager,
                     rows = members
+                        .filter { m -> isManager || m.userId == myUserId }
                         .sortedBy { m -> m.displayName }
                         .map { m ->
                             MemberBalance(

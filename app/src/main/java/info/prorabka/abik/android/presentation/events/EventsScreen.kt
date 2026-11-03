@@ -1,8 +1,10 @@
 package info.prorabka.abik.android.presentation.events
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,16 +23,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -43,12 +52,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import info.prorabka.abik.android.core.ui.components.AbikPullToRefresh
 import info.prorabka.abik.android.core.ui.components.EmptyState
 import info.prorabka.abik.android.core.ui.components.ErrorText
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
 import info.prorabka.abik.android.domain.model.EventListItem
 import info.prorabka.abik.android.domain.model.EventSection
+import info.prorabka.abik.android.domain.model.MemberRole
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -90,22 +101,31 @@ fun EventsScreen(
     viewModel: EventsViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    var eventChoices by remember { mutableStateOf<List<EventListItem>?>(null) }
 
     LifecycleResumeEffect(Unit) {
         viewModel.refresh()
         onPauseOrDispose { }
     }
 
+    fun openAttendance(events: List<EventListItem>) {
+        if (events.size == 1) onEventClick(events.first().id) else eventChoices = events
+    }
+
     when {
         ui.noTeam -> NoTeamPlaceholder(onCreateTeam = onCreateTeam)
         ui.loading && ui.events.isEmpty() -> LoadingBox()
         else -> Box(Modifier.fillMaxSize()) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            AbikPullToRefresh(
+                loading = ui.loading || ui.refreshing,
+                onRefresh = viewModel::refresh,
             ) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
                 // Фильтры разделов (прокручиваются, если шрифт крупный);
                 // тап включает/выключает раздел на календаре
                 Row(
@@ -129,6 +149,14 @@ fun EventsScreen(
                     dayMarkers = ui.dayMarkerKeys.mapValues { (_, keys) ->
                         keys.map(::markerColor).distinct().take(4)
                     },
+                    eventsByDate = ui.sectionEvents.mapNotNull { event ->
+                        runCatching { LocalDate.parse(event.dateIso) }.getOrNull()?.let { it to event }
+                    }.groupBy({ it.first }, { it.second }),
+                    // Участники (включая тренеров) и модераторы могут отметиться
+                    // долгим тапом по дате; владельцы и админы — как прежде, нет.
+                    allowAttend = ui.myRole == MemberRole.MEMBER ||
+                        ui.myRole == MemberRole.MODERATOR,
+                    onAttend = ::openAttendance,
                     onSelectDate = viewModel::selectDate,
                     onPrev = viewModel::prevMonth,
                     onNext = viewModel::nextMonth,
@@ -136,33 +164,36 @@ fun EventsScreen(
 
                 ErrorText(ui.error)
 
-                if (ui.upcoming.isNotEmpty()) {
+                if (ui.selectedDate == null && ui.upcoming.isNotEmpty()) {
                     SectionHeader("Ближайшие события")
                     ui.upcoming.forEach { event ->
                         EventCard(event = event, onClick = { onEventClick(event.id) })
                     }
                 }
 
-                SectionHeader("События ${formatDayMonth(ui.selectedDate)}")
-                if (ui.selectedDayEvents.isEmpty()) {
-                    Text(
-                        "На эту дату событий нет",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(vertical = 12.dp),
-                    )
-                } else {
-                    ui.selectedDayEvents.forEach { event ->
-                        EventCard(event = event, onClick = { onEventClick(event.id) })
+                ui.selectedDate?.let { date ->
+                    SectionHeader("События ${formatDayMonth(date)}")
+                    if (ui.selectedDayEvents.isEmpty()) {
+                        Text(
+                            "На эту дату событий нет",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(vertical = 12.dp),
+                        )
+                    } else {
+                        ui.selectedDayEvents.forEach { event ->
+                            EventCard(event = event, onClick = { onEventClick(event.id) })
+                        }
                     }
                 }
 
-                Spacer(Modifier.height(80.dp))
+                    Spacer(Modifier.height(80.dp))
+                }
             }
 
             if (ui.isManager) {
                 FloatingActionButton(
-                    onClick = { onCreate(ui.selectedDate.toString()) },
+                    onClick = { onCreate((ui.selectedDate ?: LocalDate.now()).toString()) },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(16.dp),
@@ -171,6 +202,35 @@ fun EventsScreen(
                 }
             }
         }
+    }
+
+    eventChoices?.let { choices ->
+        AlertDialog(
+            onDismissRequest = { eventChoices = null },
+            title = { Text("Отметиться") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text("Выберите событие", style = MaterialTheme.typography.bodyMedium)
+                    choices.sortedBy { it.time }.forEach { event ->
+                        TextButton(
+                            onClick = {
+                                eventChoices = null
+                                onEventClick(event.id)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                "${event.time} • ${event.title}",
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { eventChoices = null }) { Text("Отмена") }
+            },
+        )
     }
 }
 
@@ -265,8 +325,11 @@ fun EventCard(event: EventListItem, onClick: () -> Unit) {
 @Composable
 private fun MonthCalendar(
     month: YearMonth,
-    selectedDate: LocalDate,
+    selectedDate: LocalDate?,
     dayMarkers: Map<LocalDate, List<Color>>,
+    eventsByDate: Map<LocalDate, List<EventListItem>>,
+    allowAttend: Boolean,
+    onAttend: (List<EventListItem>) -> Unit,
     onSelectDate: (LocalDate) -> Unit,
     onPrev: () -> Unit,
     onNext: () -> Unit,
@@ -316,6 +379,9 @@ private fun MonthCalendar(
                                 isSelected = date == selectedDate,
                                 isToday = date == LocalDate.now(),
                                 markerColors = dayMarkers[date].orEmpty(),
+                                dayEvents = eventsByDate[date].orEmpty(),
+                                allowAttend = allowAttend,
+                                onAttend = onAttend,
                                 onClick = { onSelectDate(date) },
                                 modifier = Modifier.weight(1f),
                             )
@@ -327,20 +393,32 @@ private fun MonthCalendar(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DayCell(
     date: LocalDate,
     isSelected: Boolean,
     isToday: Boolean,
     markerColors: List<Color>,
+    dayEvents: List<EventListItem>,
+    allowAttend: Boolean,
+    onAttend: (List<EventListItem>) -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val todayColor = MaterialTheme.colorScheme.primary
+    var menuExpanded by remember(date) { mutableStateOf(false) }
     Column(
         modifier = modifier
             .padding(2.dp)
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = if (allowAttend && dayEvents.isNotEmpty()) {
+                    { menuExpanded = true }
+                } else {
+                    null
+                },
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -392,6 +470,15 @@ private fun DayCell(
                     }
                 }
             }
+        }
+        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Отметиться") },
+                onClick = {
+                    menuExpanded = false
+                    onAttend(dayEvents)
+                },
+            )
         }
     }
 }

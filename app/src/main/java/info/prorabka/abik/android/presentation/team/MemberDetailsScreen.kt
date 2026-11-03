@@ -39,8 +39,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import info.prorabka.abik.android.core.ui.components.AbikPullToRefresh
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.util.isoDateToDisplay
+import info.prorabka.abik.android.core.util.phoneToDisplay
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.model.TeamMember
@@ -91,14 +93,18 @@ fun MemberDetailsScreen(
         }
         val profile = details.profile
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        AbikPullToRefresh(
+            loading = ui.loading,
+            onRefresh = { viewModel.load(userId) },
+            modifier = Modifier.padding(padding),
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
             // --- Шапка: аватарка, ФИО, амплуа ---
             Card(modifier = Modifier.fillMaxWidth()) {
                 Row(
@@ -152,7 +158,7 @@ fun MemberDetailsScreen(
             // --- Членство в команде ---
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    InfoRow("Телефон", details.phone ?: "—")
+                    InfoRow("Телефон", details.phone?.phoneToDisplay() ?: "—")
                     InfoRow("Роль", details.role.display)
                     if (details.status != MemberStatus.ACTIVE) {
                         InfoRow("Статус", details.status.display)
@@ -184,6 +190,7 @@ fun MemberDetailsScreen(
                         InfoRow("Рост", "${profile.heightCm} см")
                         InfoRow("Вес", "${profile.weightKg} кг")
                         InfoRow("Хват", profile.stickHand.display)
+                        InfoRow("Статус", profile.playerStatus.display)
                         InfoRow(
                             "Город",
                             listOfNotNull(
@@ -238,6 +245,7 @@ fun MemberDetailsScreen(
                     }
                 }
             }
+        }
         }
     }
 

@@ -259,7 +259,7 @@ class TeamViewModel @Inject constructor(
         viewModelScope.launch {
             when (val r = teamRepository.invite(teamId, phone)) {
                 is ApiResult.Success -> _ui.update {
-                    it.copy(info = "Приглашение отправлено на $phone")
+                    it.copy(info = "Приглашение отправлено на ${PhoneUtils.formatInput(phone)}")
                 }
                 is ApiResult.HttpError -> _ui.update { it.copy(error = r.message) }
                 is ApiResult.NetworkError -> _ui.update {

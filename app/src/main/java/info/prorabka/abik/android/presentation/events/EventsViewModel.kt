@@ -32,7 +32,7 @@ class EventsViewModel @Inject constructor(
         /** Включённые фильтры разделов; по умолчанию — все. */
         val sections: Set<EventSection> = EventSection.entries.toSet(),
         val month: YearMonth = YearMonth.now(),
-        val selectedDate: LocalDate = LocalDate.now(),
+        val selectedDate: LocalDate? = null,
         val events: List<EventListItem> = emptyList(),
         val myRole: MemberRole? = null,
         val error: String? = null,
@@ -64,8 +64,9 @@ class EventsViewModel @Inject constructor(
                 .mapValues { (_, keys) -> keys.distinct().sorted() }
 
         val selectedDayEvents: List<EventListItem>
-            get() = sectionEvents.filter { it.dateIso == selectedDate.toString() }
-                .sortedBy { it.time }
+            get() = selectedDate?.let { date ->
+                sectionEvents.filter { it.dateIso == date.toString() }.sortedBy { it.time }
+            }.orEmpty()
 
         /** До трёх ближайших событий раздела, начиная с сегодня. */
         val upcoming: List<EventListItem>
@@ -135,8 +136,9 @@ class EventsViewModel @Inject constructor(
     }
 
     fun selectDate(date: LocalDate) {
-        _ui.update { it.copy(selectedDate = date) }
-        if (YearMonth.from(date) != _ui.value.month) {
+        val nextDate = if (_ui.value.selectedDate == date) null else date
+        _ui.update { it.copy(selectedDate = nextDate) }
+        if (nextDate != null && YearMonth.from(date) != _ui.value.month) {
             _ui.update { it.copy(month = YearMonth.from(date)) }
             reloadEvents()
         }

@@ -38,7 +38,9 @@ class ChangePhoneViewModel @Inject constructor(
     val ui: StateFlow<UiState> = _ui
 
     fun onOldCode(v: String) = _ui.update { it.copy(oldCode = v.filter(Char::isDigit).take(4), error = null) }
-    fun onNewPhone(v: String) = _ui.update { it.copy(newPhone = v, error = null) }
+    fun onNewPhone(v: String) = _ui.update {
+        it.copy(newPhone = PhoneUtils.inputDigits(v), error = null)
+    }
     fun onNewCode(v: String) = _ui.update { it.copy(newCode = v.filter(Char::isDigit).take(4), error = null) }
 
     fun start() {

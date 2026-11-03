@@ -2,7 +2,8 @@ package info.prorabka.abik.android.presentation.events
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,10 +62,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import androidx.hilt.navigation.compose.hiltViewModel
+import info.prorabka.abik.android.core.ui.components.AbikPullToRefresh
 import info.prorabka.abik.android.core.ui.components.EmptyState
 import info.prorabka.abik.android.core.ui.components.ErrorText
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.domain.model.EventDetail
+import info.prorabka.abik.android.domain.model.EventSection
+import info.prorabka.abik.android.domain.model.EventType
 import info.prorabka.abik.android.domain.model.EventVoter
 import info.prorabka.abik.android.domain.model.LineupRole
 import info.prorabka.abik.android.domain.model.LineupSlot
@@ -140,28 +144,36 @@ fun EventDetailsScreen(
             )
         },
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
-            when {
-                ui.loading -> LoadingBox()
-                ui.event == null -> EmptyState(ui.error ?: "Событие не найдено")
-                else -> EventContent(
-                    event = ui.event!!,
-                    acting = ui.acting,
-                    error = ui.error,
-                    info = ui.info,
-                    canEditSweaters = ui.canEditSweaters,
-                    canEditLineup = ui.canEditLineup,
-                    onVote = viewModel::vote,
-                    onEditSweaters = { showSweatersDialog = true },
-                    onEditLineup = { showLineupDialog = true },
-                )
+        AbikPullToRefresh(
+            loading = ui.loading,
+            onRefresh = viewModel::load,
+            modifier = Modifier.padding(padding),
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                when {
+                    ui.loading -> LoadingBox()
+                    ui.event == null -> EmptyState(ui.error ?: "Событие не найдено")
+                    else -> EventContent(
+                        event = ui.event!!,
+                        acting = ui.acting,
+                        error = ui.error,
+                        info = ui.info,
+                        canEditSweaters = ui.canEditSweaters,
+                        canEditLineup = ui.canEditLineup,
+                        onVote = viewModel::vote,
+                        onEditSweaters = { showSweatersDialog = true },
+                        onEditLineup = { showLineupDialog = true },
+                    )
+                }
             }
         }
     }
 
     if (showSweatersDialog && ui.event != null) {
         SweatersDialog(
-            voters = ui.event!!.voters.filter { it.answer == VoteAnswer.YES },
+            voters = ui.event!!.voters.filter {
+                it.answer == VoteAnswer.YES && !it.inReserve && !it.isTrainer
+            },
             saving = ui.sweatersSaving,
             error = ui.error,
             onSave = viewModel::setSweaters,
@@ -177,7 +189,13 @@ fun EventDetailsScreen(
             event = ui.event!!,
             saving = ui.lineupSaving,
             error = ui.error,
-            onSave = { slots, sweaters -> viewModel.setLineupWithSweaters(slots, sweaters) },
+            onSave = { slots, sweaters ->
+                if (ui.event!!.section == EventSection.REGULAR) {
+                    viewModel.setLineup(slots)
+                } else {
+                    viewModel.setLineupWithSweaters(slots, sweaters)
+                }
+            },
             onDismiss = {
                 showLineupDialog = false
                 viewModel.clearMessages()
@@ -343,7 +361,7 @@ private fun EventContent(
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
-                VoterGroup(main)
+                if (answer == VoteAnswer.YES) MainVotersView(event, main) else VoterGroup(main)
                 if (reserve.isNotEmpty()) {
                     Spacer(Modifier.height(12.dp))
                     Text(
@@ -357,27 +375,53 @@ private fun EventContent(
             }
         }
 
-        // Заявка на игру (просмотр)
-        event.lineup?.takeIf { it.isNotEmpty() }?.let {
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "Заявка на игру",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(4.dp))
-            LineupView(event = event)
-        }
         if (canEditLineup) {
             TextButton(onClick = onEditLineup) {
                 Text(
-                    if (event.lineup.isNullOrEmpty()) "Создать заявку на игру"
-                    else "Изменить заявку",
+                    if (event.lineup.isNullOrEmpty()) "Создать звенья"
+                    else "Изменить звенья",
                 )
             }
         }
 
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+/** Основной состав: цвета на тренировке, звенья в игре, тренеры отдельно. */
+@Composable
+private fun MainVotersView(event: EventDetail, voters: List<EventVoter>) {
+    val trainers = voters.filter { it.isTrainer }
+    val players = voters.filter { !it.isTrainer }
+    when {
+        event.type == EventType.TRAINING && players.any { it.sweaterColor != null } -> {
+            TrainingColorColumns(players)
+        }
+        event.type == EventType.TRAINING -> VoterGroup(players)
+        !event.lineup.isNullOrEmpty() -> {
+            LineupView(event)
+            val assigned = event.lineup.orEmpty().mapTo(mutableSetOf()) { it.userId }
+            val unassigned = players.filter { it.userId !in assigned }
+            if (unassigned.isNotEmpty()) {
+                Text(
+                    "Не распределены (${unassigned.size})",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                VoterGroup(unassigned)
+            }
+        }
+        else -> VoterGroup(players)
+    }
+    if (trainers.isNotEmpty()) {
+        Text(
+            "Тренеры (${trainers.size})",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        VoterGroup(trainers)
     }
 }
 
@@ -461,7 +505,7 @@ fun SweaterDot(color: SweaterColor) {
     )
 }
 
-/** Заявка на игру (просмотр): вратарь и звенья. */
+/** Звенья (просмотр): вратарь и звенья. */
 @Composable
 private fun LineupView(event: EventDetail) {
     val names = event.voters.associate { it.userId to it.fullName }
@@ -481,8 +525,16 @@ private fun LineupView(event: EventDetail) {
                 Spacer(Modifier.height(6.dp))
                 HorizontalDivider()
                 Spacer(Modifier.height(6.dp))
+                val lineColor = if (event.section == EventSection.SCRIMMAGE) {
+                    lineSlots.firstNotNullOfOrNull { slot ->
+                        event.voters.firstOrNull { it.userId == slot.userId }
+                            ?.sweaterColor.supportedColor()
+                    }
+                } else {
+                    null
+                }
                 Text(
-                    "Звено $lineNumber",
+                    "Звено $lineNumber" + lineColor?.let { " (${it.display})" }.orEmpty(),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -490,17 +542,17 @@ private fun LineupView(event: EventDetail) {
                     .sortedBy { it.slotNumber }
                 val forwards = lineSlots.filter { it.role == LineupRole.FORWARD }
                     .sortedBy { it.slotNumber }
-                if (defenders.isNotEmpty()) {
+                if (forwards.isNotEmpty()) {
                     Text(
-                        "З: " + defenders.joinToString(", ") {
+                        "Н: " + forwards.joinToString(", ") {
                             names[it.userId] ?: "user#${it.userId}"
                         },
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                if (forwards.isNotEmpty()) {
+                if (defenders.isNotEmpty()) {
                     Text(
-                        "Н: " + forwards.joinToString(", ") {
+                        "З: " + defenders.joinToString(", ") {
                             names[it.userId] ?: "user#${it.userId}"
                         },
                         style = MaterialTheme.typography.bodyMedium,
@@ -511,6 +563,14 @@ private fun LineupView(event: EventDetail) {
     }
 }
 
+
+/** Фамилия и инициал имени для компактных редакторов звеньев и цветов. */
+private fun shortPlayerName(fullName: String): String {
+    val parts = fullName.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+    if (parts.isEmpty()) return fullName
+    val initial = parts.getOrNull(1)?.firstOrNull()?.uppercaseChar()
+    return if (initial == null) parts[0] else "${parts[0]} $initial."
+}
 
 // ====== Редактор свитеров (тренировка; владелец/админ/тренер) ======
 
@@ -523,62 +583,228 @@ private fun SweatersDialog(
     onDismiss: () -> Unit,
 ) {
     val colors = remember {
-        androidx.compose.runtime.mutableStateMapOf<Long, SweaterColor?>().apply {
-            voters.forEach { put(it.userId, it.sweaterColor) }
+        mutableStateMapOf<Long, SweaterColor?>().apply {
+            voters.forEach { put(it.userId, it.sweaterColor.supportedColor()) }
         }
     }
-    AlertDialog(
-        onDismissRequest = { if (!saving) onDismiss() },
-        title = { Text("Свитеры") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                if (voters.isEmpty()) {
-                    Text("Пока никто не ответил «Иду»")
-                }
-                voters.forEach { voter ->
+    val options = remember {
+        listOf<Pair<SweaterColor?, String>>(
+            SweaterColor.BLACK to "Чёрные",
+            null to "Не распределены",
+            SweaterColor.WHITE to "Белые",
+        )
+    }
+    fun colorKey(color: SweaterColor?) = color?.name ?: "none"
+
+    var drag by remember { mutableStateOf<LineupDrag?>(null) }
+    val columnBounds = remember { mutableStateMapOf<String, Rect>() }
+    var containerTopLeft by remember { mutableStateOf(Offset.Zero) }
+
+    fun finishDrag(d: LineupDrag) {
+        // Для горизонтального свайпа важна только колонка по X. Палец может
+        // закончить жест на любом игроке или на пустом месте под заголовком.
+        val target = columnBounds.entries.firstOrNull { (_, bounds) ->
+            d.pos.x >= bounds.left && d.pos.x <= bounds.right
+        }?.key ?: return
+        colors[d.userId] = if (target == "none") null else SweaterColor.valueOf(target)
+    }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = { if (!saving && drag == null) onDismiss() },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Card(Modifier.fillMaxSize().padding(8.dp)) {
+            Box(Modifier.onGloballyPositioned { containerTopLeft = it.boundsInRoot().topLeft }) {
+                Column(Modifier.fillMaxSize().padding(12.dp)) {
                     Text(
-                        voter.fullName,
-                        style = MaterialTheme.typography.bodyMedium,
+                        "Цвета джерси",
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 8.dp),
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        SweaterColor.entries.forEach { color ->
-                            FilterChip(
-                                selected = colors[voter.userId] == color,
-                                onClick = {
-                                    colors[voter.userId] =
-                                        if (colors[voter.userId] == color) null else color
-                                },
-                                label = { SweaterDot(color) },
-                            )
+                    Text(
+                        "Проведите фамилию влево или вправо к нужному цвету.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    if (voters.isEmpty()) {
+                        Text("В основном составе пока нет игроков")
+                    } else {
+                        Row(
+                            Modifier.fillMaxWidth().weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            options.forEach { (color, title) ->
+                                val key = colorKey(color)
+                                val columnVoters = voters.filter { colors[it.userId] == color }
+                                Column(
+                                    Modifier
+                                        .weight(1f)
+                                        .onGloballyPositioned {
+                                            columnBounds[key] = it.boundsInRoot()
+                                        }
+                                        .background(
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                            RoundedCornerShape(8.dp),
+                                        )
+                                        .verticalScroll(
+                                            rememberScrollState(),
+                                            enabled = drag == null,
+                                        )
+                                        .padding(4.dp),
+                                ) {
+                                    ColorColumnTitle(title, color)
+                                    groupedVoters(columnVoters).forEach { (group, members) ->
+                                        Text(
+                                            group,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(top = 6.dp, bottom = 2.dp),
+                                        )
+                                        members.forEach { voter ->
+                                            SweaterChip(
+                                                userId = voter.userId,
+                                                name = shortPlayerName(voter.fullName),
+                                                slotId = key,
+                                                drag = drag,
+                                                onDragStart = { drag = it },
+                                                onDragMove = { drag?.pos = it },
+                                                onDragEnd = {
+                                                    drag?.let { finishDrag(it) }
+                                                    drag = null
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
+                    ErrorText(error)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = onDismiss, enabled = !saving && drag == null) {
+                            Text("Отмена")
+                        }
+                        Spacer(Modifier.size(8.dp))
+                        TextButton(
+                            onClick = { onSave(colors.toMap()) },
+                            enabled = !saving && drag == null && voters.isNotEmpty(),
+                        ) { Text(if (saving) "Сохранение…" else "Сохранить") }
+                    }
                 }
-                ErrorText(error)
+                drag?.let { d ->
+                    Box(
+                        Modifier
+                            .offset {
+                                IntOffset(
+                                    (d.pos.x - containerTopLeft.x - d.chipSize.width / 2).roundToInt(),
+                                    (d.pos.y - containerTopLeft.y - d.chipSize.height / 2).roundToInt(),
+                                )
+                            }
+                            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 8.dp, vertical = 5.dp),
+                    ) {
+                        Text(
+                            voters.firstOrNull { it.userId == d.userId }
+                                ?.let { shortPlayerName(it.fullName) }.orEmpty(),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onSave(colors.toMap()) },
-                enabled = !saving && voters.isNotEmpty(),
-            ) { Text(if (saving) "Сохранение…" else "Сохранить") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !saving) { Text("Отмена") }
-        },
+        }
+    }
+}
+
+/** Старые значения цвета считаются нераспределёнными, чтобы не терять игроков. */
+private fun SweaterColor?.supportedColor(): SweaterColor? = when (this) {
+    SweaterColor.BLACK, SweaterColor.WHITE -> this
+    else -> null
+}
+
+/** Три группы тренировки: чёрные, нераспределённые и белые. */
+@Composable
+private fun TrainingColorColumns(voters: List<EventVoter>) {
+    val options = listOf<Pair<SweaterColor?, String>>(
+        SweaterColor.BLACK to "Чёрные",
+        null to "Не распределены",
+        SweaterColor.WHITE to "Белые",
     )
+    Card(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            options.forEach { (color, title) ->
+                Column(Modifier.weight(1f)) {
+                    ColorColumnTitle(title, color)
+                    groupedVoters(voters.filter { it.sweaterColor.supportedColor() == color })
+                        .forEach { (group, members) ->
+                            Text(
+                                group,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 5.dp),
+                            )
+                            members.forEach {
+                                Text(
+                                    it.fullName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 3,
+                                    modifier = Modifier.padding(start = 3.dp, top = 2.dp),
+                                )
+                            }
+                        }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColorColumnTitle(title: String, color: SweaterColor?) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (color != null) {
+            SweaterDot(color)
+            Spacer(Modifier.size(3.dp))
+        }
+        Text(title, style = MaterialTheme.typography.labelSmall, maxLines = 2)
+    }
+}
+
+/** Основное амплуа: каждый игрок попадает только в одну группу. */
+private fun groupedVoters(voters: List<EventVoter>): List<Pair<String, List<EventVoter>>> {
+    val grouped = voters.groupBy { voter ->
+        when {
+            voter.isTrainer -> 4
+            Position.GOALKEEPER in voter.positions -> 0
+            Position.DEFENDER in voter.positions -> 1
+            Position.FORWARD in voter.positions -> 2
+            else -> 3
+        }
+    }
+    return listOf(
+        0 to "Вратари",
+        1 to "Защитники",
+        2 to "Нападающие",
+        3 to "Без амплуа",
+        4 to "Тренеры",
+    ).mapNotNull { (index, title) ->
+        grouped[index]?.sortedBy { it.fullName }?.let { title to it }
+    }
 }
 
 // ====== Редактор заявки на игру (игра/матч; владелец/админ) ======
 // Игроки распределяются по слотам звеньев перетаскиванием (long-press + drag).
 
-/** Идентификатор слота: "gk", "d{звено}_{слот}", "f{звено}_{слот}", "pool". */
-private fun slotAccepts(slotId: String): Position? = when {
-    slotId == "gk" -> Position.GOALKEEPER
-    slotId.startsWith("d") -> Position.DEFENDER
-    slotId.startsWith("f") -> Position.FORWARD
-    else -> null // pool принимает всех
+/** Полевые игроки могут занимать слоты и защитников, и нападающих. */
+private fun slotAccepts(slotId: String, positions: Set<Position>): Boolean = when {
+    positions.isEmpty() -> true // без амплуа — универсал
+    slotId == "gk" -> Position.GOALKEEPER in positions
+    slotId.startsWith("d") || slotId.startsWith("f") ->
+        Position.DEFENDER in positions || Position.FORWARD in positions
+    else -> false
 }
 
 private class LineupDrag(
@@ -589,8 +815,8 @@ private class LineupDrag(
 )
 
 private class LineSlots(
-    val defenders: MutableList<Long?> = mutableListOf(null, null),
-    val forwards: MutableList<Long?> = mutableListOf(null, null, null),
+    val defenders: MutableList<Long?> = androidx.compose.runtime.mutableStateListOf(null, null),
+    val forwards: MutableList<Long?> = androidx.compose.runtime.mutableStateListOf(null, null, null),
 )
 
 /** Цвета маек по игрокам: всем игрокам звена — цвет этого звена. */
@@ -615,21 +841,25 @@ private fun LineupDialog(
     onSave: (List<LineupSlot>, Map<Long, SweaterColor?>) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // Кандидаты — проголосовавшие «Иду», кроме тренеров
-    val yesVoters = event.voters.filter { it.answer == VoteAnswer.YES && !it.isTrainer }
-    val names = event.voters.associate { it.userId to it.fullName }
+    // В заявку включаем только основной состав, тренеры остаются отдельно.
+    val yesVoters = event.voters.filter {
+        it.answer == VoteAnswer.YES && !it.inReserve && !it.isTrainer
+    }
+    val names = event.voters.associate { it.userId to shortPlayerName(it.fullName) }
     val positions = event.voters.associate { it.userId to it.positions }
 
-    // Исходное состояние из текущей заявки
+    // Исходное состояние из текущей заявки; резерв и тренеров исключаем.
     var goalkeeper by remember {
         mutableStateOf(
-            event.lineup?.firstOrNull { it.role == LineupRole.GOALKEEPER }?.userId,
+            event.lineup?.firstOrNull { it.role == LineupRole.GOALKEEPER }?.userId
+                ?.takeIf { id -> yesVoters.any { it.userId == id } },
         )
     }
     val lines = remember {
         androidx.compose.runtime.mutableStateListOf<LineSlots>().apply {
             val existing = event.lineup.orEmpty()
                 .filter { it.role != LineupRole.GOALKEEPER }
+                .filter { slot -> yesVoters.any { it.userId == slot.userId } }
                 .groupBy { it.lineNumber ?: 0 }
                 .toSortedMap()
             if (existing.isEmpty()) {
@@ -649,8 +879,9 @@ private fun LineupDialog(
         }
     }
 
-    // Цвет маек каждого звена (начальное — по уже назначенным игрокам)
-    val voterColors = event.voters.associate { it.userId to it.sweaterColor }
+    // В регулярке цветов нет; в двухсторонке доступны только чёрные и белые.
+    val showSweaters = event.section == EventSection.SCRIMMAGE
+    val voterColors = event.voters.associate { it.userId to it.sweaterColor.supportedColor() }
     val lineSweaters = remember {
         mutableStateMapOf<Int, SweaterColor?>().apply {
             lines.forEachIndexed { index, line ->
@@ -693,34 +924,37 @@ private fun LineupDialog(
     var poolBounds by remember { mutableStateOf<Rect?>(null) }
     var containerTopLeft by remember { mutableStateOf(Offset.Zero) }
 
+    fun removeUserFromSlots(userId: Long) {
+        if (goalkeeper == userId) goalkeeper = null
+        lines.forEach { line ->
+            line.defenders.indices.forEach { index ->
+                if (line.defenders[index] == userId) line.defenders[index] = null
+            }
+            line.forwards.indices.forEach { index ->
+                if (line.forwards[index] == userId) line.forwards[index] = null
+            }
+        }
+    }
+
     fun finishDrag(d: LineupDrag) {
-        val userPositions = positions[d.userId].orEmpty()
-        val target = slotBounds.entries
-            .firstOrNull { it.value.contains(d.pos) }?.key
-        // Игрок без указанного амплуа — универсал, подходит на любую позицию
-        val targetAccepts = target?.let { slotAccepts(it) }
+        val target = slotBounds.entries.firstOrNull { it.value.contains(d.pos) }?.key
         when {
-            target != null &&
-                (userPositions.isEmpty() || targetAccepts in userPositions) -> {
+            target != null && slotAccepts(target, positions[d.userId].orEmpty()) -> {
+                if (target == d.from) return
                 val displaced = getSlot(target)
-                setSlot(target, d.userId)
-                if (d.from != "pool") {
-                    // Обмен: вытесненный игрок встаёт в исходный слот, если подходит
-                    val fromAccepts = slotAccepts(d.from)
-                    val displacedPositions = positions[displaced].orEmpty()
-                    if (displaced != null &&
-                        (displacedPositions.isEmpty() || fromAccepts in displacedPositions)
-                    ) {
-                        setSlot(d.from, displaced)
-                    } else {
-                        setSlot(d.from, null)
-                    }
-                } else if (displaced != null) {
-                    // Вытесненный возвращается в общий список (слот очищен выше)
+
+                // Сначала убираем игрока из всех слотов: дубли невозможны даже
+                // при быстром повторном переносе до обновления списка свободных.
+                removeUserFromSlots(d.userId)
+                if (d.from != "pool" && displaced != null && displaced != d.userId &&
+                    slotAccepts(d.from, positions[displaced].orEmpty())
+                ) {
+                    setSlot(d.from, displaced)
                 }
+                setSlot(target, d.userId)
             }
             poolBounds?.contains(d.pos) == true && d.from != "pool" -> {
-                setSlot(d.from, null)
+                removeUserFromSlots(d.userId)
             }
         }
     }
@@ -750,7 +984,7 @@ private fun LineupDialog(
                         .padding(16.dp),
                 ) {
                     Text(
-                        "Заявка на игру",
+                        "Звенья",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -762,7 +996,7 @@ private fun LineupDialog(
                     Spacer(Modifier.height(12.dp))
 
                     if (yesVoters.isEmpty()) {
-                        Text("Пока никто не ответил «Иду» — заявку можно будет составить после голосования")
+                        Text("Пока никто не ответил «Иду» — звенья можно будет составить после голосования")
                     } else {
                         // Свободные игроки
                         Box(
@@ -790,24 +1024,30 @@ private fun LineupDialog(
                                         modifier = Modifier.padding(vertical = 4.dp),
                                     )
                                 }
-                                FlowRow(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                ) {
-                                    free.forEach { voter ->
-                                        DragChip(
-                                            userId = voter.userId,
-                                            name = names[voter.userId]
-                                                ?: "user#${voter.userId}",
-                                            slotId = "pool",
-                                            drag = drag,
-                                            slotBounds = slotBounds,
-                                            onDragStart = { drag = it },
-                                            onDragMove = { drag?.pos = it },
-                                            onDragEnd = {
-                                                drag?.let { finishDrag(it) }
-                                                drag = null
-                                            },
-                                        )
+                                groupedVoters(free).forEach { (group, members) ->
+                                    Text(
+                                        group,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 5.dp),
+                                    )
+                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        members.forEach { voter ->
+                                            DragChip(
+                                                userId = voter.userId,
+                                                name = names[voter.userId]
+                                                    ?: "user#${voter.userId}",
+                                                slotId = "pool",
+                                                drag = drag,
+                                                slotBounds = slotBounds,
+                                                onDragStart = { drag = it },
+                                                onDragMove = { drag?.pos = it },
+                                                onDragEnd = {
+                                                    drag?.let { finishDrag(it) }
+                                                    drag = null
+                                                },
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -838,7 +1078,12 @@ private fun LineupDialog(
                             Spacer(Modifier.height(8.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    "Звено ${lineIndex + 1}",
+                                    "Звено ${lineIndex + 1}" +
+                                        if (showSweaters) {
+                                            lineSweaters[lineIndex]?.let { " (${it.display})" }.orEmpty()
+                                        } else {
+                                            ""
+                                        },
                                     style = MaterialTheme.typography.labelLarge,
                                     modifier = Modifier.weight(1f),
                                 )
@@ -856,60 +1101,74 @@ private fun LineupDialog(
                                     }
                                 }
                             }
-                            line.defenders.forEachIndexed { i, uid ->
-                                LineupSlotRow(
-                                    label = "Защитник ${i + 1}",
-                                    slotId = "d${lineIndex}_$i",
-                                    occupant = uid,
-                                    names = names,
-                                    drag = drag,
-                                    slotBounds = slotBounds,
-                                    onDragStart = { drag = it },
-                                    onDragMove = { drag?.pos = it },
-                                    onDragEnd = {
-                                        drag?.let { finishDrag(it) }
-                                        drag = null
-                                    },
-                                )
-                            }
-                            line.forwards.forEachIndexed { i, uid ->
-                                LineupSlotRow(
-                                    label = "Нападающий ${i + 1}",
-                                    slotId = "f${lineIndex}_$i",
-                                    occupant = uid,
-                                    names = names,
-                                    drag = drag,
-                                    slotBounds = slotBounds,
-                                    onDragStart = { drag = it },
-                                    onDragMove = { drag?.pos = it },
-                                    onDragEnd = {
-                                        drag?.let { finishDrag(it) }
-                                        drag = null
-                                    },
-                                )
-                            }
-                            // Цвет маек звена
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(top = 4.dp),
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
                             ) {
-                                Text(
-                                    "Майки",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.width(92.dp),
-                                )
-                                SweaterColor.entries.forEach { color ->
-                                    FilterChip(
-                                        selected = lineSweaters[lineIndex] == color,
-                                        onClick = {
-                                            lineSweaters[lineIndex] =
-                                                if (lineSweaters[lineIndex] == color) null
-                                                else color
+                                line.forwards.forEachIndexed { i, uid ->
+                                    CompactLineupSlot(
+                                        modifier = Modifier.weight(1f),
+                                        label = "Н${i + 1}",
+                                        slotId = "f${lineIndex}_$i",
+                                        occupant = uid,
+                                        names = names,
+                                        drag = drag,
+                                        slotBounds = slotBounds,
+                                        onDragStart = { drag = it },
+                                        onDragMove = { drag?.pos = it },
+                                        onDragEnd = {
+                                            drag?.let { finishDrag(it) }
+                                            drag = null
                                         },
-                                        label = { SweaterDot(color) },
                                     )
-                                    Spacer(Modifier.size(4.dp))
+                                }
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                line.defenders.forEachIndexed { i, uid ->
+                                    CompactLineupSlot(
+                                        modifier = Modifier.weight(1f),
+                                        label = "З${i + 1}",
+                                        slotId = "d${lineIndex}_$i",
+                                        occupant = uid,
+                                        names = names,
+                                        drag = drag,
+                                        slotBounds = slotBounds,
+                                        onDragStart = { drag = it },
+                                        onDragMove = { drag?.pos = it },
+                                        onDragEnd = {
+                                            drag?.let { finishDrag(it) }
+                                            drag = null
+                                        },
+                                    )
+                                }
+                            }
+                            if (showSweaters) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                ) {
+                                    Text(
+                                        "Майки",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.width(92.dp),
+                                    )
+                                    listOf(SweaterColor.BLACK, SweaterColor.WHITE).forEach { color ->
+                                        FilterChip(
+                                            selected = lineSweaters[lineIndex] == color,
+                                            onClick = {
+                                                lineSweaters[lineIndex] =
+                                                    if (lineSweaters[lineIndex] == color) null
+                                                    else color
+                                            },
+                                            label = { SweaterDot(color) },
+                                        )
+                                        Spacer(Modifier.size(4.dp))
+                                    }
                                 }
                             }
                         }
@@ -962,7 +1221,10 @@ private fun LineupDialog(
                                         }
                                     }
                                 }
-                                onSave(slots, buildSweaterMap(lines, lineSweaters))
+                                onSave(
+                                    slots,
+                                    if (showSweaters) buildSweaterMap(lines, lineSweaters) else emptyMap(),
+                                )
                             },
                         ) { Text(if (saving) "Сохранение…" else "Сохранить") }
                     }
@@ -994,6 +1256,54 @@ private fun LineupDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+/** Компактный слот схемы: три нападающих сверху, два защитника ниже. */
+@Composable
+private fun CompactLineupSlot(
+    modifier: Modifier,
+    label: String,
+    slotId: String,
+    occupant: Long?,
+    names: Map<Long, String>,
+    drag: LineupDrag?,
+    slotBounds: MutableMap<String, Rect>,
+    onDragStart: (LineupDrag) -> Unit,
+    onDragMove: (Offset) -> Unit,
+    onDragEnd: () -> Unit,
+) {
+    Column(
+        modifier
+            .padding(vertical = 3.dp)
+            .onGloballyPositioned { slotBounds[slotId] = it.boundsInRoot() }
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                RoundedCornerShape(8.dp),
+            )
+            .padding(horizontal = 3.dp, vertical = 5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (occupant != null) {
+            DragChip(
+                userId = occupant,
+                name = names[occupant] ?: "user#$occupant",
+                slotId = slotId,
+                drag = drag,
+                slotBounds = slotBounds,
+                onDragStart = onDragStart,
+                onDragMove = onDragMove,
+                onDragEnd = onDragEnd,
+            )
+        } else {
+            Text("—", style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -1051,7 +1361,60 @@ private fun LineupSlotRow(
     }
 }
 
-/** Перетаскиваемый чип игрока (long-press → drag). */
+/** Горизонтальный свайп между цветовыми столбцами без перехвата вертикальной прокрутки. */
+@Composable
+private fun SweaterChip(
+    userId: Long,
+    name: String,
+    slotId: String,
+    drag: LineupDrag?,
+    onDragStart: (LineupDrag) -> Unit,
+    onDragMove: (Offset) -> Unit,
+    onDragEnd: () -> Unit,
+) {
+    var chipRect by remember { mutableStateOf(Rect.Zero) }
+    Box(
+        Modifier
+            .padding(vertical = 2.dp)
+            .onGloballyPositioned { chipRect = it.boundsInRoot() }
+            .pointerInput(userId, slotId) {
+                detectHorizontalDragGestures(
+                    onDragStart = { start ->
+                        onDragStart(
+                            LineupDrag(
+                                userId = userId,
+                                from = slotId,
+                                chipSize = chipRect.size,
+                                pos = chipRect.topLeft + start,
+                            ),
+                        )
+                    },
+                    onHorizontalDrag = { change, _ ->
+                        change.consume()
+                        onDragMove(chipRect.topLeft + change.position)
+                    },
+                    onDragEnd = onDragEnd,
+                    onDragCancel = onDragEnd,
+                )
+            }
+            .alpha(if (drag?.userId == userId) 0.3f else 1f)
+            .background(
+                MaterialTheme.colorScheme.secondaryContainer,
+                RoundedCornerShape(16.dp),
+            )
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        Text(
+            name,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            maxLines = 2,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/** Перетаскиваемый чип игрока между слотами заявки. */
 @Composable
 private fun DragChip(
     userId: Long,
@@ -1070,7 +1433,7 @@ private fun DragChip(
             .padding(vertical = 2.dp)
             .onGloballyPositioned { chipRect = it.boundsInRoot() }
             .pointerInput(userId, slotId) {
-                detectDragGesturesAfterLongPress(
+                detectDragGestures(
                     onDragStart = { start ->
                         onDragStart(
                             LineupDrag(
@@ -1100,6 +1463,8 @@ private fun DragChip(
             name,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
+            maxLines = 2,
+            textAlign = TextAlign.Center,
         )
     }
 }

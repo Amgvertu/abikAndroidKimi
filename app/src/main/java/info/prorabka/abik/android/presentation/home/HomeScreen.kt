@@ -31,6 +31,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import info.prorabka.abik.android.core.ui.theme.Danger
 import info.prorabka.abik.android.core.ui.theme.Success
+import info.prorabka.abik.android.core.ui.components.AbikPullToRefresh
 import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
 import info.prorabka.abik.android.core.util.isoDateTimeToDisplay
 import info.prorabka.abik.android.core.util.kopecksToRubles
@@ -79,38 +80,46 @@ fun HomeScreen(
             }
         },
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        AbikPullToRefresh(
+            loading = feed.loading || ui.loading,
+            onRefresh = {
+                viewModel.refresh()
+                shellViewModel.refresh()
+            },
+            modifier = Modifier.padding(padding),
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BalanceCard(
-                    title = "Мой баланс",
-                    amount = ui.myBalanceKopecks,
-                    modifier = Modifier.weight(1f),
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    BalanceCard(
+                        title = "Мой баланс",
+                        amount = ui.myBalanceKopecks,
+                        modifier = Modifier.weight(1f),
+                    )
+                    BalanceCard(
+                        title = "Баланс команды",
+                        amount = ui.teamBalanceKopecks,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                NearestEventCard(
+                    event = feed.nearestEvent,
+                    onClick = onEventClick,
                 )
-                BalanceCard(
-                    title = "Баланс команды",
-                    amount = ui.teamBalanceKopecks,
-                    modifier = Modifier.weight(1f),
+
+                NotificationsCard(
+                    notifications = feed.notifications,
+                    onShowAll = onNotifications,
                 )
+
+                Spacer(modifier = Modifier.height(64.dp))
             }
-
-            NearestEventCard(
-                event = feed.nearestEvent,
-                onClick = onEventClick,
-            )
-
-            NotificationsCard(
-                notifications = feed.notifications,
-                onShowAll = onNotifications,
-            )
-
-            Spacer(modifier = Modifier.height(64.dp))
         }
     }
 }

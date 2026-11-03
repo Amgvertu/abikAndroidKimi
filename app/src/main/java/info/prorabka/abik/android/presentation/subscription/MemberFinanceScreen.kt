@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import info.prorabka.abik.android.core.ui.components.AbikPullToRefresh
 import info.prorabka.abik.android.core.ui.components.AbikTextField
 import info.prorabka.abik.android.core.ui.components.ErrorText
 import info.prorabka.abik.android.core.ui.components.LoadingBox
@@ -60,6 +61,7 @@ fun MemberFinanceScreen(
     onBack: () -> Unit,
     onEditPayment: (Long) -> Unit,
     onEditCharge: (Long) -> Unit,
+    showTopBar: Boolean = true,
     viewModel: MemberFinanceViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
@@ -74,22 +76,29 @@ fun MemberFinanceScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(ui.userName.ifBlank { "Участник" }) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
-                    }
-                },
-            )
+            if (showTopBar) {
+                TopAppBar(
+                    title = { Text(ui.userName.ifBlank { "Участник" }) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        }
+                    },
+                )
+            }
         },
     ) { padding ->
         if (ui.loading && ui.charges.isEmpty() && ui.payments.isEmpty()) {
             LoadingBox(Modifier.padding(padding))
             return@Scaffold
         }
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // --- Сводка «Начислено / Оплачено / Остаток» + баланс ---
+        AbikPullToRefresh(
+            loading = ui.loading,
+            onRefresh = { viewModel.load(userId) },
+            modifier = Modifier.padding(padding),
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // --- Сводка «Начислено / Оплачено / Остаток» + баланс ---
             Card(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -191,6 +200,7 @@ fun MemberFinanceScreen(
                     }
                 }
             }
+        }
         }
     }
 

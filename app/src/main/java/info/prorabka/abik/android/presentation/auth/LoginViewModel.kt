@@ -48,7 +48,9 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch { settingsStore.setBaseUrlOverride(settingsStore.localBaseUrl) }
     }
 
-    fun onPhoneChange(value: String) = _ui.update { it.copy(phone = value, error = null) }
+    fun onPhoneChange(value: String) = _ui.update {
+        it.copy(phone = PhoneUtils.inputDigits(value), error = null)
+    }
     fun onPasswordChange(value: String) = _ui.update { it.copy(password = value, error = null) }
 
     fun login(onSuccess: () -> Unit) {

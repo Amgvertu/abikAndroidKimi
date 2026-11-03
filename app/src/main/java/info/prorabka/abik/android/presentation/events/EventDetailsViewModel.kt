@@ -129,7 +129,7 @@ class EventDetailsViewModel @Inject constructor(
                 is ApiResult.Success -> {
                     _ui.update {
                         it.copy(lineupSaving = false, lineupSaved = true,
-                            info = "Заявка сохранена")
+                            info = "Звенья сохранены")
                     }
                     load()
                 }
@@ -157,7 +157,7 @@ class EventDetailsViewModel @Inject constructor(
                         is ApiResult.Success -> {
                             _ui.update {
                                 it.copy(lineupSaving = false, lineupSaved = true,
-                                    info = "Заявка сохранена")
+                                    info = "Звенья сохранены")
                             }
                             load()
                         }

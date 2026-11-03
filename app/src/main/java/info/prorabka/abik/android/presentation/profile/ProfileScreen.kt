@@ -47,6 +47,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import coil.compose.AsyncImage
 import info.prorabka.abik.android.core.prefs.ThemeMode
+import info.prorabka.abik.android.core.ui.components.AbikPullToRefresh
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.core.util.isoDateToDisplay
 import info.prorabka.abik.android.core.util.phoneToDisplay
@@ -79,11 +80,16 @@ fun ProfileScreen(
         }
 
         when (tab) {
-            0 -> ProfileTab(
-                ui = ui,
-                onEdit = onEditProfile,
-                viewModel = viewModel,
-            )
+            0 -> AbikPullToRefresh(
+                loading = ui.loading,
+                onRefresh = viewModel::load,
+            ) {
+                ProfileTab(
+                    ui = ui,
+                    onEdit = onEditProfile,
+                    viewModel = viewModel,
+                )
+            }
             1 -> SettingsTab(
                 themeMode = themeMode,
                 onThemeChange = viewModel::setTheme,
@@ -240,6 +246,7 @@ private fun ProfileTab(
                 Column(modifier = Modifier.padding(16.dp)) {
                     ProfileRow("Дата рождения", profile.birthDate?.toString()?.isoDateToDisplay() ?: "—")
                     ProfileRow("Амплуа", profile.positions.joinToString(", ") { it.display })
+                    ProfileRow("Статус", profile.playerStatus.display)
                     ProfileRow("Рост", "${profile.heightCm} см")
                     ProfileRow("Вес", "${profile.weightKg} кг")
                     ProfileRow("Хват", profile.stickHand.display)

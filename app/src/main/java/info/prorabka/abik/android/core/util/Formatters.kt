@@ -85,12 +85,12 @@ fun String.isoDateTimeToDisplay(): String = runCatching {
     OffsetDateTime.parse(this).format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"))
 }.getOrDefault(this)
 
-/** Телефон "+79001112233" → "+7 900 111-22-33". */
+/** Телефон "+79001112233" → "+7 (900) 111 2233". */
 fun String.phoneToDisplay(): String {
     val digits = filter { it.isDigit() }
     if (digits.length == 11 && (digits.startsWith("7") || digits.startsWith("8"))) {
         val d = if (digits.startsWith("8")) "7" + digits.drop(1) else digits
-        return "+7 ${d.substring(1, 4)} ${d.substring(4, 7)}-${d.substring(7, 9)}-${d.substring(9, 11)}"
+        return "+7 (${d.substring(1, 4)}) ${d.substring(4, 7)} ${d.substring(7, 11)}"
     }
     return this
 }

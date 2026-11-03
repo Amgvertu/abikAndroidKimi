@@ -93,7 +93,7 @@ fun RegisterScreen(
 
             RegisterViewModel.Step.CODE -> {
                 Text(
-                    text = "Код отправлен на ${ui.phone}",
+                    text = "Код отправлен на ${info.prorabka.abik.android.core.util.PhoneUtils.formatInput(ui.phone)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
