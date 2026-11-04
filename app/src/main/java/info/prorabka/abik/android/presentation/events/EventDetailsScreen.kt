@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -98,6 +99,7 @@ fun EventDetailsScreen(
     viewModel: EventDetailsViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    info.prorabka.abik.android.core.ui.RealtimeRefresh { viewModel.load() }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showSweatersDialog by remember { mutableStateOf(false) }
     var showLineupDialog by remember { mutableStateOf(false) }
@@ -617,8 +619,8 @@ private fun SweatersDialog(
     ) {
         Card(
             Modifier
-                .fillMaxSize()
-                .padding(8.dp)
+                .fillMaxWidth(0.96f)
+                .fillMaxHeight(0.88f)
                 .navigationBarsPadding()
                 .imePadding(),
         ) {

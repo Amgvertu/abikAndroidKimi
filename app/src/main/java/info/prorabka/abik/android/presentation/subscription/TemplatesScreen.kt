@@ -49,6 +49,7 @@ fun TemplatesScreen(
     viewModel: TemplatesViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    info.prorabka.abik.android.presentation.guide.ScreenGuide("charge_templates")
     var deactivateTemplate by remember { mutableStateOf<ChargeTemplate?>(null) }
 
     LaunchedEffect(Unit) { viewModel.load() }

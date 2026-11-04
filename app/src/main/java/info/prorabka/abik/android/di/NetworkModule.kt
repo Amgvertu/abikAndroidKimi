@@ -15,6 +15,7 @@ import info.prorabka.abik.android.data.api.BalanceApi
 import info.prorabka.abik.android.data.api.ChargeApi
 import info.prorabka.abik.android.data.api.DeviceApi
 import info.prorabka.abik.android.data.api.EventApi
+import info.prorabka.abik.android.data.api.ExpenseApi
 import info.prorabka.abik.android.data.api.FileApi
 import info.prorabka.abik.android.data.api.GeoApi
 import info.prorabka.abik.android.data.api.InvitationApi
@@ -136,4 +137,18 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideDeviceApi(retrofit: Retrofit): DeviceApi = retrofit.create(DeviceApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideExpenseApi(retrofit: Retrofit): ExpenseApi = retrofit.create(ExpenseApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideGuideApi(retrofit: Retrofit): info.prorabka.abik.android.data.api.GuideApi =
+        retrofit.create(info.prorabka.abik.android.data.api.GuideApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideReleaseApi(retrofit: Retrofit): info.prorabka.abik.android.data.api.ReleaseApi =
+        retrofit.create(info.prorabka.abik.android.data.api.ReleaseApi::class.java)
 }

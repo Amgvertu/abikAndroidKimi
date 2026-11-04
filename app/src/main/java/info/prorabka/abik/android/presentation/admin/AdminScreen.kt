@@ -24,6 +24,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -83,10 +84,12 @@ fun AdminScreen(
             ui.loading -> LoadingBox(Modifier.padding(padding))
             ui.forbidden -> EmptyState("Доступ только для суперадмина", Modifier.padding(padding))
             else -> Column(modifier = Modifier.padding(padding)) {
-                TabRow(selectedTabIndex = tab) {
+                ScrollableTabRow(selectedTabIndex = tab) {
                     Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Пользователи") })
                     Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Команды") })
                     Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("Справочники") })
+                    Tab(selected = tab == 3, onClick = { tab = 3 }, text = { Text("Статистика") })
+                    Tab(selected = tab == 4, onClick = { tab = 4 }, text = { Text("Версии") })
                 }
                 ErrorText(ui.error)
                 ui.info?.let {
@@ -104,6 +107,8 @@ fun AdminScreen(
                         onAddRegion = { showRegionDialog = true },
                         onAddCity = { showCityDialog = true },
                     )
+                    3 -> StatsTab(ui.stats)
+                    4 -> ReleaseTab(viewModel::publishRelease)
                 }
             }
         }

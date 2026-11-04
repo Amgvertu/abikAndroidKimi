@@ -31,4 +31,11 @@ interface ReportApi {
     @Streaming
     @GET("v1/teams/{teamId}/reports/members/export")
     suspend fun exportMembers(@Path("teamId") teamId: Long): Response<ResponseBody>
+
+    @Streaming
+    @GET("v1/teams/{teamId}/reports/roster/export")
+    suspend fun exportRoster(
+        @Path("teamId") teamId: Long,
+        @Query("listId") listId: Long? = null,
+    ): Response<ResponseBody>
 }

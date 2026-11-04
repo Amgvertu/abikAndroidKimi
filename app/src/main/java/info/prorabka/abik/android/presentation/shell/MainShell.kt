@@ -82,11 +82,18 @@ enum class MainTab(val route: String, val title: String) {
 fun MainShell(
     rootNavController: NavHostController,
     viewModel: ShellViewModel = hiltViewModel(),
+    guideViewModel: info.prorabka.abik.android.presentation.guide.GuideViewModel = hiltViewModel(),
 ) {
     val tabNavController = rememberNavController()
     val backStackEntry by tabNavController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val ui by viewModel.ui.collectAsState()
+    val guideUi by guideViewModel.ui.collectAsState()
+    val roleKey = if (ui.myIsTrainer) "TRAINER" else ui.myRole?.name ?: "MEMBER"
+    val currentGuideKey = "${currentRoute ?: MainTab.HOME.route}:$roleKey"
+    val visibleGuideKey = guideUi.forcedKey ?: currentGuideKey.takeIf {
+        ui.selected != null && guideUi.loaded && it !in guideUi.completed && it !in guideUi.skipped
+    }
 
     // Возврат с форм (платёж/начисление/профиль) — обновить балансы и бейдж
     LifecycleResumeEffect(Unit) {
@@ -123,6 +130,8 @@ fun MainShell(
                         onReports = { rootNavController.navigate(Routes.REPORTS) },
                         onTemplates = { rootNavController.navigate(Routes.CHARGE_TEMPLATES) },
                         onLists = { rootNavController.navigate(Routes.CHARGE_LISTS) },
+                        onExpenses = { rootNavController.navigate(Routes.EXPENSES) },
+                        onHelp = { guideViewModel.repeat(currentGuideKey) },
                         onLogout = {
                             viewModel.logout {
                                 rootNavController.navigate(Routes.LOGIN) {
@@ -225,6 +234,9 @@ fun MainShell(
             }
         }
     }
+    visibleGuideKey?.let { key ->
+        info.prorabka.abik.android.presentation.guide.GuideOverlay(key, guideViewModel)
+    }
 }
 
 /** Логотип + выпадающий список команд в тулбаре. */
@@ -314,6 +326,8 @@ private fun ShellMenu(
     onReports: () -> Unit,
     onTemplates: () -> Unit,
     onLists: () -> Unit,
+    onExpenses: () -> Unit,
+    onHelp: () -> Unit,
     onLogout: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -345,7 +359,21 @@ private fun ShellMenu(
                         onLists()
                     },
                 )
+                DropdownMenuItem(
+                    text = { Text("Расходы") },
+                    onClick = {
+                        expanded = false
+                        onExpenses()
+                    },
+                )
             }
+            DropdownMenuItem(
+                text = { Text("Справка") },
+                onClick = {
+                    expanded = false
+                    onHelp()
+                },
+            )
             DropdownMenuItem(
                 text = { Text("Выйти") },
                 onClick = {

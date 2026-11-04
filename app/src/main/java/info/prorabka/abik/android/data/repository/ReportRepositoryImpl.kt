@@ -68,6 +68,12 @@ class ReportRepositoryImpl @Inject constructor(
         api.exportMembers(teamId)
     }
 
+    override suspend fun exportRoster(teamId: Long, listId: Long?): ApiResult<File> = download(
+        "abik_roster_${teamId}_${listId ?: "all"}.xlsx",
+    ) {
+        api.exportRoster(teamId, listId)
+    }
+
     private suspend fun download(
         fileName: String,
         call: suspend () -> Response<ResponseBody>,

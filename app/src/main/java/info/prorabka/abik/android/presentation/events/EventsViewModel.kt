@@ -22,6 +22,7 @@ import javax.inject.Inject
 class EventsViewModel @Inject constructor(
     private val eventRepository: EventRepository,
     private val teamRepository: TeamRepository,
+    private val userRepository: info.prorabka.abik.android.domain.repository.UserRepository,
     private val teamManager: CurrentTeamManager,
 ) : ViewModel() {
 
@@ -35,33 +36,30 @@ class EventsViewModel @Inject constructor(
         val selectedDate: LocalDate? = null,
         val events: List<EventListItem> = emptyList(),
         val myRole: MemberRole? = null,
+        val myIsTrainer: Boolean = false,
         val error: String? = null,
     ) {
         val isManager: Boolean
-            get() = myRole == MemberRole.OWNER ||
-                myRole == MemberRole.ADMIN ||
-                myRole == MemberRole.MODERATOR
+            get() = myRole == MemberRole.OWNER || myRole == MemberRole.ADMIN || myIsTrainer
 
         val sectionEvents: List<EventListItem>
             get() = events.filter { it.section in sections }
 
-        /** Дни месяца, в которые есть события включённых разделов. */
-        val daysWithEvents: Set<LocalDate>
-            get() = sectionEvents.mapNotNull {
-                runCatching { LocalDate.parse(it.dateIso) }.getOrNull()
-            }.toSet()
+        /** Самое частое время тренировок текущего месяца. При равенстве — самое раннее. */
+        val dominantTrainingTimes: Set<String>
+            get() {
+                val counts = events.filter {
+                    it.section == EventSection.TRAINING &&
+                        runCatching { YearMonth.from(LocalDate.parse(it.dateIso)) == month }.getOrDefault(false)
+                }.groupingBy { it.time }.eachCount()
+                val maxCount = counts.values.maxOrNull() ?: return emptySet()
+                return counts.filterValues { it == maxCount }.keys.minOrNull()?.let(::setOf).orEmpty()
+            }
 
-        /**
-         * Маркеры дней календаря: дата → ключи «время|раздел» событий этого дня.
-         * Цвет маркера определяется парой (время + тип события) на уровне UI.
-         */
-        val dayMarkerKeys: Map<LocalDate, List<String>>
-            get() = sectionEvents
-                .mapNotNull { e ->
-                    runCatching { LocalDate.parse(e.dateIso) }.getOrNull()?.let { it to e }
-                }
-                .groupBy({ it.first }, { "${it.second.time}|${it.second.section.name}" })
-                .mapValues { (_, keys) -> keys.distinct().sorted() }
+        val dayMarkerEvents: Map<LocalDate, List<EventListItem>>
+            get() = sectionEvents.mapNotNull { event ->
+                runCatching { LocalDate.parse(event.dateIso) }.getOrNull()?.let { it to event }
+            }.groupBy({ it.first }, { it.second })
 
         val selectedDayEvents: List<EventListItem>
             get() = selectedDate?.let { date ->
@@ -97,6 +95,10 @@ class EventsViewModel @Inject constructor(
                 is ApiResult.Success -> _ui.update { it.copy(myRole = d.data.myRole) }
                 else -> Unit
             }
+            val myId = (userRepository.me() as? ApiResult.Success)?.data?.id
+            val members = (teamRepository.members(teamId) as? ApiResult.Success)?.data
+            val isTrainer = members?.firstOrNull { it.userId == myId }?.isTrainer == true
+            _ui.update { it.copy(myIsTrainer = isTrainer) }
             loadEvents(teamId)
         }
     }

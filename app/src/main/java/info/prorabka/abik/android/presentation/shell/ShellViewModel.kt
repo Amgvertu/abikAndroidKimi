@@ -45,6 +45,7 @@ class ShellViewModel @Inject constructor(
         val teams: List<Team> = emptyList(),
         val selected: Team? = null,
         val myRole: MemberRole? = null,
+        val myIsTrainer: Boolean = false,
         val myBalanceKopecks: Long? = null,
         val teamBalanceKopecks: Long? = null,
         val unreadNotifications: Int = 0,
@@ -116,6 +117,15 @@ class ShellViewModel @Inject constructor(
     private suspend fun loadTeamData(teamId: Long) {
         when (val d = teamRepository.detail(teamId)) {
             is ApiResult.Success -> _ui.update { it.copy(myRole = d.data.myRole) }
+            else -> Unit
+        }
+        when (val members = teamRepository.members(teamId)) {
+            is ApiResult.Success -> {
+                val myId = tokenStore.userId
+                _ui.update {
+                    it.copy(myIsTrainer = members.data.firstOrNull { member -> member.userId == myId }?.isTrainer == true)
+                }
+            }
             else -> Unit
         }
         when (val b = financeRepository.balances(teamId)) {

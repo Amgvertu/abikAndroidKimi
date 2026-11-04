@@ -11,4 +11,6 @@ interface AdminRepository {
     suspend fun listTeams(): ApiResult<List<Team>>
     suspend fun createRegion(name: String, code: String, timezone: String): ApiResult<Unit>
     suspend fun createCity(regionId: Long, name: String): ApiResult<Unit>
+    suspend fun stats(): ApiResult<info.prorabka.abik.android.domain.model.AdminStats>
+    suspend fun publishRelease(release: info.prorabka.abik.android.domain.model.AppRelease): ApiResult<Unit>
 }

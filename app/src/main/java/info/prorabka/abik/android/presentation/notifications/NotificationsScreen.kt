@@ -59,6 +59,7 @@ fun NotificationsScreen(
     viewModel: NotificationsViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    info.prorabka.abik.android.core.ui.RealtimeRefresh { viewModel.refresh() }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(ui.info, ui.error) {

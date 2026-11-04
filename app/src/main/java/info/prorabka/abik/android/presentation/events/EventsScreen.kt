@@ -74,14 +74,22 @@ private val MONTH_NAMES_GEN = listOf(
 
 private val WEEKDAYS = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
 
-/** Палитра цветных маркеров календаря: цвет = пара (время + тип события). */
-private val MARKER_COLORS = listOf(
-    Color(0xFF1E88E5), Color(0xFF43A047), Color(0xFFE53935),
-    Color(0xFFFB8C00), Color(0xFF8E24AA), Color(0xFF00ACC1),
-)
+private val TRAINING_SECONDARY = Color(0xFF1E88E5)
+private val TRAINING_DOMINANT = Color(0xFF43A047)
+private val REGULAR_COLOR = Color(0xFFFB8C00)
+private val SCRIMMAGE_COLOR = Color(0xFFFDD835)
 
-fun markerColor(key: String): Color =
-    MARKER_COLORS[kotlin.math.abs(key.hashCode()) % MARKER_COLORS.size]
+/** Единые цвета событий в календаре и карточках. */
+fun markerColor(event: EventListItem, dominantTrainingTimes: Set<String> = emptySet()): Color =
+    when (event.section) {
+        EventSection.REGULAR -> REGULAR_COLOR
+        EventSection.SCRIMMAGE -> SCRIMMAGE_COLOR
+        EventSection.TRAINING -> if (event.time in dominantTrainingTimes) {
+            TRAINING_DOMINANT
+        } else {
+            TRAINING_SECONDARY
+        }
+    }
 
 fun formatDayMonth(date: LocalDate): String =
     "${date.dayOfMonth} ${MONTH_NAMES_GEN[date.monthValue - 1]}"
@@ -100,6 +108,7 @@ fun EventsScreen(
     viewModel: EventsViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    info.prorabka.abik.android.core.ui.RealtimeRefresh { viewModel.refresh() }
     var eventChoices by remember { mutableStateOf<List<EventListItem>?>(null) }
 
     LifecycleResumeEffect(Unit) {
@@ -145,12 +154,10 @@ fun EventsScreen(
                 MonthCalendar(
                     month = ui.month,
                     selectedDate = ui.selectedDate,
-                    dayMarkers = ui.dayMarkerKeys.mapValues { (_, keys) ->
-                        keys.map(::markerColor).distinct().take(4)
+                    dayMarkers = ui.dayMarkerEvents.mapValues { (_, events) ->
+                        events.map { markerColor(it, ui.dominantTrainingTimes) }.distinct().take(4)
                     },
-                    eventsByDate = ui.sectionEvents.mapNotNull { event ->
-                        runCatching { LocalDate.parse(event.dateIso) }.getOrNull()?.let { it to event }
-                    }.groupBy({ it.first }, { it.second }),
+                    eventsByDate = ui.dayMarkerEvents,
                     // Все активные участники команды могут открыть голосование
                     // долгим тапом по дате, независимо от роли.
                     allowAttend = ui.myRole != null,
@@ -165,7 +172,11 @@ fun EventsScreen(
                 if (ui.selectedDate == null && ui.upcoming.isNotEmpty()) {
                     SectionHeader("Ближайшие события")
                     ui.upcoming.forEach { event ->
-                        EventCard(event = event, onClick = { onEventClick(event.id) })
+                        EventCard(
+                            event = event,
+                            accentColor = markerColor(event, ui.dominantTrainingTimes),
+                            onClick = { onEventClick(event.id) },
+                        )
                     }
                 }
 
@@ -180,7 +191,11 @@ fun EventsScreen(
                         )
                     } else {
                         ui.selectedDayEvents.forEach { event ->
-                            EventCard(event = event, onClick = { onEventClick(event.id) })
+                            EventCard(
+                                event = event,
+                                accentColor = markerColor(event, ui.dominantTrainingTimes),
+                                onClick = { onEventClick(event.id) },
+                            )
                         }
                     }
                 }
@@ -244,7 +259,8 @@ private fun SectionHeader(text: String) {
 
 /** Карточка события: название, дата, время, место, тип, мой ответ и счётчики. */
 @Composable
-fun EventCard(event: EventListItem, onClick: () -> Unit) {
+fun EventCard(event: EventListItem, accentColor: Color? = null, onClick: () -> Unit) {
+    val badgeColor = accentColor ?: MaterialTheme.colorScheme.primary
     Card(
         Modifier
             .fillMaxWidth()
@@ -262,10 +278,10 @@ fun EventCard(event: EventListItem, onClick: () -> Unit) {
                 Text(
                     event.type.display,
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = badgeColor,
                     modifier = Modifier
                         .background(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            badgeColor.copy(alpha = 0.12f),
                             CircleShape,
                         )
                         .padding(horizontal = 8.dp, vertical = 2.dp),

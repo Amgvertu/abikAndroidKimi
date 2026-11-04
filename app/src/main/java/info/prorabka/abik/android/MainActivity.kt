@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.DARK -> true
             }
             AbikTheme(dark = dark) {
+                info.prorabka.abik.android.presentation.system.AppSystemEffects()
                 Surface(modifier = Modifier.fillMaxSize().imePadding()) {
                     AppNavHost(
                         navController = rememberNavController(),

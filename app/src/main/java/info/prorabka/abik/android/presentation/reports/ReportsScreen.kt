@@ -62,6 +62,8 @@ fun ReportsScreen(
 ) {
     val ui by viewModel.ui.collectAsState()
     val context = LocalContext.current
+    info.prorabka.abik.android.presentation.guide.ScreenGuide("reports")
+    info.prorabka.abik.android.core.ui.RealtimeRefresh { viewModel.load() }
 
     LaunchedEffect(Unit) { viewModel.load() }
 
@@ -235,6 +237,24 @@ fun ReportsScreen(
                     AbikButton(
                         text = "Скачать сводку по участникам (.xlsx)",
                         onClick = viewModel::exportMembers,
+                        loading = ui.exporting,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Состав команды", style = MaterialTheme.typography.titleSmall)
+                    FilterDropdown(
+                        label = "Список",
+                        value = ui.chargeLists.firstOrNull { it.id == ui.filterRosterListId }?.name
+                            ?: "Вся команда",
+                        items = listOf(null to "Вся команда") +
+                            ui.chargeLists.map { it.id as Long? to it.name },
+                        onSelect = viewModel::setFilterRosterList,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    AbikButton(
+                        text = "Скачать состав (.xlsx)",
+                        onClick = viewModel::exportRoster,
                         loading = ui.exporting,
                     )
                 }

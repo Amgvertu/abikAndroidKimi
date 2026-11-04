@@ -47,20 +47,18 @@ class EventDetailsViewModel @Inject constructor(
         val info: String? = null,
     ) {
         val isManager: Boolean
-            get() = myRole == MemberRole.OWNER ||
-                myRole == MemberRole.ADMIN ||
-                myRole == MemberRole.MODERATOR
+            get() = myRole == MemberRole.OWNER || myRole == MemberRole.ADMIN || myIsTrainer
 
         val isOwnerOrAdmin: Boolean
             get() = myRole == MemberRole.OWNER || myRole == MemberRole.ADMIN
 
-        /** Свитеры назначают владелец, админ или тренер; только на тренировках. */
+        /** Свитеры назначают владелец, админ или тренер. */
         val canEditSweaters: Boolean
-            get() = (isOwnerOrAdmin || myIsTrainer) && event?.type == EventType.TRAINING
+            get() = isManager && event?.type == EventType.TRAINING
 
-        /** Заявку меняют только владелец и админ; только на играх/матчах. */
+        /** Звенья меняют владелец, админ или тренер на играх и двухсторонках. */
         val canEditLineup: Boolean
-            get() = isOwnerOrAdmin && event != null && event?.type != EventType.TRAINING
+            get() = isManager && event != null && event?.type != EventType.TRAINING
     }
 
     private val _ui = MutableStateFlow(UiState())

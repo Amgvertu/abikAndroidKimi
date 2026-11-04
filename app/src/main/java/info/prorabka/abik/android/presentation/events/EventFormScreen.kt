@@ -68,6 +68,7 @@ fun EventFormScreen(
     viewModel: EventFormViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    info.prorabka.abik.android.presentation.guide.ScreenGuide("event_form")
 
     LaunchedEffect(ui.saved) {
         if (ui.saved) onBack()

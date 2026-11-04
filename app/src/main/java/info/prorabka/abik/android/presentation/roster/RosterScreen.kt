@@ -74,6 +74,7 @@ fun RosterScreen(
     viewModel: RosterViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    info.prorabka.abik.android.core.ui.RealtimeRefresh { viewModel.load() }
     var showRemoved by remember { mutableStateOf(false) }
     var addDialog by remember { mutableStateOf(false) }
     var replaceDialog by remember { mutableStateOf(false) }

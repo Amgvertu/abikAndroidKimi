@@ -9,6 +9,7 @@ import info.prorabka.abik.android.data.repository.AuthRepositoryImpl
 import info.prorabka.abik.android.data.repository.ChargeRepositoryImpl
 import info.prorabka.abik.android.data.repository.DeviceRepositoryImpl
 import info.prorabka.abik.android.data.repository.EventRepositoryImpl
+import info.prorabka.abik.android.data.repository.ExpenseRepositoryImpl
 import info.prorabka.abik.android.data.repository.FileRepositoryImpl
 import info.prorabka.abik.android.data.repository.FinanceRepositoryImpl
 import info.prorabka.abik.android.data.repository.GeoRepositoryImpl
@@ -22,6 +23,7 @@ import info.prorabka.abik.android.domain.repository.AuthRepository
 import info.prorabka.abik.android.domain.repository.ChargeRepository
 import info.prorabka.abik.android.domain.repository.DeviceRepository
 import info.prorabka.abik.android.domain.repository.EventRepository
+import info.prorabka.abik.android.domain.repository.ExpenseRepository
 import info.prorabka.abik.android.domain.repository.FileRepository
 import info.prorabka.abik.android.domain.repository.FinanceRepository
 import info.prorabka.abik.android.domain.repository.GeoRepository
@@ -87,4 +89,20 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindDeviceRepository(impl: DeviceRepositoryImpl): DeviceRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindExpenseRepository(impl: ExpenseRepositoryImpl): ExpenseRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindGuideRepository(
+        impl: info.prorabka.abik.android.data.repository.GuideRepositoryImpl,
+    ): info.prorabka.abik.android.domain.repository.GuideRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindReleaseRepository(
+        impl: info.prorabka.abik.android.data.repository.ReleaseRepositoryImpl,
+    ): info.prorabka.abik.android.domain.repository.ReleaseRepository
 }

@@ -55,6 +55,11 @@ fun HomeScreen(
 ) {
     val ui by shellViewModel.ui.collectAsState()
     val feed by viewModel.ui.collectAsState()
+    info.prorabka.abik.android.core.ui.RealtimeRefresh {
+        viewModel.refresh()
+        shellViewModel.refresh()
+        shellViewModel.refreshUnreadCount()
+    }
 
     // Обновляем ленту при возврате на экран (после голосования, платежа и т.п.)
     LifecycleResumeEffect(Unit) {

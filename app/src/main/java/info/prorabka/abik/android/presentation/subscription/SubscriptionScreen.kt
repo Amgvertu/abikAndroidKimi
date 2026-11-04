@@ -60,6 +60,7 @@ fun SubscriptionScreen(
     viewModel: SubscriptionViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    info.prorabka.abik.android.core.ui.RealtimeRefresh { viewModel.reload() }
 
     if (ui.noTeam) {
         NoTeamPlaceholder(onCreateTeam)

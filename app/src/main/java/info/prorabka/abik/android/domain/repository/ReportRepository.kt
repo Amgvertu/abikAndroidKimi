@@ -21,4 +21,7 @@ interface ReportRepository {
 
     /** Скачать Excel сводки по участникам в кэш; вернуть файл. */
     suspend fun exportMembers(teamId: Long): ApiResult<File>
+
+    /** Скачать состав всей команды или выбранного списка. */
+    suspend fun exportRoster(teamId: Long, listId: Long? = null): ApiResult<File>
 }

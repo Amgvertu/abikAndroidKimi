@@ -30,4 +30,12 @@ interface AdminApi {
 
     @POST("v1/admin/cities")
     suspend fun createCity(@Body body: CreateCityRequestDto): CityDto
+
+    @GET("v1/admin/stats")
+    suspend fun stats(): info.prorabka.abik.android.data.dto.AdminStatsDto
+
+    @POST("v1/admin/app-releases")
+    suspend fun publishRelease(
+        @Body body: info.prorabka.abik.android.data.dto.AppReleaseRequestDto,
+    ): info.prorabka.abik.android.data.dto.AppReleaseDto
 }

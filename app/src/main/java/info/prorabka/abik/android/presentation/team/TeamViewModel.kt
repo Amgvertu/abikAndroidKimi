@@ -50,6 +50,8 @@ class TeamViewModel @Inject constructor(
                 detail?.myRole == MemberRole.MODERATOR ||
                 detail?.myRole == MemberRole.ADMIN
         val isOwner: Boolean get() = detail?.myRole == MemberRole.OWNER
+        val canManageMembership: Boolean
+            get() = isOwner || detail?.myRole == MemberRole.ADMIN
     }
 
     private val _ui = MutableStateFlow(UiState())
@@ -75,10 +77,9 @@ class TeamViewModel @Inject constructor(
             when (val d = teamRepository.detail(teamId)) {
                 is ApiResult.Success -> {
                     _ui.update { it.copy(detail = d.data) }
-                    val manager = d.data.myRole == MemberRole.OWNER ||
-                        d.data.myRole == MemberRole.MODERATOR ||
+                    val membershipManager = d.data.myRole == MemberRole.OWNER ||
                         d.data.myRole == MemberRole.ADMIN
-                    if (manager) loadOutgoingInvitations(teamId)
+                    if (membershipManager) loadOutgoingInvitations(teamId)
                 }
                 is ApiResult.HttpError -> _ui.update { it.copy(error = d.message) }
                 is ApiResult.NetworkError -> _ui.update {
@@ -319,6 +320,20 @@ class TeamViewModel @Inject constructor(
         val teamId = currentTeamId() ?: return
         val newRole = if (member.role == MemberRole.MODERATOR) MemberRole.MEMBER
         else MemberRole.MODERATOR
+        viewModelScope.launch {
+            when (val r = teamRepository.changeRole(teamId, member.userId, newRole)) {
+                is ApiResult.Success -> load(teamId)
+                is ApiResult.HttpError -> _ui.update { it.copy(error = r.message) }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
+    fun toggleAdmin(member: TeamMember) {
+        val teamId = currentTeamId() ?: return
+        val newRole = if (member.role == MemberRole.ADMIN) MemberRole.MEMBER else MemberRole.ADMIN
         viewModelScope.launch {
             when (val r = teamRepository.changeRole(teamId, member.userId, newRole)) {
                 is ApiResult.Success -> load(teamId)

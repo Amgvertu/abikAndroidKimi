@@ -79,6 +79,7 @@ fun TeamScreen(
     viewModel: TeamViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    info.prorabka.abik.android.core.ui.RealtimeRefresh { ui.detail?.id?.let(viewModel::load) }
     var showInviteDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showLeaveDialog by remember { mutableStateOf(false) }
@@ -162,18 +163,18 @@ fun TeamScreen(
                 trainers = displayedMembers.count { it.isTrainer },
                 modifier = Modifier.weight(1f),
             )
-            if (ui.isManager) {
-                Box {
-                    IconButton(onClick = { teamMenuExpanded = true }) {
-                        Icon(
-                            Icons.Default.MoreVert,
-                            contentDescription = "Меню команды",
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = teamMenuExpanded,
-                        onDismissRequest = { teamMenuExpanded = false },
-                    ) {
+            Box {
+                IconButton(onClick = { teamMenuExpanded = true }) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = "Меню команды",
+                    )
+                }
+                DropdownMenu(
+                    expanded = teamMenuExpanded,
+                    onDismissRequest = { teamMenuExpanded = false },
+                ) {
+                    if (ui.isOwner) {
                         DropdownMenuItem(
                             text = { Text("Редактировать команду") },
                             onClick = {
@@ -181,6 +182,8 @@ fun TeamScreen(
                                 showEditDialog = true
                             },
                         )
+                    }
+                    if (ui.canManageMembership) {
                         DropdownMenuItem(
                             text = { Text("Пригласить игрока") },
                             onClick = {
@@ -188,20 +191,30 @@ fun TeamScreen(
                                 showInviteDialog = true
                             },
                         )
-                        if (ui.isOwner) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        "Удалить команду",
-                                        color = MaterialTheme.colorScheme.error,
-                                    )
-                                },
-                                onClick = {
-                                    teamMenuExpanded = false
-                                    showDeleteDialog = true
-                                },
-                            )
-                        }
+                    }
+                    if (ui.isOwner) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "Удалить команду",
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            },
+                            onClick = {
+                                teamMenuExpanded = false
+                                showDeleteDialog = true
+                            },
+                        )
+                    } else {
+                        DropdownMenuItem(
+                            text = {
+                                Text("Покинуть команду", color = MaterialTheme.colorScheme.error)
+                            },
+                            onClick = {
+                                teamMenuExpanded = false
+                                showLeaveDialog = true
+                            },
+                        )
                     }
                 }
             }
@@ -326,23 +339,7 @@ fun TeamScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp),
                 ) {
-                if (!ui.isOwner) {
-                    item(key = "team_actions") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
-                            TextButton(onClick = { showLeaveDialog = true }) {
-                                Text(
-                                    "Покинуть команду",
-                                    color = MaterialTheme.colorScheme.error,
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (ui.isManager && ui.outgoingInvitations.isNotEmpty()) {
+                if (ui.canManageMembership && ui.outgoingInvitations.isNotEmpty()) {
                     item(key = "outgoing_invitations") {
                         OutgoingInvitationsCard(
                             invitations = ui.outgoingInvitations,
@@ -362,12 +359,14 @@ fun TeamScreen(
                                 avatarUrl = viewModel.resolveUrl(member.avatarUrl),
                                 isManager = ui.isManager,
                                 isOwner = ui.isOwner,
+                                canManageMembership = ui.canManageMembership,
                                 showAddToList = ui.isManager && ui.chargeLists.isNotEmpty(),
                                 onClick = { onMemberClick(member.userId) },
                                 onAddPayment = { onAddPayment(member.userId) },
                                 onAddToList = { addToListMember = member },
                                 onSetJersey = { jerseyDialogMember = member },
                                 onToggleModerator = { viewModel.toggleModerator(member) },
+                                onToggleAdmin = { viewModel.toggleAdmin(member) },
                                 onToggleTrainer = { viewModel.toggleTrainer(member) },
                                 onExclude = { excludeDialogMember = member },
                                 onRestore = { viewModel.restore(member) },
@@ -377,7 +376,7 @@ fun TeamScreen(
                     }
                 }
                 }
-                if (ui.isManager) {
+                if (ui.canManageMembership) {
                     androidx.compose.material3.FloatingActionButton(
                         onClick = { showInviteDialog = true },
                         modifier = Modifier
@@ -691,12 +690,14 @@ private fun MemberRow(
     avatarUrl: String?,
     isManager: Boolean,
     isOwner: Boolean,
+    canManageMembership: Boolean,
     showAddToList: Boolean,
     onClick: () -> Unit,
     onAddPayment: () -> Unit,
     onAddToList: () -> Unit,
     onSetJersey: () -> Unit,
     onToggleModerator: () -> Unit,
+    onToggleAdmin: () -> Unit,
     onToggleTrainer: () -> Unit,
     onExclude: () -> Unit,
     onRestore: () -> Unit,
@@ -772,13 +773,15 @@ private fun MemberRow(
                     onAddPayment()
                 },
             )
-            DropdownMenuItem(
-                text = { Text("Игровой номер") },
-                onClick = {
-                    menuExpanded = false
-                    onSetJersey()
-                },
-            )
+            if (canManageMembership) {
+                DropdownMenuItem(
+                    text = { Text("Игровой номер") },
+                    onClick = {
+                        menuExpanded = false
+                        onSetJersey()
+                    },
+                )
+            }
             DropdownMenuItem(
                 text = { Text("Профиль игрока") },
                 onClick = {
@@ -810,6 +813,15 @@ private fun MemberRow(
                 )
                 DropdownMenuItem(
                     text = {
+                        Text(if (member.role == MemberRole.ADMIN) "Снять администратора" else "Назначить администратором")
+                    },
+                    onClick = {
+                        menuExpanded = false
+                        onToggleAdmin()
+                    },
+                )
+                DropdownMenuItem(
+                    text = {
                         Text(
                             if (member.isTrainer) "Снять тренера"
                             else "Назначить тренером",
@@ -821,7 +833,7 @@ private fun MemberRow(
                     },
                 )
             }
-            if (member.role != MemberRole.OWNER) {
+            if (canManageMembership && member.role != MemberRole.OWNER) {
                 if (member.status == MemberStatus.ACTIVE) {
                     DropdownMenuItem(
                         text = { Text("Исключить из команды") },

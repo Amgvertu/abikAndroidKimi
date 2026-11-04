@@ -58,6 +58,8 @@ fun ListsScreen(
     viewModel: ListsViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    info.prorabka.abik.android.presentation.guide.ScreenGuide("charge_lists")
+    info.prorabka.abik.android.core.ui.RealtimeRefresh { viewModel.load() }
     var editTarget by remember { mutableStateOf<ChargeList?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<ChargeList?>(null) }

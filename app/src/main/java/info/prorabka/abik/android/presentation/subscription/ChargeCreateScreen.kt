@@ -60,6 +60,7 @@ fun ChargeCreateScreen(
     viewModel: ChargeCreateViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    info.prorabka.abik.android.presentation.guide.ScreenGuide("charge_create")
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(preselectUserId, chargeId) { viewModel.load(preselectUserId, chargeId) }

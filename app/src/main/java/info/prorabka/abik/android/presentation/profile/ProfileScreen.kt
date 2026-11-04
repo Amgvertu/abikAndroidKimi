@@ -66,6 +66,7 @@ fun ProfileScreen(
     val ui by viewModel.ui.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
+    info.prorabka.abik.android.core.ui.RealtimeRefresh { viewModel.load() }
 
     // Синхронизация профиля: обновляем данные при возврате на экран
     LifecycleResumeEffect(Unit) {

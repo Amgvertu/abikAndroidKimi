@@ -26,6 +26,7 @@ class AdminViewModel @Inject constructor(
         val users: List<User> = emptyList(),
         val teams: List<Team> = emptyList(),
         val regions: List<Region> = emptyList(),
+        val stats: info.prorabka.abik.android.domain.model.AdminStats? = null,
         val forbidden: Boolean = false,
         val error: String? = null,
         val info: String? = null,
@@ -56,6 +57,10 @@ class AdminViewModel @Inject constructor(
             }
             when (val r = geoRepository.regions()) {
                 is ApiResult.Success -> _ui.update { it.copy(regions = r.data) }
+                else -> Unit
+            }
+            when (val stats = adminRepository.stats()) {
+                is ApiResult.Success -> _ui.update { it.copy(stats = stats.data) }
                 else -> Unit
             }
             _ui.update { it.copy(loading = false) }
@@ -105,6 +110,16 @@ class AdminViewModel @Inject constructor(
                 is ApiResult.NetworkError -> _ui.update {
                     it.copy(error = "Нет соединения с сервером")
                 }
+            }
+        }
+    }
+
+    fun publishRelease(release: info.prorabka.abik.android.domain.model.AppRelease) {
+        viewModelScope.launch {
+            when (val r = adminRepository.publishRelease(release)) {
+                is ApiResult.Success -> _ui.update { it.copy(info = "Версия ${release.versionName} опубликована", error = null) }
+                is ApiResult.HttpError -> _ui.update { it.copy(error = r.message, info = null) }
+                is ApiResult.NetworkError -> _ui.update { it.copy(error = "Нет соединения с сервером", info = null) }
             }
         }
     }

@@ -46,10 +46,10 @@ class RosterViewModel @Inject constructor(
         val error: String? = null,
         val info: String? = null,
     ) {
-        /** Менять состав могут владелец/админ и только в текущем сезоне. */
+        /** Менять состав могут владелец, админ и модератор в текущем сезоне. */
         val canManage: Boolean
             get() = isCurrentSeason &&
-                (myRole == MemberRole.OWNER || myRole == MemberRole.ADMIN)
+                (myRole == MemberRole.OWNER || myRole == MemberRole.ADMIN || myRole == MemberRole.MODERATOR)
 
         val activeRoster: List<RosterItem>
             get() = roster.filter { it.status == RosterStatus.ACTIVE }

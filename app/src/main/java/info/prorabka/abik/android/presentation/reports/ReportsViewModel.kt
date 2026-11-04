@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.domain.model.ChargeGroup
+import info.prorabka.abik.android.domain.model.ChargeList
 import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.model.MemberSummary
 import info.prorabka.abik.android.domain.model.TeamMember
@@ -36,6 +37,8 @@ class ReportsViewModel @Inject constructor(
         val members: List<MemberSummary> = emptyList(),
         val teamMembers: List<TeamMember> = emptyList(),
         val groups: List<ChargeGroup> = emptyList(),
+        val chargeLists: List<ChargeList> = emptyList(),
+        val filterRosterListId: Long? = null,
         // Фильтры экспорта
         val filterUserId: Long? = null,
         val filterGroupId: Long? = null,
@@ -75,6 +78,10 @@ class ReportsViewModel @Inject constructor(
                 is ApiResult.Success -> _ui.update { it.copy(groups = g.data) }
                 else -> Unit
             }
+            when (val lists = chargeRepository.chargeLists(teamId)) {
+                is ApiResult.Success -> _ui.update { it.copy(chargeLists = lists.data) }
+                else -> Unit
+            }
             _ui.update { it.copy(loading = false) }
         }
     }
@@ -84,6 +91,25 @@ class ReportsViewModel @Inject constructor(
     fun setFilterStatus(status: String?) = _ui.update { it.copy(filterStatus = status) }
     fun setFilterDateFrom(d: LocalDate?) = _ui.update { it.copy(filterDateFrom = d) }
     fun setFilterDateTo(d: LocalDate?) = _ui.update { it.copy(filterDateTo = d) }
+    fun setFilterRosterList(id: Long?) = _ui.update { it.copy(filterRosterListId = id) }
+
+    fun exportRoster() {
+        val teamId = teamManager.selected.value?.id ?: return
+        viewModelScope.launch {
+            _ui.update { it.copy(exporting = true, error = null, exportedFile = null) }
+            when (val r = reportRepository.exportRoster(teamId, _ui.value.filterRosterListId)) {
+                is ApiResult.Success -> _ui.update {
+                    it.copy(exporting = false, exportedFile = r.data)
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(exporting = false, error = r.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(exporting = false, error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
 
     fun exportCharges() {
         val teamId = teamManager.selected.value?.id ?: return

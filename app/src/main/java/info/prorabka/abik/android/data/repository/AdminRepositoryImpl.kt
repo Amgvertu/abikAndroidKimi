@@ -53,4 +53,21 @@ class AdminRepositoryImpl @Inject constructor(
         api.createCity(CreateCityRequestDto(regionId, name))
         Unit
     }
+
+    override suspend fun stats() = apiCall {
+        api.stats().let {
+            info.prorabka.abik.android.domain.model.AdminStats(
+                it.totalUsers, it.totalTeams, it.usersToday, it.usersWeek, it.usersMonth,
+                it.teamsToday, it.teamsWeek, it.teamsMonth,
+                it.last30Days.map { day -> info.prorabka.abik.android.domain.model.DailyStat(day.date, day.users, day.teams) },
+            )
+        }
+    }
+
+    override suspend fun publishRelease(release: info.prorabka.abik.android.domain.model.AppRelease) = apiCall {
+        api.publishRelease(info.prorabka.abik.android.data.dto.AppReleaseRequestDto(
+            release.versionCode, release.versionName, release.releaseNotes, release.downloadUrl, release.mandatory,
+        ))
+        Unit
+    }
 }
