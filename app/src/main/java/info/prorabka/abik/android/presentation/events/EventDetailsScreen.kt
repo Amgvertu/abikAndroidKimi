@@ -490,7 +490,7 @@ private fun VoterRow(voter: EventVoter) {
             SweaterDot(color)
             Spacer(Modifier.size(6.dp))
         }
-        Text(voter.fullName, style = MaterialTheme.typography.bodyMedium)
+        Text(shortPlayerName(voter.fullName), style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -512,7 +512,7 @@ fun SweaterDot(color: SweaterColor) {
 /** Звенья (просмотр): вратарь и звенья. */
 @Composable
 private fun LineupView(event: EventDetail) {
-    val names = event.voters.associate { it.userId to it.fullName }
+    val names = event.voters.associate { it.userId to shortPlayerName(it.fullName) }
     val slots = event.lineup ?: return
     Card(Modifier.fillMaxWidth().padding(top = 4.dp)) {
         Column(Modifier.padding(12.dp)) {
@@ -568,13 +568,9 @@ private fun LineupView(event: EventDetail) {
 }
 
 
-/** Фамилия и инициал имени для компактных редакторов звеньев и цветов. */
-private fun shortPlayerName(fullName: String): String {
-    val parts = fullName.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-    if (parts.isEmpty()) return fullName
-    val initial = parts.getOrNull(1)?.firstOrNull()?.uppercaseChar()
-    return if (initial == null) parts[0] else "${parts[0]} $initial."
-}
+/** Фамилия и инициал имени для всех представлений события. */
+private fun shortPlayerName(fullName: String): String =
+    info.prorabka.abik.android.core.util.NameFormatter.short(fullName)
 
 // ====== Редактор свитеров (тренировка; владелец/админ/тренер) ======
 
@@ -759,7 +755,7 @@ private fun TrainingColorColumns(voters: List<EventVoter>) {
                             )
                             members.forEach {
                                 Text(
-                                    it.fullName,
+                                    shortPlayerName(it.fullName),
                                     style = MaterialTheme.typography.bodySmall,
                                     maxLines = 3,
                                     modifier = Modifier.padding(start = 3.dp, top = 2.dp),

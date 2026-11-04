@@ -311,7 +311,7 @@ fun EventFormScreen(
                                     selected = member.userId in ui.chargeMemberIds,
                                     onClick = { viewModel.toggleChargeMember(member.userId) },
                                     label = {
-                                        Text(member.displayName, maxLines = 1, fontSize = 12.sp)
+                                        Text(member.shortDisplayName, maxLines = 1, fontSize = 12.sp)
                                     },
                                 )
                             }

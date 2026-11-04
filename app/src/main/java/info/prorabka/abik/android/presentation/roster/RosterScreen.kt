@@ -183,7 +183,7 @@ fun RosterScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(item.fullName, style = MaterialTheme.typography.bodyLarge)
+                            Text(info.prorabka.abik.android.core.util.NameFormatter.short(item.fullName), style = MaterialTheme.typography.bodyLarge)
                             if (item.positions.isNotEmpty()) {
                                 Text(
                                     item.positions.joinToString(", ") { it.display },
@@ -241,7 +241,7 @@ fun RosterScreen(
             onDismissRequest = { removeTarget = null },
             title = { Text("Исключить из состава?") },
             text = {
-                Text("${item.fullName}\nНачисления и платежи сохранятся.")
+                Text("${info.prorabka.abik.android.core.util.NameFormatter.short(item.fullName)}\nНачисления и платежи сохранятся.")
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -320,7 +320,7 @@ private fun AddPlayerDialog(
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 SimpleDropdown(
                     label = "Игрок",
-                    options = candidates.map { it.userId to it.displayName },
+                    options = candidates.map { it.userId to it.shortDisplayName },
                     selected = playerId,
                     onSelect = { playerId = it },
                 )
@@ -395,7 +395,7 @@ private fun AddPlayerDialog(
 
     // Явное подтверждение создания начисления (ТЗ 10.1)
     if (confirmFee) {
-        val playerName = candidates.firstOrNull { it.userId == playerId }?.displayName ?: ""
+        val playerName = candidates.firstOrNull { it.userId == playerId }?.shortDisplayName ?: ""
         AlertDialog(
             onDismissRequest = { confirmFee = false },
             title = { Text("Создать начисление?") },
@@ -451,7 +451,7 @@ private fun ReplaceRosterDialog(
                                 else checked - member.userId
                             },
                         )
-                        Text(member.displayName)
+                        Text(member.shortDisplayName)
                     }
                 }
             }

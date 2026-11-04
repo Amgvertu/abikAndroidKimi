@@ -204,7 +204,7 @@ fun TemplateFormScreen(
                             checked = member.userId in ui.selectedUserIds,
                             onCheckedChange = { viewModel.toggleMember(member.userId) },
                         )
-                        Text(member.displayName, style = MaterialTheme.typography.bodyMedium)
+                        Text(member.shortDisplayName, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }

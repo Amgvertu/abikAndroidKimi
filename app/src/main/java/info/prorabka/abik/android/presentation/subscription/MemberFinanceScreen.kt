@@ -78,7 +78,12 @@ fun MemberFinanceScreen(
         topBar = {
             if (showTopBar) {
                 TopAppBar(
-                    title = { Text(ui.userName.ifBlank { "Участник" }) },
+                    title = {
+                        Text(
+                            info.prorabka.abik.android.core.util.NameFormatter.short(ui.userName)
+                                .ifBlank { "Участник" },
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")

@@ -222,7 +222,9 @@ private fun ProfileTab(
                 Spacer(modifier = Modifier.padding(6.dp))
                 Column {
                     Text(
-                        profile?.fullName ?: "Профиль не заполнен",
+                        profile?.let {
+                            info.prorabka.abik.android.core.util.NameFormatter.short(it.fullName)
+                        } ?: "Профиль не заполнен",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )

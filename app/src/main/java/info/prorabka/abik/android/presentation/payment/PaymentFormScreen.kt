@@ -154,7 +154,7 @@ private fun MemberDropdown(
         ExposedDropdownMenu(expanded = expanded && enabled, onDismissRequest = { expanded = false }) {
             ui.members.forEach { member ->
                 DropdownMenuItem(
-                    text = { Text(member.displayName) },
+                    text = { Text(member.shortDisplayName) },
                     onClick = {
                         viewModel.selectMember(member)
                         expanded = false

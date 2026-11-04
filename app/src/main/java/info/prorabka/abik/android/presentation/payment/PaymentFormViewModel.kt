@@ -50,8 +50,10 @@ class PaymentFormViewModel @Inject constructor(
             get() = payerUserId != null && members.none { it.userId == payerUserId }
 
         val payerDisplayName: String
-            get() = selectedMember?.displayName
-                ?: payerNameFallback?.let { "$it (исключён из команды)" }
+            get() = selectedMember?.shortDisplayName
+                ?: payerNameFallback?.let {
+                    "${info.prorabka.abik.android.core.util.NameFormatter.short(it)} (исключён из команды)"
+                }
                 ?: ""
     }
 

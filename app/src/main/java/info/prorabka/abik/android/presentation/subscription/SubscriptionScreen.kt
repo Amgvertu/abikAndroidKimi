@@ -173,7 +173,10 @@ private fun MemberBalanceRow(
             }
             Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(row.name, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    info.prorabka.abik.android.core.util.NameFormatter.short(row.name),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
                 Text(
                     buildString {
                         row.jerseyNumber?.let { append("№$it") }

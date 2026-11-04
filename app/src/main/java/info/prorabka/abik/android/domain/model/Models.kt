@@ -93,6 +93,9 @@ data class TeamMember(
         get() = "$lastName $firstName".trim().ifBlank {
             info.prorabka.abik.android.core.util.PhoneUtils.formatInput(phone)
         }
+
+    val shortDisplayName: String
+        get() = info.prorabka.abik.android.core.util.NameFormatter.short(displayName)
 }
 
 /** BE-07: карточка участника команды — членство + профиль. */

@@ -107,7 +107,10 @@ fun ChargeCreateScreen(
             if (ui.isEdit) {
                 Text(
                     buildString {
-                        append("Начисление участника: ${ui.chargeUserName}")
+                        append(
+                            "Начисление участника: " +
+                                info.prorabka.abik.android.core.util.NameFormatter.short(ui.chargeUserName),
+                        )
                         if (ui.paidKopecks > 0) {
                             append("\nУже оплачено: ${ui.paidKopecks.kopecksToRublesExact()} — меньше этой суммы указать нельзя")
                         }
@@ -192,7 +195,7 @@ fun ChargeCreateScreen(
                                 checked = member.userId in ui.selectedUserIds,
                                 onCheckedChange = { viewModel.toggleMember(member.userId) },
                             )
-                            Text(member.displayName, style = MaterialTheme.typography.bodyMedium)
+                            Text(member.shortDisplayName, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }

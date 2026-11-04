@@ -144,7 +144,10 @@ fun ReportsScreen(
                     ui.members.forEach { member ->
                         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(member.name, style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    info.prorabka.abik.android.core.util.NameFormatter.short(member.name),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
                                 Text(
                                     "начислено ${member.totalChargesKopecks.kopecksToRubles()} • " +
                                         "оплачено ${member.totalPaidKopecks.kopecksToRubles()}",
@@ -173,9 +176,9 @@ fun ReportsScreen(
                     FilterDropdown(
                         label = "Участник",
                         value = ui.teamMembers.firstOrNull { it.userId == ui.filterUserId }
-                            ?.displayName ?: "Все",
+                            ?.shortDisplayName ?: "Все",
                         items = listOf(null to "Все") +
-                            ui.teamMembers.map { it.userId as Long? to it.displayName },
+                            ui.teamMembers.map { it.userId as Long? to it.shortDisplayName },
                         onSelect = viewModel::setFilterUser,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
