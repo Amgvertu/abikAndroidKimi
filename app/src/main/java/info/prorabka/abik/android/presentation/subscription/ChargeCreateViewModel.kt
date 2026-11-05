@@ -211,8 +211,24 @@ class ChargeCreateViewModel @Inject constructor(
                             return@launch
                         }
                         is ApiResult.NetworkError -> {
-                            _ui.update {
-                                it.copy(saving = false, error = "Нет соединения с сервером")
+                            if (s.isEdit) {
+                                _ui.update { it.copy(saving = false, error = "Нет соединения с сервером") }
+                            } else {
+                                when (val queued = chargeRepository.createManualOffline(
+                                    teamId = teamId, groupId = null, groupName = s.groupName.trim(),
+                                    subgroupId = null, subgroupName = s.subgroupName.trim().ifBlank { null },
+                                    userIds = s.selectedUserIds, amountKopecks = amountKopecks!!,
+                                    description = s.note.ifBlank { null },
+                                    dueDateIso = s.dueDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                                )) {
+                                    is ApiResult.Success -> onDone()
+                                    is ApiResult.HttpError -> _ui.update {
+                                        it.copy(saving = false, error = queued.message)
+                                    }
+                                    is ApiResult.NetworkError -> _ui.update {
+                                        it.copy(saving = false, error = "Не удалось сохранить операцию на устройстве")
+                                    }
+                                }
                             }
                             return@launch
                         }
@@ -221,6 +237,7 @@ class ChargeCreateViewModel @Inject constructor(
 
                 // Подгруппа (опционально): найти или создать
                 var subgroupId: Long? = null
+                var subgroupNeedsOffline = false
                 if (s.subgroupName.isNotBlank()) {
                     val existing = s.subgroups.firstOrNull {
                         it.name.equals(s.subgroupName.trim(), true)
@@ -234,9 +251,40 @@ class ChargeCreateViewModel @Inject constructor(
                             )
                         ) {
                             is ApiResult.Success -> created.data.id
-                            else -> null
+                            is ApiResult.NetworkError -> {
+                                subgroupNeedsOffline = true
+                                null
+                            }
+                            is ApiResult.HttpError -> {
+                                _ui.update { it.copy(saving = false, error = created.message) }
+                                return@launch
+                            }
                         }
                     }
+                }
+
+                if (subgroupNeedsOffline) {
+                    if (s.isEdit) {
+                        _ui.update { it.copy(saving = false, error = "Нет соединения с сервером") }
+                        return@launch
+                    }
+                    val queued = chargeRepository.createManualOffline(
+                        teamId = teamId, groupId = group!!.id, groupName = group!!.name,
+                        subgroupId = null, subgroupName = s.subgroupName.trim(),
+                        userIds = s.selectedUserIds, amountKopecks = amountKopecks!!,
+                        description = s.note.ifBlank { null },
+                        dueDateIso = s.dueDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                    )
+                    when (queued) {
+                        is ApiResult.Success -> onDone()
+                        is ApiResult.HttpError -> _ui.update {
+                            it.copy(saving = false, error = queued.message)
+                        }
+                        is ApiResult.NetworkError -> _ui.update {
+                            it.copy(saving = false, error = "Не удалось сохранить операцию на устройстве")
+                        }
+                    }
+                    return@launch
                 }
 
                 val result = if (s.editChargeId != null) {

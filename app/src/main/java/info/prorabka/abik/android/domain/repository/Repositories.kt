@@ -121,6 +121,10 @@ interface EventRepository {
         teamId: Long,
         eventId: Long,
         items: Map<Long, SweaterColor?>,
-    ): ApiResult<Unit>
-    suspend fun setLineup(teamId: Long, eventId: Long, slots: List<LineupSlot>): ApiResult<Unit>
+    ): ApiResult<info.prorabka.abik.android.domain.model.SyncOutcome>
+    suspend fun setLineup(
+        teamId: Long,
+        eventId: Long,
+        slots: List<LineupSlot>,
+    ): ApiResult<info.prorabka.abik.android.domain.model.SyncOutcome>
 }

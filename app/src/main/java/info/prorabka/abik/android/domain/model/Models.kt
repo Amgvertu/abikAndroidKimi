@@ -299,6 +299,10 @@ data class EventDetail(
     val chargeMemberIds: Set<Long> = emptySet(),
     /** Начисление по событию уже выполнено. */
     val charged: Boolean = false,
+    val lineupRevision: Long = 0,
+    val sweaterRevision: Long = 0,
+    val pendingSync: Boolean = false,
+    val syncError: String? = null,
 )
 
 /** Данные формы создания/редактирования события. weekdays/untilDateIso = null — разовое. */

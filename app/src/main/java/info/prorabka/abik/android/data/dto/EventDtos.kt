@@ -77,6 +77,10 @@ data class EventDetailDto(
     val chargeTemplateId: Long? = null,
     val chargeMemberIds: Set<Long>? = null,
     val charged: Boolean = false,
+    val lineupRevision: Long = 0,
+    val sweaterRevision: Long = 0,
+    val pendingSync: Boolean = false,
+    val syncError: String? = null,
 )
 
 @Serializable

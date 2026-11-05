@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.core.network.UrlResolver
+import info.prorabka.abik.android.core.prefs.TokenStore
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.repository.FinanceRepository
@@ -24,13 +25,14 @@ class SubscriptionViewModel @Inject constructor(
     private val financeRepository: FinanceRepository,
     private val userRepository: UserRepository,
     private val urlResolver: UrlResolver,
+    private val tokenStore: TokenStore,
 ) : ViewModel() {
 
     data class MemberBalance(
         val userId: Long,
         val name: String,
         val jerseyNumber: Int?,
-        val balanceKopecks: Long,
+        val balanceKopecks: Long?,
         val status: MemberStatus,
         val avatarUrl: String? = null,
     )
@@ -81,7 +83,6 @@ class SubscriptionViewModel @Inject constructor(
                 ?: emptyList()
             val balances = (financeRepository.balances(teamId) as? ApiResult.Success)?.data
                 ?.associateBy { it.userId }
-                ?: emptyMap()
             val isManager = role == MemberRole.OWNER ||
                 role == MemberRole.MODERATOR ||
                 role == MemberRole.ADMIN
@@ -89,6 +90,7 @@ class SubscriptionViewModel @Inject constructor(
                 null
             } else {
                 (userRepository.me() as? ApiResult.Success)?.data?.id
+                    ?: tokenStore.userId.takeIf { it > 0 }
             }
 
             _ui.update {
@@ -103,7 +105,7 @@ class SubscriptionViewModel @Inject constructor(
                                 userId = m.userId,
                                 name = m.displayName,
                                 jerseyNumber = m.jerseyNumber,
-                                balanceKopecks = balances[m.userId]?.amountKopecks ?: 0L,
+                                balanceKopecks = balances?.get(m.userId)?.amountKopecks,
                                 status = m.status,
                                 avatarUrl = urlResolver.resolve(m.avatarUrl),
                             )

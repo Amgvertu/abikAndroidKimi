@@ -30,26 +30,42 @@ import javax.inject.Singleton
 class TeamRepositoryImpl @Inject constructor(
     private val teamApi: TeamApi,
     private val invitationApi: InvitationApi,
+    private val cache: info.prorabka.abik.android.data.local.CacheStore,
+    private val tokenStore: info.prorabka.abik.android.core.prefs.TokenStore,
 ) : TeamRepository {
 
-    override suspend fun myTeams(): ApiResult<List<Team>> = apiCall {
-        // Архивные (удалённые владельцем) команды не показываем в приложении
-        teamApi.myTeams()
-            .filter { it.status != "ARCHIVED" }
-            .map {
-                Team(
-                    id = it.id,
-                    name = it.name,
-                    cityName = it.cityName,
-                    regionName = it.homeRegionName,
-                    logoUrl = it.logoUrl,
-                    status = it.status,
-                )
+    private fun cacheKey(suffix: String) = "${tokenStore.userId}:$suffix"
+
+    override suspend fun myTeams(): ApiResult<List<Team>> {
+        when (val result = apiCall { teamApi.myTeams() }) {
+            is ApiResult.Success -> {
+                cache.write(cacheKey("teams"), kotlinx.serialization.builtins.ListSerializer(
+                    info.prorabka.abik.android.data.dto.TeamDto.serializer()), result.data)
+                return ApiResult.Success(result.data.filter { it.status != "ARCHIVED" }.map { it.toDomain() })
             }
+            is ApiResult.NetworkError -> {
+                val cached = cache.read(cacheKey("teams"), kotlinx.serialization.builtins.ListSerializer(
+                    info.prorabka.abik.android.data.dto.TeamDto.serializer()))
+                if (cached != null) return ApiResult.Success(cached.filter { it.status != "ARCHIVED" }.map { it.toDomain() })
+                return result
+            }
+            is ApiResult.HttpError -> return result
+        }
     }
 
-    override suspend fun detail(teamId: Long): ApiResult<TeamDetail> = apiCall {
-        teamApi.detail(teamId).toDomain()
+    override suspend fun detail(teamId: Long): ApiResult<TeamDetail> {
+        val key = cacheKey("team:$teamId")
+        when (val result = apiCall { teamApi.detail(teamId) }) {
+            is ApiResult.Success -> {
+                cache.write(key, TeamDetailDto.serializer(), result.data)
+                return ApiResult.Success(result.data.toDomain())
+            }
+            is ApiResult.NetworkError -> {
+                val cached = cache.read(key, TeamDetailDto.serializer())
+                return if (cached != null) ApiResult.Success(cached.toDomain()) else result
+            }
+            is ApiResult.HttpError -> return result
+        }
     }
 
     override suspend fun create(data: TeamCreateData): ApiResult<TeamDetail> = apiCall {
@@ -72,24 +88,20 @@ class TeamRepositoryImpl @Inject constructor(
             Unit
         }
 
-    override suspend fun members(teamId: Long): ApiResult<List<TeamMember>> = apiCall {
-        teamApi.members(teamId).map { dto ->
-            TeamMember(
-                id = dto.id,
-                userId = dto.userId,
-                phone = dto.phone ?: "",
-                lastName = dto.lastName ?: "",
-                firstName = dto.firstName ?: "",
-                role = runCatching { MemberRole.valueOf(dto.role) }.getOrDefault(MemberRole.MEMBER),
-                status = runCatching { MemberStatus.valueOf(dto.status) }
-                    .getOrDefault(MemberStatus.ACTIVE),
-                jerseyNumber = dto.jerseyNumber,
-                isTrainer = dto.isTrainer,
-                positions = dto.positions.mapNotNull { p ->
-                    runCatching { Position.valueOf(p) }.getOrNull()
-                }.toSet(),
-                avatarUrl = dto.avatarUrl,
-            )
+    override suspend fun members(teamId: Long): ApiResult<List<TeamMember>> {
+        val key = cacheKey("team:$teamId:members")
+        val serializer = kotlinx.serialization.builtins.ListSerializer(
+            info.prorabka.abik.android.data.dto.TeamMemberDto.serializer())
+        when (val result = apiCall { teamApi.members(teamId) }) {
+            is ApiResult.Success -> {
+                cache.write(key, serializer, result.data)
+                return ApiResult.Success(result.data.map { it.toDomain() })
+            }
+            is ApiResult.NetworkError -> {
+                val cached = cache.read(key, serializer)
+                return if (cached != null) ApiResult.Success(cached.map { it.toDomain() }) else result
+            }
+            is ApiResult.HttpError -> return result
         }
     }
 
@@ -217,6 +229,25 @@ private fun TeamDetailDto.toDomain() = TeamDetail(
     status = status,
     myRole = myRole?.let { runCatching { MemberRole.valueOf(it) }.getOrNull() },
     membersCount = membersCount,
+)
+
+private fun info.prorabka.abik.android.data.dto.TeamDto.toDomain() = Team(
+    id = id, name = name, cityName = cityName, regionName = homeRegionName,
+    logoUrl = logoUrl, status = status,
+)
+
+private fun info.prorabka.abik.android.data.dto.TeamMemberDto.toDomain() = TeamMember(
+    id = id,
+    userId = userId,
+    phone = phone ?: "",
+    lastName = lastName ?: "",
+    firstName = firstName ?: "",
+    role = runCatching { MemberRole.valueOf(role) }.getOrDefault(MemberRole.MEMBER),
+    status = runCatching { MemberStatus.valueOf(status) }.getOrDefault(MemberStatus.ACTIVE),
+    jerseyNumber = jerseyNumber,
+    isTrainer = isTrainer,
+    positions = positions.mapNotNull { p -> runCatching { Position.valueOf(p) }.getOrNull() }.toSet(),
+    avatarUrl = avatarUrl,
 )
 
 private fun TeamCreateData.toDto() = TeamCreateRequestDto(

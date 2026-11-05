@@ -190,10 +190,10 @@ private fun MemberBalanceRow(
                 )
             }
             Text(
-                text = row.balanceKopecks.kopecksToRublesExact(),
+                text = row.balanceKopecks?.kopecksToRublesExact() ?: "—",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = if (row.balanceKopecks < 0) Danger else Success,
+                color = if ((row.balanceKopecks ?: 0L) < 0) Danger else Success,
             )
         }
 

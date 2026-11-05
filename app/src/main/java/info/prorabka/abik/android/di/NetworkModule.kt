@@ -151,4 +151,9 @@ object NetworkModule {
     @Singleton
     fun provideReleaseApi(retrofit: Retrofit): info.prorabka.abik.android.data.api.ReleaseApi =
         retrofit.create(info.prorabka.abik.android.data.api.ReleaseApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideOfflineApi(retrofit: Retrofit): info.prorabka.abik.android.data.api.OfflineApi =
+        retrofit.create(info.prorabka.abik.android.data.api.OfflineApi::class.java)
 }

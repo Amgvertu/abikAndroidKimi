@@ -113,13 +113,24 @@ fun ExpensesScreen(
                                     expense.comment?.takeIf { it.isNotBlank() }?.let {
                                         Text(it, style = MaterialTheme.typography.bodyMedium)
                                     }
+                                    if (expense.pendingSync || expense.syncError != null) {
+                                        Text(
+                                            expense.syncError ?: "Ожидает синхронизации",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (expense.syncError == null) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.error
+                                            },
+                                        )
+                                    }
                                     Text(
                                         expense.amountKopecks.kopecksToRubles(),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                     )
                                 }
-                                if (ui.canEdit) {
+                                if (ui.canEdit && !expense.pendingSync && expense.id > 0) {
                                     IconButton(onClick = { editor = expense }) {
                                         Icon(Icons.Default.Edit, contentDescription = "Изменить")
                                     }

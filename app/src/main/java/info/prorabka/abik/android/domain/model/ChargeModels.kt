@@ -20,6 +20,8 @@ data class Charge(
     val description: String?,
     val dueDate: String?,
     val createdAt: String?,
+    val pendingSync: Boolean = false,
+    val syncError: String? = null,
 ) {
     val title: String
         get() = listOfNotNull(groupName.ifBlank { null }, subgroupName).joinToString(" / ")

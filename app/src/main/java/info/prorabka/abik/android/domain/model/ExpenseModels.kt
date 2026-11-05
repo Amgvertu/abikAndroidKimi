@@ -8,6 +8,8 @@ data class TeamExpense(
     val comment: String?,
     val eventId: Long?,
     val createdBy: Long,
+    val pendingSync: Boolean = false,
+    val syncError: String? = null,
 )
 
 data class ExpenseFormData(

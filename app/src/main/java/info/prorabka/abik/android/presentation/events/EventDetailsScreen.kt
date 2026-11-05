@@ -338,6 +338,16 @@ private fun EventContent(
             TextButton(onClick = onEditSweaters) { Text("Назначить свитеры") }
         }
 
+        if (event.pendingSync || event.syncError != null) {
+            Text(
+                event.syncError ?: "Есть изменения, ожидающие синхронизации с сервером",
+                color = if (event.syncError != null) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+
         info?.let {
             Text(
                 it,

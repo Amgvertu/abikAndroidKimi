@@ -17,7 +17,7 @@ interface FinanceRepository {
         amountKopecks: Long,
         paidAtIso: String?,
         description: String?,
-    ): ApiResult<Unit>
+    ): ApiResult<info.prorabka.abik.android.domain.model.SyncOutcome>
 
     suspend fun payments(
         teamId: Long,

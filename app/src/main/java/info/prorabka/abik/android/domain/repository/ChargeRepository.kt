@@ -26,7 +26,20 @@ interface ChargeRepository {
         amountKopecks: Long,
         description: String?,
         dueDateIso: String,
-    ): ApiResult<Unit>
+    ): ApiResult<info.prorabka.abik.android.domain.model.SyncOutcome>
+
+    /** Сохраняет начисление целиком, включая новые названия группы/подгруппы. */
+    suspend fun createManualOffline(
+        teamId: Long,
+        groupId: Long?,
+        groupName: String,
+        subgroupId: Long?,
+        subgroupName: String?,
+        userIds: Set<Long>,
+        amountKopecks: Long,
+        description: String?,
+        dueDateIso: String,
+    ): ApiResult<info.prorabka.abik.android.domain.model.SyncOutcome>
 
     suspend fun cancel(teamId: Long, chargeId: Long, reason: String): ApiResult<Unit>
 

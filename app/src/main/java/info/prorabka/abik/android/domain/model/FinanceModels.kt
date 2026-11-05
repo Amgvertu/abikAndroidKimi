@@ -19,6 +19,8 @@ data class Payment(
     val paidAt: String?,
     val createdByName: String?,
     val createdAt: String?,
+    val pendingSync: Boolean = false,
+    val syncError: String? = null,
 )
 
 data class BalanceAdjustment(

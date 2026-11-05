@@ -170,13 +170,13 @@ fun MemberFinanceScreen(
                         item { EmptyListHint("Начислений нет") }
                     }
                     items(ui.charges, key = { it.id }) { charge ->
-                        val editable = ui.isManager &&
+                        val editable = ui.isManager && !charge.pendingSync && charge.id > 0 &&
                             (charge.status == ChargeStatus.ACTIVE ||
                                 charge.status == ChargeStatus.PARTIALLY_PAID ||
                                 charge.status == ChargeStatus.PAID)
                         ChargeRow(
                             charge = charge,
-                            canCancel = ui.isManager &&
+                            canCancel = ui.isManager && !charge.pendingSync && charge.id > 0 &&
                                 (charge.status == ChargeStatus.ACTIVE ||
                                     charge.status == ChargeStatus.PARTIALLY_PAID),
                             onCancel = { cancelChargeId = charge.id },
@@ -195,7 +195,7 @@ fun MemberFinanceScreen(
                     items(ui.payments, key = { it.id }) { payment ->
                         PaymentRow(
                             payment = payment,
-                            onClick = if (ui.isManager) {
+                            onClick = if (ui.isManager && !payment.pendingSync && payment.id > 0) {
                                 { onEditPayment(payment.id) }
                             } else {
                                 null
@@ -273,6 +273,17 @@ private fun ChargeRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (charge.pendingSync || charge.syncError != null) {
+                Text(
+                    charge.syncError ?: "Ожидает синхронизации",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (charge.syncError == null) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
+                )
+            }
             // Частичная оплата: «Оплачено X из Y», остаток
             if (charge.status == ChargeStatus.PARTIALLY_PAID || charge.paidKopecks > 0) {
                 Text(
@@ -321,6 +332,17 @@ private fun PaymentRow(payment: Payment, onClick: (() -> Unit)?) {
                     it,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (payment.pendingSync || payment.syncError != null) {
+                Text(
+                    payment.syncError ?: "Ожидает синхронизации",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (payment.syncError == null) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
                 )
             }
         }

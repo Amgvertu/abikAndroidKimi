@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
+import info.prorabka.abik.android.core.prefs.TokenStore
 import info.prorabka.abik.android.domain.model.EventDetail
 import info.prorabka.abik.android.domain.model.EventType
 import info.prorabka.abik.android.domain.model.LineupSlot
@@ -28,6 +29,7 @@ class EventDetailsViewModel @Inject constructor(
     private val teamRepository: TeamRepository,
     private val userRepository: UserRepository,
     private val teamManager: CurrentTeamManager,
+    private val tokenStore: TokenStore,
 ) : ViewModel() {
 
     val eventId: Long = checkNotNull(savedStateHandle["eventId"])
@@ -91,7 +93,9 @@ class EventDetailsViewModel @Inject constructor(
     }
 
     private suspend fun loadMyTrainerFlag(teamId: Long) {
-        val myId = (userRepository.me() as? ApiResult.Success)?.data?.id ?: return
+        val myId = (userRepository.me() as? ApiResult.Success)?.data?.id
+            ?: tokenStore.userId.takeIf { it > 0 }
+            ?: return
         val members = (teamRepository.members(teamId) as? ApiResult.Success)?.data ?: return
         val me = members.firstOrNull { it.userId == myId } ?: return
         _ui.update { it.copy(myIsTrainer = me.isTrainer) }
@@ -103,9 +107,11 @@ class EventDetailsViewModel @Inject constructor(
             _ui.update { it.copy(sweatersSaving = true, error = null) }
             when (val r = eventRepository.setSweaters(teamId, eventId, items)) {
                 is ApiResult.Success -> {
+                    val pending = r.data == info.prorabka.abik.android.domain.model.SyncOutcome.PENDING
                     _ui.update {
                         it.copy(sweatersSaving = false, sweatersSaved = true,
-                            info = "Свитеры назначены")
+                            info = if (pending) "Цвета сохранены на устройстве и будут отправлены при появлении сети"
+                            else "Свитеры назначены")
                     }
                     load()
                 }
@@ -125,9 +131,11 @@ class EventDetailsViewModel @Inject constructor(
             _ui.update { it.copy(lineupSaving = true, error = null) }
             when (val r = eventRepository.setLineup(teamId, eventId, slots)) {
                 is ApiResult.Success -> {
+                    val pending = r.data == info.prorabka.abik.android.domain.model.SyncOutcome.PENDING
                     _ui.update {
                         it.copy(lineupSaving = false, lineupSaved = true,
-                            info = "Звенья сохранены")
+                            info = if (pending) "Звенья сохранены на устройстве и будут отправлены при появлении сети"
+                            else "Звенья сохранены")
                     }
                     load()
                 }
@@ -141,10 +149,7 @@ class EventDetailsViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Сохранить заявку и цвета маек звеньев одной кнопкой:
-     * сначала заявка, затем цвета (оба действия — на сервере).
-     */
+    /** Сохраняет заявку и цвета; офлайн-операции имеют независимые версии. */
     fun setLineupWithSweaters(slots: List<LineupSlot>, sweaters: Map<Long, SweaterColor?>) {
         val teamId = teamManager.selected.value?.id ?: return
         viewModelScope.launch {
@@ -153,9 +158,12 @@ class EventDetailsViewModel @Inject constructor(
                 is ApiResult.Success -> {
                     when (val s = eventRepository.setSweaters(teamId, eventId, sweaters)) {
                         is ApiResult.Success -> {
+                            val pending = r.data == info.prorabka.abik.android.domain.model.SyncOutcome.PENDING ||
+                                s.data == info.prorabka.abik.android.domain.model.SyncOutcome.PENDING
                             _ui.update {
                                 it.copy(lineupSaving = false, lineupSaved = true,
-                                    info = "Звенья сохранены")
+                                    info = if (pending) "Изменения сохранены на устройстве и будут отправлены при появлении сети"
+                                    else "Звенья сохранены")
                             }
                             load()
                         }

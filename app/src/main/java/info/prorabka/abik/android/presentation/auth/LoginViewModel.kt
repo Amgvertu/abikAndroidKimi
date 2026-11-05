@@ -7,6 +7,7 @@ import info.prorabka.abik.android.BuildConfig
 import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.core.prefs.SettingsStore
 import info.prorabka.abik.android.core.util.PhoneUtils
+import info.prorabka.abik.android.data.local.OfflineQueue
 import info.prorabka.abik.android.domain.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,6 +22,7 @@ import javax.inject.Inject
 class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val settingsStore: SettingsStore,
+    private val offlineQueue: OfflineQueue,
 ) : ViewModel() {
 
     data class UiState(
@@ -67,7 +69,10 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null) }
             when (val result = authRepository.login(phone, state.password)) {
-                is ApiResult.Success -> onSuccess()
+                is ApiResult.Success -> {
+                    offlineQueue.schedule()
+                    onSuccess()
+                }
                 is ApiResult.HttpError -> _ui.update {
                     it.copy(loading = false, error = result.message)
                 }

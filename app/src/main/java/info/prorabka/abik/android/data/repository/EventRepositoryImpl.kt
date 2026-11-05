@@ -31,6 +31,10 @@ import javax.inject.Singleton
 @Singleton
 class EventRepositoryImpl @Inject constructor(
     private val api: EventApi,
+    private val queue: info.prorabka.abik.android.data.local.OfflineQueue,
+    private val cache: info.prorabka.abik.android.data.local.CacheStore,
+    private val json: kotlinx.serialization.json.Json,
+    private val tokenStore: info.prorabka.abik.android.core.prefs.TokenStore,
 ) : EventRepository {
 
     override suspend fun events(
@@ -62,8 +66,29 @@ class EventRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun detail(teamId: Long, eventId: Long): ApiResult<EventDetail> = apiCall {
-        api.detail(teamId, eventId).toDomain()
+    override suspend fun detail(teamId: Long, eventId: Long): ApiResult<EventDetail> {
+        val key = eventCacheKey(teamId, eventId)
+        val operations = queue.forTypes(teamId, listOf(
+            info.prorabka.abik.android.data.local.OfflineOperationTypes.EVENT_LINEUP_SAVE,
+            info.prorabka.abik.android.data.local.OfflineOperationTypes.EVENT_SWEATERS_SAVE,
+        )).filter { it.eventId == eventId }
+        when (val result = apiCall { api.detail(teamId, eventId) }) {
+            is ApiResult.Success -> {
+                cache.write(key, info.prorabka.abik.android.data.dto.EventDetailDto.serializer(), result.data)
+                queue.clearSyncedEvent(teamId,
+                    info.prorabka.abik.android.data.local.OfflineOperationTypes.EVENT_LINEUP_SAVE, eventId)
+                queue.clearSyncedEvent(teamId,
+                    info.prorabka.abik.android.data.local.OfflineOperationTypes.EVENT_SWEATERS_SAVE, eventId)
+                return ApiResult.Success(applyLocalOperations(result.data,
+                    operations.filter { it.isLocalOnly }).toDomain())
+            }
+            is ApiResult.NetworkError -> {
+                val cached = cache.read(key, info.prorabka.abik.android.data.dto.EventDetailDto.serializer())
+                    ?: return result
+                return ApiResult.Success(applyLocalOperations(cached, operations).toDomain())
+            }
+            is ApiResult.HttpError -> return result
+        }
     }
 
     override suspend fun create(teamId: Long, data: EventFormData): ApiResult<EventDetail> =
@@ -113,31 +138,96 @@ class EventRepositoryImpl @Inject constructor(
         teamId: Long,
         eventId: Long,
         items: Map<Long, SweaterColor?>,
-    ): ApiResult<Unit> = apiCall {
-        api.setSweaters(
-            teamId, eventId,
-            items.map { (userId, color) -> SweaterColorItemDto(userId, color?.name) },
-        )
-        Unit
+    ): ApiResult<info.prorabka.abik.android.domain.model.SyncOutcome> {
+        val type = info.prorabka.abik.android.data.local.OfflineOperationTypes.EVENT_SWEATERS_SAVE
+        val body = info.prorabka.abik.android.data.dto.OfflineSweatersRequestDto(
+            eventId, items.map { (userId, color) -> SweaterColorItemDto(userId, color?.name) })
+        return when (val result = apiCall { api.setSweaters(teamId, eventId, body.items) }) {
+            is ApiResult.Success -> {
+                queue.clearEventOperations(teamId, type, eventId)
+                ApiResult.Success(info.prorabka.abik.android.domain.model.SyncOutcome.SYNCED)
+            }
+            is ApiResult.NetworkError -> {
+                val revision = cache.read(eventCacheKey(teamId, eventId),
+                    info.prorabka.abik.android.data.dto.EventDetailDto.serializer())?.sweaterRevision
+                    ?: return ApiResult.HttpError(409, "OFFLINE_CONFLICT",
+                        "Нет сохранённой версии события. Откройте его онлайн перед изменением цветов.")
+                queue.enqueue(teamId, type, body,
+                    info.prorabka.abik.android.data.dto.OfflineSweatersRequestDto.serializer(),
+                    expectedEventRevision = revision, eventId = eventId, replacePendingEvent = true)
+                ApiResult.Success(info.prorabka.abik.android.domain.model.SyncOutcome.PENDING)
+            }
+            is ApiResult.HttpError -> result
+        }
     }
 
     override suspend fun setLineup(
         teamId: Long,
         eventId: Long,
         slots: List<LineupSlot>,
-    ): ApiResult<Unit> = apiCall {
-        api.setLineup(
-            teamId, eventId,
-            LineupSaveRequestDto(slots.map {
-                LineupSlotDto(
-                    lineNumber = it.lineNumber,
-                    slotNumber = it.slotNumber,
-                    role = it.role.name,
-                    userId = it.userId,
-                )
-            }),
+    ): ApiResult<info.prorabka.abik.android.domain.model.SyncOutcome> {
+        val type = info.prorabka.abik.android.data.local.OfflineOperationTypes.EVENT_LINEUP_SAVE
+        val body = info.prorabka.abik.android.data.dto.OfflineLineupRequestDto(
+            eventId, slots.map {
+                LineupSlotDto(it.lineNumber, it.slotNumber, it.role.name, it.userId)
+            })
+        return when (val result = apiCall { api.setLineup(teamId, eventId, LineupSaveRequestDto(body.slots)) }) {
+            is ApiResult.Success -> {
+                queue.clearEventOperations(teamId, type, eventId)
+                ApiResult.Success(info.prorabka.abik.android.domain.model.SyncOutcome.SYNCED)
+            }
+            is ApiResult.NetworkError -> {
+                val revision = cache.read(eventCacheKey(teamId, eventId),
+                    info.prorabka.abik.android.data.dto.EventDetailDto.serializer())?.lineupRevision
+                    ?: return ApiResult.HttpError(409, "OFFLINE_CONFLICT",
+                        "Нет сохранённой версии события. Откройте его онлайн перед изменением звеньев.")
+                queue.enqueue(teamId, type, body,
+                    info.prorabka.abik.android.data.dto.OfflineLineupRequestDto.serializer(),
+                    expectedEventRevision = revision, eventId = eventId, replacePendingEvent = true)
+                ApiResult.Success(info.prorabka.abik.android.domain.model.SyncOutcome.PENDING)
+            }
+            is ApiResult.HttpError -> result
+        }
+    }
+
+    private fun eventCacheKey(teamId: Long, eventId: Long) =
+        "${tokenStore.userId}:team:$teamId:event:$eventId"
+
+    private fun applyLocalOperations(
+        source: info.prorabka.abik.android.data.dto.EventDetailDto,
+        operations: List<info.prorabka.abik.android.data.local.OfflineOperationEntity>,
+    ): info.prorabka.abik.android.data.dto.EventDetailDto {
+        var result = source
+        operations.forEach { operation ->
+            when (operation.type) {
+                info.prorabka.abik.android.data.local.OfflineOperationTypes.EVENT_LINEUP_SAVE -> {
+                    val body = runCatching {
+                        json.decodeFromString(
+                            info.prorabka.abik.android.data.dto.OfflineLineupRequestDto.serializer(),
+                            operation.payloadJson)
+                    }.getOrNull()
+                    if (body != null) result = result.copy(
+                        lineup = info.prorabka.abik.android.data.dto.LineupDto(body.slots))
+                }
+                info.prorabka.abik.android.data.local.OfflineOperationTypes.EVENT_SWEATERS_SAVE -> {
+                    val body = runCatching {
+                        json.decodeFromString(
+                            info.prorabka.abik.android.data.dto.OfflineSweatersRequestDto.serializer(),
+                            operation.payloadJson)
+                    }.getOrNull()
+                    if (body != null) {
+                        val colors = body.items.associate { it.userId to it.color }
+                        result = result.copy(voters = result.voters.map {
+                            it.copy(sweaterColor = colors[it.userId])
+                        })
+                    }
+                }
+            }
+        }
+        return result.copy(
+            pendingSync = operations.any { it.isLocalOnly },
+            syncError = operations.mapNotNull { it.displaySyncError }.distinct().joinToString("\n").ifBlank { null },
         )
-        Unit
     }
 
     // ====== Маппинг ======
@@ -175,6 +265,10 @@ class EventRepositoryImpl @Inject constructor(
         chargeTemplateId = chargeTemplateId,
         chargeMemberIds = chargeMemberIds.orEmpty(),
         charged = charged,
+        lineupRevision = lineupRevision,
+        sweaterRevision = sweaterRevision,
+        pendingSync = pendingSync,
+        syncError = syncError,
     )
 
     private fun EventVoterDto.toDomain() = EventVoter(

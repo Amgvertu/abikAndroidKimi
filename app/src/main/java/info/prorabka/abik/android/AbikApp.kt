@@ -4,12 +4,20 @@ import android.app.Application
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
+import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
 import info.prorabka.abik.android.push.RuStorePushInitializer
 import ru.rustore.sdk.pushclient.RuStorePushClient
+import javax.inject.Inject
 
 @HiltAndroidApp
-class AbikApp : Application() {
+class AbikApp : Application(), Configuration.Provider {
+
+    @Inject lateinit var workerFactory: HiltWorkerFactory
+
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
 
     override fun onCreate() {
         super.onCreate()

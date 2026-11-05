@@ -6,7 +6,7 @@ import info.prorabka.abik.android.domain.model.TeamExpense
 
 interface ExpenseRepository {
     suspend fun list(teamId: Long): ApiResult<List<TeamExpense>>
-    suspend fun create(teamId: Long, data: ExpenseFormData): ApiResult<Unit>
+    suspend fun create(teamId: Long, data: ExpenseFormData): ApiResult<info.prorabka.abik.android.domain.model.SyncOutcome>
     suspend fun update(teamId: Long, id: Long, data: ExpenseFormData): ApiResult<Unit>
     suspend fun delete(teamId: Long, id: Long): ApiResult<Unit>
 }
