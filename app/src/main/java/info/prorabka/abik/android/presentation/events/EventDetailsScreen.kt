@@ -684,7 +684,7 @@ private fun SweatersDialog(
                                                 slotId = key,
                                                 drag = drag,
                                                 onDragStart = { drag = it },
-                                                onDragMove = { drag?.pos = it },
+                                                onDragMove = { drag = drag?.copy(pos = it) },
                                                 onDragEnd = {
                                                     drag?.let { finishDrag(it) }
                                                     drag = null
@@ -823,11 +823,11 @@ private fun slotAccepts(slotId: String, positions: Set<Position>): Boolean = whe
     else -> false
 }
 
-private class LineupDrag(
+private data class LineupDrag(
     val userId: Long,
     val from: String,
     val chipSize: androidx.compose.ui.geometry.Size,
-    var pos: Offset, // позиция пальца в root-координатах
+    val pos: Offset, // позиция пальца в root-координатах
 )
 
 private class LineSlots(
@@ -1057,7 +1057,7 @@ private fun LineupDialog(
                                                 drag = drag,
                                                 slotBounds = slotBounds,
                                                 onDragStart = { drag = it },
-                                                onDragMove = { drag?.pos = it },
+                                                onDragMove = { drag = drag?.copy(pos = it) },
                                                 onDragEnd = {
                                                     drag?.let { finishDrag(it) }
                                                     drag = null
@@ -1080,7 +1080,7 @@ private fun LineupDialog(
                             drag = drag,
                             slotBounds = slotBounds,
                             onDragStart = { drag = it },
-                            onDragMove = { drag?.pos = it },
+                            onDragMove = { drag = drag?.copy(pos = it) },
                             onDragEnd = {
                                 drag?.let { finishDrag(it) }
                                 drag = null
@@ -1131,7 +1131,7 @@ private fun LineupDialog(
                                         drag = drag,
                                         slotBounds = slotBounds,
                                         onDragStart = { drag = it },
-                                        onDragMove = { drag?.pos = it },
+                                        onDragMove = { drag = drag?.copy(pos = it) },
                                         onDragEnd = {
                                             drag?.let { finishDrag(it) }
                                             drag = null
@@ -1154,7 +1154,7 @@ private fun LineupDialog(
                                         drag = drag,
                                         slotBounds = slotBounds,
                                         onDragStart = { drag = it },
-                                        onDragMove = { drag?.pos = it },
+                                        onDragMove = { drag = drag?.copy(pos = it) },
                                         onDragEnd = {
                                             drag?.let { finishDrag(it) }
                                             drag = null

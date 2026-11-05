@@ -92,7 +92,7 @@ fun MainShell(
     val roleKey = if (ui.myIsTrainer) "TRAINER" else ui.myRole?.name ?: "MEMBER"
     val currentGuideKey = "${currentRoute ?: MainTab.HOME.route}:$roleKey"
     val visibleGuideKey = guideUi.forcedKey ?: currentGuideKey.takeIf {
-        ui.selected != null && guideUi.loaded && it !in guideUi.completed && it !in guideUi.skipped
+        ui.selected != null && guideUi.loaded && it !in guideUi.completed
     }
 
     // Возврат с форм (платёж/начисление/профиль) — обновить балансы и бейдж

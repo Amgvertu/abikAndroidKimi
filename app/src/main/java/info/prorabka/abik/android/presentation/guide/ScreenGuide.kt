@@ -15,7 +15,7 @@ fun ScreenGuide(
     val ui by viewModel.ui.collectAsState()
     val key = "$screenKey:$roleKey"
     val visible = ui.forcedKey ?: key.takeIf {
-        ui.loaded && it !in ui.completed && it !in ui.skipped
+        ui.loaded && it !in ui.completed
     }
     visible?.let { GuideOverlay(it, viewModel) }
 }

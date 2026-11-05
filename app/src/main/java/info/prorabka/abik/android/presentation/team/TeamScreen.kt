@@ -1,5 +1,8 @@
 package info.prorabka.abik.android.presentation.team
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.provider.ContactsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -46,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -1111,7 +1115,39 @@ private fun OutgoingInvitationsCard(
 
 @Composable
 private fun InviteDialog(onDismiss: () -> Unit, onInvite: (String) -> Unit) {
+    val context = LocalContext.current
     var phone by remember { mutableStateOf("") }
+    var contactName by remember { mutableStateOf<String?>(null) }
+    var contactError by remember { mutableStateOf<String?>(null) }
+    val contactPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val uri = result.data?.data
+        if (uri != null) {
+            try {
+                context.contentResolver.query(
+                    uri,
+                    arrayOf(
+                        ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                        ContactsContract.CommonDataKinds.Phone.NUMBER,
+                    ),
+                    null,
+                    null,
+                    null,
+                ).use { cursor ->
+                    if (cursor != null && cursor.moveToFirst()) {
+                        contactName = cursor.getString(0)
+                        phone = PhoneUtils.inputDigits(cursor.getString(1).orEmpty())
+                        contactError = null
+                    } else {
+                        contactError = "Не удалось получить номер контакта"
+                    }
+                }
+            } catch (_: Exception) {
+                contactError = "Не удалось прочитать выбранный контакт"
+            }
+        }
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Пригласить игрока") },
@@ -1122,16 +1158,54 @@ private fun InviteDialog(onDismiss: () -> Unit, onInvite: (String) -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    onClick = {
+                        contactError = null
+                        try {
+                            contactPicker.launch(
+                                Intent(
+                                    Intent.ACTION_PICK,
+                                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                                ),
+                            )
+                        } catch (_: ActivityNotFoundException) {
+                            contactError = "На устройстве нет приложения контактов"
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Выбрать из записной книги") }
+                contactName?.let {
+                    Text(
+                        "Выбран: $it",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
                 AbikTextField(
                     value = phone,
-                    onValueChange = { phone = PhoneUtils.inputDigits(it) },
+                    onValueChange = {
+                        phone = PhoneUtils.inputDigits(it)
+                        contactName = null
+                    },
                     label = "Номер телефона",
                     keyboardType = KeyboardType.Phone,
                 )
+                contactError?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onInvite(phone) }) { Text("Отправить") }
+            TextButton(
+                onClick = { onInvite(phone) },
+                enabled = PhoneUtils.isValid(phone),
+            ) { Text("Отправить") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Отмена") }
