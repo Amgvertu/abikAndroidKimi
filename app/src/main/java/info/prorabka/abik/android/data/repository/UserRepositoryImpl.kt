@@ -21,19 +21,56 @@ import javax.inject.Singleton
 @Singleton
 class UserRepositoryImpl @Inject constructor(
     private val api: UserApi,
+    private val cache: info.prorabka.abik.android.data.local.CacheStore,
+    private val tokenStore: info.prorabka.abik.android.core.prefs.TokenStore,
 ) : UserRepository {
 
-    override suspend fun me(): ApiResult<User> = apiCall {
-        val dto = api.me()
-        User(dto.id, dto.phone, dto.status, dto.isSuperAdmin)
+    override suspend fun me(): ApiResult<User> {
+        val key = "${tokenStore.userId}:me"
+        val serializer = info.prorabka.abik.android.data.dto.UserDto.serializer()
+        return when (val result = apiCall { api.me() }) {
+            is ApiResult.Success -> {
+                cache.write(key, serializer, result.data)
+                ApiResult.Success(result.data.toDomain())
+            }
+            is ApiResult.NetworkError -> {
+                val cached = cache.read(key, serializer)
+                if (cached != null) ApiResult.Success(cached.toDomain()) else result
+            }
+            is ApiResult.HttpError -> result
+        }
     }
 
-    override suspend fun myProfile(): ApiResult<Profile> = apiCall {
-        api.myProfile().toDomain()
+    override suspend fun myProfile(): ApiResult<Profile> {
+        val key = "${tokenStore.userId}:profile:me"
+        val serializer = UserProfileResponse.serializer()
+        return when (val result = apiCall { api.myProfile() }) {
+            is ApiResult.Success -> {
+                cache.write(key, serializer, result.data)
+                ApiResult.Success(result.data.toDomain())
+            }
+            is ApiResult.NetworkError -> {
+                val cached = cache.read(key, serializer)
+                if (cached != null) ApiResult.Success(cached.toDomain()) else result
+            }
+            is ApiResult.HttpError -> result
+        }
     }
 
-    override suspend fun profileOf(userId: Long): ApiResult<Profile> = apiCall {
-        api.profileOfUser(userId).toDomain()
+    override suspend fun profileOf(userId: Long): ApiResult<Profile> {
+        val key = "${tokenStore.userId}:profile:$userId"
+        val serializer = UserProfileResponse.serializer()
+        return when (val result = apiCall { api.profileOfUser(userId) }) {
+            is ApiResult.Success -> {
+                cache.write(key, serializer, result.data)
+                ApiResult.Success(result.data.toDomain())
+            }
+            is ApiResult.NetworkError -> {
+                val cached = cache.read(key, serializer)
+                if (cached != null) ApiResult.Success(cached.toDomain()) else result
+            }
+            is ApiResult.HttpError -> result
+        }
     }
 
     override suspend fun updateMyProfile(
@@ -93,6 +130,9 @@ class UserRepositoryImpl @Inject constructor(
             Unit
         }
 }
+
+private fun info.prorabka.abik.android.data.dto.UserDto.toDomain(): User =
+    User(id, phone, status, isSuperAdmin)
 
 fun UserProfileResponse.toDomain(): Profile = Profile(
     userId = userId,

@@ -51,11 +51,13 @@ object NetworkModule {
         authInterceptor: AuthInterceptor,
         baseUrlInterceptor: DynamicBaseUrlInterceptor,
         tokenAuthenticator: TokenAuthenticator,
+        connectivityInterceptor: info.prorabka.abik.android.core.network.ConnectivityInterceptor,
     ): OkHttpClient {
         val builder = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .addInterceptor(connectivityInterceptor)
             .addInterceptor(baseUrlInterceptor)
             .addInterceptor(authInterceptor)
             .authenticator(tokenAuthenticator)

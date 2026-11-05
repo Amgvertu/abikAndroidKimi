@@ -47,16 +47,16 @@ class TokenAuthenticator @Inject constructor(
 
             val refreshResponse = runCatching {
                 authApi.get().refreshSync(RefreshRequest(refresh)).execute()
-            }.getOrNull()
+            }.getOrNull() ?: return null // Сбой сети — не выход из аккаунта.
 
-            if (refreshResponse == null || !refreshResponse.isSuccessful) {
-                sessionManager.expireSession()
+            if (!refreshResponse.isSuccessful) {
+                // Завершаем сессию только когда сервер действительно отклонил refresh.
+                if (refreshResponse.code() == 401 || refreshResponse.code() == 403) {
+                    sessionManager.expireSession()
+                }
                 return null
             }
-            val body = refreshResponse.body() ?: run {
-                sessionManager.expireSession()
-                return null
-            }
+            val body = refreshResponse.body() ?: return null
             tokenStore.save(
                 access = body.tokens.accessToken,
                 refresh = body.tokens.refreshToken,

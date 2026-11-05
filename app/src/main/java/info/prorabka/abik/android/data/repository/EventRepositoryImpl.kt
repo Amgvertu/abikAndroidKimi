@@ -41,8 +41,11 @@ class EventRepositoryImpl @Inject constructor(
         teamId: Long,
         fromIso: String,
         toIso: String,
-    ): ApiResult<List<EventListItem>> = apiCall {
-        api.list(teamId, fromIso, toIso).map { dto ->
+    ): ApiResult<List<EventListItem>> {
+        val key = "${tokenStore.userId}:team:$teamId:events:$fromIso:$toIso"
+        val serializer = kotlinx.serialization.builtins.ListSerializer(
+            info.prorabka.abik.android.data.dto.EventListItemDto.serializer())
+        fun map(items: List<info.prorabka.abik.android.data.dto.EventListItemDto>) = items.map { dto ->
             EventListItem(
                 id = dto.id,
                 title = dto.title.ifBlank { eventTypeOf(dto.type).display },
@@ -63,6 +66,17 @@ class EventRepositoryImpl @Inject constructor(
                 votesYesReserve = dto.votesYesReserve,
                 myInReserve = dto.myInReserve,
             )
+        }
+        return when (val result = apiCall { api.list(teamId, fromIso, toIso) }) {
+            is ApiResult.Success -> {
+                cache.write(key, serializer, result.data)
+                ApiResult.Success(map(result.data))
+            }
+            is ApiResult.NetworkError -> {
+                val cached = cache.read(key, serializer)
+                if (cached != null) ApiResult.Success(map(cached)) else result
+            }
+            is ApiResult.HttpError -> result
         }
     }
 

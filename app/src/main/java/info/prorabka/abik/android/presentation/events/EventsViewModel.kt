@@ -24,6 +24,7 @@ class EventsViewModel @Inject constructor(
     private val teamRepository: TeamRepository,
     private val userRepository: info.prorabka.abik.android.domain.repository.UserRepository,
     private val teamManager: CurrentTeamManager,
+    private val tokenStore: info.prorabka.abik.android.core.prefs.TokenStore,
 ) : ViewModel() {
 
     data class UiState(
@@ -96,6 +97,7 @@ class EventsViewModel @Inject constructor(
                 else -> Unit
             }
             val myId = (userRepository.me() as? ApiResult.Success)?.data?.id
+                ?: tokenStore.userId.takeIf { it > 0 }
             val members = (teamRepository.members(teamId) as? ApiResult.Success)?.data
             val isTrainer = members?.firstOrNull { it.userId == myId }?.isTrainer == true
             _ui.update { it.copy(myIsTrainer = isTrainer) }

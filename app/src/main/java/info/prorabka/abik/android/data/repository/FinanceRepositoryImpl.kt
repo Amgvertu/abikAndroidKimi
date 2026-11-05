@@ -24,25 +24,42 @@ class FinanceRepositoryImpl @Inject constructor(
     private val tokenStore: info.prorabka.abik.android.core.prefs.TokenStore,
 ) : FinanceRepository {
 
-    override suspend fun balances(teamId: Long): ApiResult<List<Balance>> = apiCall {
-        balanceApi.list(teamId).map {
-            Balance(
-                userId = it.userId,
-                userName = listOfNotNull(it.userLastName, it.userFirstName)
-                    .joinToString(" ")
-                    .ifBlank { "ID ${it.userId}" },
-                amountKopecks = it.amountKopecks,
-            )
+    override suspend fun balances(teamId: Long): ApiResult<List<Balance>> {
+        val key = "${tokenStore.userId}:team:$teamId:balances"
+        val serializer = kotlinx.serialization.builtins.ListSerializer(
+            info.prorabka.abik.android.data.dto.BalanceDto.serializer())
+        return when (val result = apiCall { balanceApi.list(teamId) }) {
+            is ApiResult.Success -> {
+                cache.write(key, serializer, result.data)
+                ApiResult.Success(result.data.map { it.toDomain() })
+            }
+            is ApiResult.NetworkError -> {
+                val cached = cache.read(key, serializer)
+                if (cached != null) ApiResult.Success(cached.map { it.toDomain() }) else result
+            }
+            is ApiResult.HttpError -> result
         }
     }
 
-    override suspend fun balanceOf(teamId: Long, userId: Long): ApiResult<Balance> = apiCall {
-        val dto = balanceApi.get(teamId, userId)
-        Balance(
-            userId = dto.userId,
-            userName = listOfNotNull(dto.userLastName, dto.userFirstName).joinToString(" "),
-            amountKopecks = dto.amountKopecks,
-        )
+    override suspend fun balanceOf(teamId: Long, userId: Long): ApiResult<Balance> {
+        val key = "${tokenStore.userId}:team:$teamId:balance:$userId"
+        val serializer = info.prorabka.abik.android.data.dto.BalanceDto.serializer()
+        return when (val result = apiCall { balanceApi.get(teamId, userId) }) {
+            is ApiResult.Success -> {
+                cache.write(key, serializer, result.data)
+                ApiResult.Success(result.data.toDomain())
+            }
+            is ApiResult.NetworkError -> {
+                val cached = cache.read(key, serializer)
+                if (cached != null) return ApiResult.Success(cached.toDomain())
+                val listKey = "${tokenStore.userId}:team:$teamId:balances"
+                val fromList = cache.read(listKey,
+                    kotlinx.serialization.builtins.ListSerializer(serializer))
+                    ?.firstOrNull { it.userId == userId }
+                if (fromList != null) ApiResult.Success(fromList.toDomain()) else result
+            }
+            is ApiResult.HttpError -> result
+        }
     }
 
     override suspend fun adjustBalance(
@@ -178,6 +195,14 @@ class FinanceRepositoryImpl @Inject constructor(
         }
     }
 }
+
+private fun info.prorabka.abik.android.data.dto.BalanceDto.toDomain() = Balance(
+    userId = userId,
+    userName = listOfNotNull(userLastName, userFirstName)
+        .joinToString(" ")
+        .ifBlank { "ID $userId" },
+    amountKopecks = amountKopecks,
+)
 
 private fun info.prorabka.abik.android.data.dto.PaymentDto.toDomain() = Payment(
     id = id, teamId = teamId, userId = userId,

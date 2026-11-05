@@ -61,11 +61,13 @@ class HomeViewModel @Inject constructor(
     }
 
     private suspend fun loadNearestEvent(teamId: Long) {
-        val from = LocalDate.now()
-        val to = from.plusMonths(2)
+        val todayDate = LocalDate.now()
+        // Тот же диапазон, что на экране игр: главная использует его общий кэш.
+        val from = todayDate.withDayOfMonth(1).minusMonths(1)
+        val to = java.time.YearMonth.from(todayDate).plusMonths(1).atEndOfMonth()
         when (val r = eventRepository.events(teamId, from.toString(), to.toString())) {
             is ApiResult.Success -> {
-                val today = from.toString()
+                val today = todayDate.toString()
                 val nearest = r.data
                     .filter { it.dateIso >= today }
                     .sortedWith(compareBy({ it.dateIso }, { it.time }))
