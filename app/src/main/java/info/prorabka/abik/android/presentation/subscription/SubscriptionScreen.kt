@@ -67,9 +67,10 @@ fun SubscriptionScreen(
         return
     }
 
-    // Возврат с деталей участника / форм — перечитать балансы
+    // Первый RESUME не дублирует загрузку из подписки на выбранную команду.
+    // Последующие возвраты с деталей участника / форм перечитывают балансы.
     LifecycleResumeEffect(Unit) {
-        viewModel.reload()
+        viewModel.reloadOnResume()
         onPauseOrDispose { }
     }
 

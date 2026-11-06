@@ -451,18 +451,22 @@ private fun NotificationSettingsCard(
     onSave: (info.prorabka.abik.android.domain.model.NotificationSettings) -> Unit,
 ) {
     var enabled by remember(settings) { mutableStateOf(settings.remindersEnabled) }
-    var count by remember(settings) { mutableStateOf(settings.reminderCount.toString()) }
     val initialLead = remember(settings) { durationParts(settings.leadTimeMinutes) }
-    val initialInterval = remember(settings) { durationParts(settings.intervalMinutes) }
     var leadValue by remember(settings) { mutableStateOf(initialLead.value) }
     var leadUnit by remember(settings) { mutableStateOf(initialLead.unit) }
-    var intervalValue by remember(settings) { mutableStateOf(initialInterval.value) }
-    var intervalUnit by remember(settings) { mutableStateOf(initialInterval.unit) }
     var validationError by remember { mutableStateOf<String?>(null) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Напоминания о событиях", style = MaterialTheme.typography.titleSmall)
+            serverError?.let {
+                Text(
+                    "Не удалось загрузить или сохранить настройки напоминаний: $it",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -475,44 +479,15 @@ private fun NotificationSettingsCard(
                 )
             }
             if (enabled) {
-                info.prorabka.abik.android.core.ui.components.AbikTextField(
-                    value = count,
-                    onValueChange = { count = it.filter(Char::isDigit).take(2) },
-                    label = "Количество напоминаний (1–10)",
-                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
-                )
-                Spacer(Modifier.height(12.dp))
                 ReminderDurationField(
-                    label = "Первое напоминание за",
+                    label = "За какое время до начала напомнить",
                     value = leadValue,
                     unit = leadUnit,
                     onValueChange = { leadValue = it },
                     onUnitChange = { leadUnit = it },
                 )
-                Spacer(Modifier.height(12.dp))
-                if ((count.toIntOrNull() ?: 1) > 1) {
-                    ReminderDurationField(
-                        label = "Интервал между напоминаниями",
-                        value = intervalValue,
-                        unit = intervalUnit,
-                        onValueChange = { intervalValue = it },
-                        onUnitChange = { intervalUnit = it },
-                    )
-                    Spacer(Modifier.height(8.dp))
-                }
-                Text(
-                    "Следующие напоминания приходят ближе к началу через выбранный интервал.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Уведомления о новом начислении и переводе из резерва приходят всегда.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            (validationError ?: serverError)?.let {
+            validationError?.let {
                 Text(
                     it,
                     color = MaterialTheme.colorScheme.error,
@@ -524,32 +499,25 @@ private fun NotificationSettingsCard(
                 onClick = {
                     validationError = null
                     if (!enabled) {
-                        onSave(settings.copy(remindersEnabled = false))
+                        onSave(
+                            settings.copy(
+                                remindersEnabled = false,
+                                reminderCount = 1,
+                                intervalMinutes = 60,
+                            ),
+                        )
                         return@TextButton
                     }
-                    val countNumber = count.toIntOrNull()
-                    val leadNumber = leadValue.toLongOrNull()
-                    val intervalNumber = intervalValue.toLongOrNull()
-                    val leadMinutes = leadNumber?.times(leadUnit.minutes)
-                    val intervalMinutes = intervalNumber?.times(intervalUnit.minutes)
-                    validationError = when {
-                        countNumber == null || countNumber !in 1..10 ->
-                            "Укажите количество от 1 до 10"
-                        leadMinutes == null || leadMinutes !in 1..43200 ->
-                            "Срок первого напоминания должен быть от 1 минуты до 30 дней"
-                        intervalMinutes == null || intervalMinutes !in 1..43200 ->
-                            "Интервал должен быть от 1 минуты до 30 дней"
-                        (countNumber - 1).toLong() * intervalMinutes >= leadMinutes ->
-                            "Последнее напоминание должно быть до начала события"
-                        else -> null
-                    }
-                    if (validationError == null) {
+                    val leadMinutes = leadValue.toLongOrNull()?.times(leadUnit.minutes)
+                    if (leadMinutes == null || leadMinutes !in 1..43200) {
+                        validationError = "Срок напоминания должен быть от 1 минуты до 30 дней"
+                    } else {
                         onSave(
                             info.prorabka.abik.android.domain.model.NotificationSettings(
                                 remindersEnabled = true,
-                                reminderCount = countNumber!!,
-                                leadTimeMinutes = leadMinutes!!.toInt(),
-                                intervalMinutes = intervalMinutes!!.toInt(),
+                                reminderCount = 1,
+                                leadTimeMinutes = leadMinutes.toInt(),
+                                intervalMinutes = 60,
                             ),
                         )
                     }
@@ -557,6 +525,12 @@ private fun NotificationSettingsCard(
                 enabled = !saving,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             ) { Text(if (saving) "Сохранение…" else "Сохранить настройки") }
+            Text(
+                "Уведомления о новом начислении и переводе из резерва приходят всегда.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
         }
     }
 }

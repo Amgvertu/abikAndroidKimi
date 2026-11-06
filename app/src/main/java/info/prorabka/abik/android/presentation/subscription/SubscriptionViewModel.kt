@@ -12,9 +12,11 @@ import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.repository.FinanceRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
 import info.prorabka.abik.android.domain.repository.UserRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -50,21 +52,33 @@ class SubscriptionViewModel @Inject constructor(
     val ui: StateFlow<UiState> = _ui
     private var loadJob: Job? = null
     private var loadingTeamId: Long? = null
+    private var resumeSeen = false
 
     init {
         viewModelScope.launch {
-            teamManager.selected.collect { team ->
-                if (team != null) {
-                    load(team.id)
-                } else {
-                    loadJob?.cancel()
-                    loadingTeamId = null
-                    _ui.update {
-                        it.copy(loading = false, noTeam = true, rows = emptyList(), isManager = false)
+            teamManager.selected
+                .map { it?.id }
+                .distinctUntilChanged()
+                .collect { teamId ->
+                    if (teamId != null) {
+                        load(teamId)
+                    } else {
+                        loadJob?.cancel()
+                        loadingTeamId = null
+                        _ui.update {
+                            it.copy(loading = false, noTeam = true, rows = emptyList(), isManager = false)
+                        }
                     }
                 }
-            }
         }
+    }
+
+    fun reloadOnResume() {
+        if (!resumeSeen) {
+            resumeSeen = true
+            return
+        }
+        reload()
     }
 
     fun reload() {
