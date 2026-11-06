@@ -100,6 +100,10 @@ fun ProfileScreen(
                 onUseLocal = viewModel::useLocalServer,
                 onChangePhone = onChangePhone,
                 onAdmin = onAdmin,
+                notificationSettings = ui.notificationSettings,
+                notificationSettingsSaving = ui.notificationSettingsSaving,
+                notificationSettingsError = ui.notificationSettingsError,
+                onSaveNotificationSettings = viewModel::saveNotificationSettings,
             )
         }
     }
@@ -354,6 +358,10 @@ private fun SettingsTab(
     onUseLocal: () -> Unit,
     onChangePhone: () -> Unit,
     onAdmin: () -> Unit,
+    notificationSettings: info.prorabka.abik.android.domain.model.NotificationSettings,
+    notificationSettingsSaving: Boolean,
+    notificationSettingsError: String?,
+    onSaveNotificationSettings: (info.prorabka.abik.android.domain.model.NotificationSettings) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -386,6 +394,13 @@ private fun SettingsTab(
             }
         }
 
+        NotificationSettingsCard(
+            settings = notificationSettings,
+            saving = notificationSettingsSaving,
+            serverError = notificationSettingsError,
+            onSave = onSaveNotificationSettings,
+        )
+
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Аккаунт", style = MaterialTheme.typography.titleSmall)
@@ -408,6 +423,177 @@ private fun SettingsTab(
                     Text("Сервер (debug)", style = MaterialTheme.typography.titleSmall)
                     TextButton(onClick = onUseRemote) { Text("varamy.online (прод)") }
                     TextButton(onClick = onUseLocal) { Text("192.168.0.119:8083 (локальный)") }
+                }
+            }
+        }
+    }
+}
+
+private enum class ReminderTimeUnit(val minutes: Int, val label: String) {
+    MINUTES(1, "мин."),
+    HOURS(60, "час."),
+    DAYS(1440, "дн."),
+}
+
+private data class DurationParts(val value: String, val unit: ReminderTimeUnit)
+
+private fun durationParts(minutes: Int): DurationParts = when {
+    minutes % 1440 == 0 -> DurationParts((minutes / 1440).toString(), ReminderTimeUnit.DAYS)
+    minutes % 60 == 0 -> DurationParts((minutes / 60).toString(), ReminderTimeUnit.HOURS)
+    else -> DurationParts(minutes.toString(), ReminderTimeUnit.MINUTES)
+}
+
+@Composable
+private fun NotificationSettingsCard(
+    settings: info.prorabka.abik.android.domain.model.NotificationSettings,
+    saving: Boolean,
+    serverError: String?,
+    onSave: (info.prorabka.abik.android.domain.model.NotificationSettings) -> Unit,
+) {
+    var enabled by remember(settings) { mutableStateOf(settings.remindersEnabled) }
+    var count by remember(settings) { mutableStateOf(settings.reminderCount.toString()) }
+    val initialLead = remember(settings) { durationParts(settings.leadTimeMinutes) }
+    val initialInterval = remember(settings) { durationParts(settings.intervalMinutes) }
+    var leadValue by remember(settings) { mutableStateOf(initialLead.value) }
+    var leadUnit by remember(settings) { mutableStateOf(initialLead.unit) }
+    var intervalValue by remember(settings) { mutableStateOf(initialInterval.value) }
+    var intervalUnit by remember(settings) { mutableStateOf(initialInterval.unit) }
+    var validationError by remember { mutableStateOf<String?>(null) }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Напоминания о событиях", style = MaterialTheme.typography.titleSmall)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Напоминать", modifier = Modifier.weight(1f))
+                androidx.compose.material3.Switch(
+                    checked = enabled,
+                    onCheckedChange = { enabled = it },
+                    enabled = !saving,
+                )
+            }
+            if (enabled) {
+                info.prorabka.abik.android.core.ui.components.AbikTextField(
+                    value = count,
+                    onValueChange = { count = it.filter(Char::isDigit).take(2) },
+                    label = "Количество напоминаний (1–10)",
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                )
+                Spacer(Modifier.height(12.dp))
+                ReminderDurationField(
+                    label = "Первое напоминание за",
+                    value = leadValue,
+                    unit = leadUnit,
+                    onValueChange = { leadValue = it },
+                    onUnitChange = { leadUnit = it },
+                )
+                Spacer(Modifier.height(12.dp))
+                if ((count.toIntOrNull() ?: 1) > 1) {
+                    ReminderDurationField(
+                        label = "Интервал между напоминаниями",
+                        value = intervalValue,
+                        unit = intervalUnit,
+                        onValueChange = { intervalValue = it },
+                        onUnitChange = { intervalUnit = it },
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                Text(
+                    "Следующие напоминания приходят ближе к началу через выбранный интервал.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Уведомления о новом начислении и переводе из резерва приходят всегда.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            (validationError ?: serverError)?.let {
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            TextButton(
+                onClick = {
+                    validationError = null
+                    if (!enabled) {
+                        onSave(settings.copy(remindersEnabled = false))
+                        return@TextButton
+                    }
+                    val countNumber = count.toIntOrNull()
+                    val leadNumber = leadValue.toLongOrNull()
+                    val intervalNumber = intervalValue.toLongOrNull()
+                    val leadMinutes = leadNumber?.times(leadUnit.minutes)
+                    val intervalMinutes = intervalNumber?.times(intervalUnit.minutes)
+                    validationError = when {
+                        countNumber == null || countNumber !in 1..10 ->
+                            "Укажите количество от 1 до 10"
+                        leadMinutes == null || leadMinutes !in 1..43200 ->
+                            "Срок первого напоминания должен быть от 1 минуты до 30 дней"
+                        intervalMinutes == null || intervalMinutes !in 1..43200 ->
+                            "Интервал должен быть от 1 минуты до 30 дней"
+                        (countNumber - 1).toLong() * intervalMinutes >= leadMinutes ->
+                            "Последнее напоминание должно быть до начала события"
+                        else -> null
+                    }
+                    if (validationError == null) {
+                        onSave(
+                            info.prorabka.abik.android.domain.model.NotificationSettings(
+                                remindersEnabled = true,
+                                reminderCount = countNumber!!,
+                                leadTimeMinutes = leadMinutes!!.toInt(),
+                                intervalMinutes = intervalMinutes!!.toInt(),
+                            ),
+                        )
+                    }
+                },
+                enabled = !saving,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) { Text(if (saving) "Сохранение…" else "Сохранить настройки") }
+        }
+    }
+}
+
+@Composable
+private fun ReminderDurationField(
+    label: String,
+    value: String,
+    unit: ReminderTimeUnit,
+    onValueChange: (String) -> Unit,
+    onUnitChange: (ReminderTimeUnit) -> Unit,
+) {
+    Text(
+        label,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        info.prorabka.abik.android.core.ui.components.AbikTextField(
+            value = value,
+            onValueChange = { onValueChange(it.filter(Char::isDigit).take(5)) },
+            label = "Время",
+            modifier = Modifier.weight(1f),
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+        )
+        Box {
+            var expanded by remember { mutableStateOf(false) }
+            TextButton(onClick = { expanded = true }) { Text(unit.label) }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                ReminderTimeUnit.entries.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option.label) },
+                        onClick = {
+                            onUnitChange(option)
+                            expanded = false
+                        },
+                    )
                 }
             }
         }

@@ -11,9 +11,11 @@ import info.prorabka.abik.android.core.prefs.SettingsStore
 import info.prorabka.abik.android.core.prefs.ThemeMode
 import info.prorabka.abik.android.core.prefs.TokenStore
 import info.prorabka.abik.android.domain.model.Invitation
+import info.prorabka.abik.android.domain.model.NotificationSettings
 import info.prorabka.abik.android.domain.model.Profile
 import info.prorabka.abik.android.domain.model.TeamMember
 import info.prorabka.abik.android.domain.repository.FileRepository
+import info.prorabka.abik.android.domain.repository.NotificationRepository
 import info.prorabka.abik.android.domain.repository.UserRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +31,7 @@ class ProfileViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val teamRepository: TeamRepository,
     private val fileRepository: FileRepository,
+    private val notificationRepository: NotificationRepository,
     private val teamManager: CurrentTeamManager,
     private val settingsStore: SettingsStore,
     private val tokenStore: TokenStore,
@@ -45,6 +48,9 @@ class ProfileViewModel @Inject constructor(
         val isSuperAdmin: Boolean = false,
         val invitations: List<Invitation> = emptyList(),
         val invitationSaving: Boolean = false,
+        val notificationSettings: NotificationSettings = NotificationSettings(),
+        val notificationSettingsSaving: Boolean = false,
+        val notificationSettingsError: String? = null,
         val error: String? = null,
         val info: String? = null,
     )
@@ -60,6 +66,7 @@ class ProfileViewModel @Inject constructor(
 
     init {
         load()
+        loadNotificationSettings()
         viewModelScope.launch {
             settingsStore.baseUrlOverride.collect { override ->
                 (currentBaseUrl as MutableStateFlow).value =
@@ -107,6 +114,45 @@ class ProfileViewModel @Inject constructor(
                     it.copy(invitations = inv.data.filter { i -> i.status == "PENDING" })
                 }
                 else -> Unit
+            }
+        }
+    }
+
+    private fun loadNotificationSettings() {
+        viewModelScope.launch {
+            when (val result = notificationRepository.settings()) {
+                is ApiResult.Success -> _ui.update {
+                    it.copy(notificationSettings = result.data, notificationSettingsError = null)
+                }
+                is ApiResult.HttpError -> _ui.update { it.copy(notificationSettingsError = result.message) }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(notificationSettingsError = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
+    fun saveNotificationSettings(settings: NotificationSettings) {
+        viewModelScope.launch {
+            _ui.update { it.copy(notificationSettingsSaving = true, notificationSettingsError = null) }
+            when (val result = notificationRepository.saveSettings(settings)) {
+                is ApiResult.Success -> _ui.update {
+                    it.copy(
+                        notificationSettings = result.data,
+                        notificationSettingsSaving = false,
+                        notificationSettingsError = null,
+                        info = "Настройки напоминаний сохранены",
+                    )
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(notificationSettingsSaving = false, notificationSettingsError = result.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(
+                        notificationSettingsSaving = false,
+                        notificationSettingsError = "Нет соединения с сервером",
+                    )
+                }
             }
         }
     }

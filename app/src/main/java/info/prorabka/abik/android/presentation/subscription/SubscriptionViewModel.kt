@@ -14,6 +14,7 @@ import info.prorabka.abik.android.domain.repository.TeamRepository
 import info.prorabka.abik.android.domain.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -47,6 +48,8 @@ class SubscriptionViewModel @Inject constructor(
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
+    private var loadJob: Job? = null
+    private var loadingTeamId: Long? = null
 
     init {
         viewModelScope.launch {
@@ -54,6 +57,8 @@ class SubscriptionViewModel @Inject constructor(
                 if (team != null) {
                     load(team.id)
                 } else {
+                    loadJob?.cancel()
+                    loadingTeamId = null
                     _ui.update {
                         it.copy(loading = false, noTeam = true, rows = emptyList(), isManager = false)
                     }
@@ -67,7 +72,12 @@ class SubscriptionViewModel @Inject constructor(
     }
 
     private fun load(teamId: Long) {
-        viewModelScope.launch {
+        // init (подписка на команду) и LifecycleResumeEffect стартуют вместе.
+        // Повторный вызов для уже загружаемой команды игнорируем.
+        if (loadJob?.isActive == true && loadingTeamId == teamId) return
+        loadJob?.cancel()
+        loadingTeamId = teamId
+        loadJob = viewModelScope.launch {
             _ui.update { it.copy(loading = true, noTeam = false, error = null) }
 
             var role: MemberRole? = null

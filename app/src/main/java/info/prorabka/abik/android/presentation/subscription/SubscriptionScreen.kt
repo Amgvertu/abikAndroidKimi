@@ -73,7 +73,9 @@ fun SubscriptionScreen(
         onPauseOrDispose { }
     }
 
-    if (!ui.loading && !ui.isManager) {
+    // После определения участника не убираем вложенный экран во время refresh:
+    // иначе он уничтожается и создаётся заново — визуально открывается второй раз.
+    if (!ui.isManager) {
         ui.rows.singleOrNull()?.let { own ->
             MemberFinanceScreen(
                 userId = own.userId,

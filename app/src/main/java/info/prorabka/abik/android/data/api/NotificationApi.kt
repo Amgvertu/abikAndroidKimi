@@ -1,9 +1,12 @@
 package info.prorabka.abik.android.data.api
 
 import info.prorabka.abik.android.data.dto.NotificationDto
+import info.prorabka.abik.android.data.dto.NotificationSettingsDto
 import info.prorabka.abik.android.data.dto.UnreadCountResponse
+import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -20,4 +23,10 @@ interface NotificationApi {
 
     @POST("v1/notifications/read-all")
     suspend fun markAllRead(): Map<String, Int>
+
+    @GET("v1/notifications/settings")
+    suspend fun settings(): NotificationSettingsDto
+
+    @PUT("v1/notifications/settings")
+    suspend fun saveSettings(@Body settings: NotificationSettingsDto): NotificationSettingsDto
 }

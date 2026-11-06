@@ -7,7 +7,9 @@ import info.prorabka.abik.android.data.api.DeviceApi
 import info.prorabka.abik.android.data.api.NotificationApi
 import info.prorabka.abik.android.data.dto.DeviceRegisterRequest
 import info.prorabka.abik.android.data.dto.NotificationDto
+import info.prorabka.abik.android.data.dto.NotificationSettingsDto
 import info.prorabka.abik.android.domain.model.AppNotification
+import info.prorabka.abik.android.domain.model.NotificationSettings
 import info.prorabka.abik.android.domain.model.NotificationType
 import info.prorabka.abik.android.domain.repository.DeviceRepository
 import info.prorabka.abik.android.domain.repository.NotificationRepository
@@ -42,6 +44,28 @@ class NotificationRepositoryImpl @Inject constructor(
         api.markAllRead()
         Unit
     }
+
+    override suspend fun settings(): ApiResult<NotificationSettings> = apiCall {
+        api.settings().toDomain()
+    }
+
+    override suspend fun saveSettings(settings: NotificationSettings): ApiResult<NotificationSettings> = apiCall {
+        api.saveSettings(
+            NotificationSettingsDto(
+                remindersEnabled = settings.remindersEnabled,
+                reminderCount = settings.reminderCount,
+                leadTimeMinutes = settings.leadTimeMinutes,
+                intervalMinutes = settings.intervalMinutes,
+            ),
+        ).toDomain()
+    }
+
+    private fun NotificationSettingsDto.toDomain() = NotificationSettings(
+        remindersEnabled = remindersEnabled,
+        reminderCount = reminderCount,
+        leadTimeMinutes = leadTimeMinutes,
+        intervalMinutes = intervalMinutes,
+    )
 
     private fun NotificationDto.toDomain() = AppNotification(
         id = id,

@@ -19,6 +19,13 @@ enum class NotificationType {
     UNKNOWN,
 }
 
+data class NotificationSettings(
+    val remindersEnabled: Boolean = true,
+    val reminderCount: Int = 1,
+    val leadTimeMinutes: Int = 1440,
+    val intervalMinutes: Int = 60,
+)
+
 data class AppNotification(
     val id: Long,
     val type: NotificationType,

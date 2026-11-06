@@ -61,7 +61,8 @@ class EventFormViewModel @Inject constructor(
         val weekdays: Set<Int> = emptySet(),
         val untilDateIso: String? = null,
         val isGameTraining: Boolean = false,
-        // Регулярка / Двухсторонка
+        // Резерв для всех типов событий; без резерва лимит не отправляется.
+        val reserveEnabled: Boolean = true,
         val requiredPlayers: String = "",
         val chargeMode: EventChargeMode = EventChargeMode.NONE,
         val chargeAmountRub: String = "",
@@ -187,6 +188,7 @@ class EventFormViewModel @Inject constructor(
                             seriesId = e.seriesId,
                             isGameTraining = e.section == EventSection.TRAINING &&
                                 e.type == EventType.GAME,
+                            reserveEnabled = e.requiredPlayers != null && e.requiredPlayers > 0,
                             requiredPlayers = e.requiredPlayers?.toString().orEmpty(),
                             chargeMode = e.chargeMode,
                             chargeAmountRub = e.chargeAmountKopecks
@@ -237,6 +239,7 @@ class EventFormViewModel @Inject constructor(
     fun setPlace(v: String) = _ui.update { it.copy(place = v) }
     fun setNote(v: String) = _ui.update { it.copy(note = v) }
     fun setUntilDate(date: LocalDate) = _ui.update { it.copy(untilDateIso = date.toString()) }
+    fun setReserveEnabled(v: Boolean) = _ui.update { it.copy(reserveEnabled = v) }
     fun setRequiredPlayers(v: String) = _ui.update {
         it.copy(requiredPlayers = v.filter { c -> c.isDigit() }.take(3))
     }
@@ -321,6 +324,8 @@ class EventFormViewModel @Inject constructor(
             s.placeRequired && s.place.isBlank() -> "Введите место"
             date == null -> "Некорректная дата"
             !timeOk -> "Время в формате ЧЧ:ММ (например, 21:30)"
+            s.reserveEnabled && (s.requiredPlayers.toIntOrNull() ?: 0) <= 0 ->
+                "Укажите требуемое количество полевых игроков или отключите резерв"
             s.repeatWeekly && s.section == EventSection.TRAINING && s.weekdays.isEmpty() ->
                 "Выберите дни недели для повторения"
             s.repeatWeekly && s.section == EventSection.TRAINING && until == null ->
@@ -371,7 +376,7 @@ class EventFormViewModel @Inject constructor(
             } else {
                 null
             },
-            requiredPlayers = s.requiredPlayers.toIntOrNull(),
+            requiredPlayers = if (s.reserveEnabled) s.requiredPlayers.toIntOrNull() else null,
             chargeMode = effectiveMode,
             chargeAmountKopecks = if (effectiveMode == EventChargeMode.MANUAL) {
                 amountRub?.times(100)

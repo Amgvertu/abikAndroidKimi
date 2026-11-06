@@ -227,16 +227,29 @@ fun EventFormScreen(
                     }
                 }
 
-                // --- Регулярка / Двухсторонка: игроки и начисление ---
-                if (ui.section != EventSection.TRAINING) {
-                    Spacer(Modifier.height(12.dp))
+                // --- Резерв: при отключении лимит скрыт и не отправляется ---
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Использовать резерв", modifier = Modifier.weight(1f))
+                    androidx.compose.material3.Switch(
+                        checked = ui.reserveEnabled,
+                        onCheckedChange = viewModel::setReserveEnabled,
+                    )
+                }
+                if (ui.reserveEnabled) {
                     AbikTextField(
                         value = ui.requiredPlayers,
                         onValueChange = viewModel::setRequiredPlayers,
-                        label = "Требуемое кол-во игроков (необязательно)",
+                        label = "Требуемое количество полевых игроков",
                         keyboardType = KeyboardType.Number,
                     )
+                }
 
+                // --- Регулярка / Двухсторонка: начисление ---
+                if (ui.section != EventSection.TRAINING) {
                     Spacer(Modifier.height(16.dp))
                     Text(
                         "Начисление за игру",

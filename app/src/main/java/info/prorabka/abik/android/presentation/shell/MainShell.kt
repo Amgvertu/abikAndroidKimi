@@ -92,7 +92,10 @@ fun MainShell(
     val roleKey = if (ui.myIsTrainer) "TRAINER" else ui.myRole?.name ?: "MEMBER"
     val currentGuideKey = "${currentRoute ?: MainTab.HOME.route}:$roleKey"
     val visibleGuideKey = guideUi.forcedKey ?: currentGuideKey.takeIf {
-        ui.selected != null && guideUi.loaded && it !in guideUi.completed
+        // Не показываем подсказку с временным route/ролью: после их загрузки
+        // правильный ключ мог уже быть завершён, отсюда мелькание диалога.
+        currentRoute != null && ui.selected != null && ui.myRole != null &&
+            guideUi.loaded && it !in guideUi.completed
     }
 
     // Возврат с форм (платёж/начисление/профиль) — обновить балансы и бейдж

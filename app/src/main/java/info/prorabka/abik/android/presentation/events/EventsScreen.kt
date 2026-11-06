@@ -60,6 +60,8 @@ import info.prorabka.abik.android.core.ui.components.NoTeamPlaceholder
 import info.prorabka.abik.android.domain.model.EventListItem
 import info.prorabka.abik.android.domain.model.EventSection
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.YearMonth
 
 private val MONTH_NAMES = listOf(
@@ -78,6 +80,23 @@ private val TRAINING_SECONDARY = Color(0xFF1E88E5)
 private val TRAINING_DOMINANT = Color(0xFF43A047)
 private val REGULAR_COLOR = Color(0xFFFB8C00)
 private val SCRIMMAGE_COLOR = Color(0xFFFDD835)
+private val FINISHED_EVENT_COLOR = Color(0xFF9E9E9E)
+
+/** Яркие цвета остаются у будущих событий, завершённые обводятся серым. */
+private fun calendarMarkerColor(
+    event: EventListItem,
+    dominantTrainingTimes: Set<String>,
+    now: LocalDateTime = LocalDateTime.now(),
+): Color {
+    val startsAt = runCatching {
+        LocalDateTime.of(LocalDate.parse(event.dateIso), LocalTime.parse(event.time))
+    }.getOrNull()
+    return if (startsAt != null && !startsAt.isAfter(now)) {
+        FINISHED_EVENT_COLOR
+    } else {
+        markerColor(event, dominantTrainingTimes)
+    }
+}
 
 /** Единые цвета событий в календаре и карточках. */
 fun markerColor(event: EventListItem, dominantTrainingTimes: Set<String> = emptySet()): Color =
@@ -155,7 +174,8 @@ fun EventsScreen(
                     month = ui.month,
                     selectedDate = ui.selectedDate,
                     dayMarkers = ui.dayMarkerEvents.mapValues { (_, events) ->
-                        events.map { markerColor(it, ui.dominantTrainingTimes) }.distinct().take(4)
+                        events.map { calendarMarkerColor(it, ui.dominantTrainingTimes) }
+                            .distinct().take(4)
                     },
                     eventsByDate = ui.dayMarkerEvents,
                     // Все активные участники команды могут открыть голосование

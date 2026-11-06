@@ -20,6 +20,14 @@ data class NotificationDto(
 data class UnreadCountResponse(val count: Long)
 
 @Serializable
+data class NotificationSettingsDto(
+    val remindersEnabled: Boolean = true,
+    val reminderCount: Int = 1,
+    val leadTimeMinutes: Int = 1440,
+    val intervalMinutes: Int = 60,
+)
+
+@Serializable
 data class DeviceRegisterRequest(
     val token: String,
     val platform: String,
