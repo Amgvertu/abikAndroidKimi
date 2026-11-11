@@ -45,6 +45,7 @@ class SubscriptionViewModel @Inject constructor(
         val noTeam: Boolean = false,
         val rows: List<MemberBalance> = emptyList(),
         val isManager: Boolean = false,
+        val isOwner: Boolean = false,
         val error: String? = null,
     )
 
@@ -121,6 +122,7 @@ class SubscriptionViewModel @Inject constructor(
                 it.copy(
                     loading = false,
                     isManager = isManager,
+                    isOwner = role == MemberRole.OWNER,
                     rows = members
                         .filter { m -> isManager || m.userId == myUserId }
                         .sortedBy { m -> m.displayName }

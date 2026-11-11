@@ -89,6 +89,21 @@ fun SubscriptionScreen(
         }
     }
 
+    var ownerTab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    if (ui.isOwner && ownerTab != 0) {
+        Column(Modifier.fillMaxSize()) {
+            OwnerSubscriptionTabs(selectedTab = ownerTab, onSelect = { ownerTab = it })
+            Box(Modifier.weight(1f)) {
+                when (ownerTab) {
+                    1 -> info.prorabka.abik.android.presentation.expenses.ExpensesScreen(embedded = true)
+                    2 -> TeamPaymentsScreen()
+                    else -> TeamBalanceScreen()
+                }
+            }
+        }
+        return
+    }
+
     Scaffold(
         floatingActionButton = {
             if (ui.isManager) {
@@ -98,38 +113,59 @@ fun SubscriptionScreen(
             }
         },
     ) { padding ->
-        if (ui.loading) {
-            LoadingBox(Modifier.padding(padding))
-            return@Scaffold
-        }
-        AbikPullToRefresh(
-            loading = ui.loading,
-            onRefresh = viewModel::reload,
-            modifier = Modifier.padding(padding),
-        ) {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                // Ошибка сети не должна выглядеть как «нет данных»
-                ui.error?.let { message ->
-                    item(key = "error") {
-                        Text(
-                            text = message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(16.dp),
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            if (ui.isOwner) {
+                OwnerSubscriptionTabs(selectedTab = ownerTab, onSelect = { ownerTab = it })
+            }
+            if (ui.loading) {
+                LoadingBox()
+                return@Scaffold
+            }
+            AbikPullToRefresh(
+                loading = ui.loading,
+                onRefresh = viewModel::reload,
+            ) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    // Ошибка сети не должна выглядеть как «нет данных»
+                    ui.error?.let { message ->
+                        item(key = "error") {
+                            Text(
+                                text = message,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(16.dp),
+                            )
+                        }
+                    }
+                    items(ui.rows, key = { it.userId }) { row ->
+                        MemberBalanceRow(
+                            row = row,
+                            isManager = ui.isManager,
+                            onClick = { onMemberClick(row.userId) },
+                            onPayment = { onAddPayment(row.userId) },
+                            onCharge = { onAddCharge(row.userId) },
                         )
+                        HorizontalDivider()
                     }
                 }
-                items(ui.rows, key = { it.userId }) { row ->
-                    MemberBalanceRow(
-                        row = row,
-                        isManager = ui.isManager,
-                        onClick = { onMemberClick(row.userId) },
-                        onPayment = { onAddPayment(row.userId) },
-                        onCharge = { onAddCharge(row.userId) },
-                    )
-                    HorizontalDivider()
-                }
             }
+        }
+    }
+}
+
+@Composable
+private fun OwnerSubscriptionTabs(selectedTab: Int, onSelect: (Int) -> Unit) {
+    val titles = listOf("Абонемент", "Расходы", "Поступления", "Баланс")
+    androidx.compose.material3.ScrollableTabRow(
+        selectedTabIndex = selectedTab,
+        edgePadding = 0.dp,
+    ) {
+        titles.forEachIndexed { index, title ->
+            androidx.compose.material3.Tab(
+                selected = selectedTab == index,
+                onClick = { onSelect(index) },
+                text = { Text(title, maxLines = 1) },
+            )
         }
     }
 }

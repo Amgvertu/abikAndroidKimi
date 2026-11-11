@@ -130,6 +130,7 @@ fun MainShell(
                     }
                     ShellMenu(
                         isManager = ui.isManager,
+                        isOwner = ui.myRole == info.prorabka.abik.android.domain.model.MemberRole.OWNER,
                         onReports = { rootNavController.navigate(Routes.REPORTS) },
                         onTemplates = { rootNavController.navigate(Routes.CHARGE_TEMPLATES) },
                         onLists = { rootNavController.navigate(Routes.CHARGE_LISTS) },
@@ -326,6 +327,7 @@ private fun BalanceChip(balanceKopecks: Long) {
 @Composable
 private fun ShellMenu(
     isManager: Boolean,
+    isOwner: Boolean,
     onReports: () -> Unit,
     onTemplates: () -> Unit,
     onLists: () -> Unit,
@@ -362,13 +364,15 @@ private fun ShellMenu(
                         onLists()
                     },
                 )
-                DropdownMenuItem(
-                    text = { Text("Расходы") },
-                    onClick = {
-                        expanded = false
-                        onExpenses()
-                    },
-                )
+                if (!isOwner) {
+                    DropdownMenuItem(
+                        text = { Text("Расходы") },
+                        onClick = {
+                            expanded = false
+                            onExpenses()
+                        },
+                    )
+                }
             }
             DropdownMenuItem(
                 text = { Text("Справка") },

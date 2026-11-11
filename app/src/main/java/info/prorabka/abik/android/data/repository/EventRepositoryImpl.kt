@@ -65,6 +65,19 @@ class EventRepositoryImpl @Inject constructor(
                 votesYesTrainers = dto.votesYesTrainers,
                 votesYesReserve = dto.votesYesReserve,
                 myInReserve = dto.myInReserve,
+                votesUnanswered = dto.votesUnanswered,
+                lineup = dto.lineup.map { slot ->
+                    LineupSlot(
+                        lineNumber = slot.lineNumber,
+                        slotNumber = slot.slotNumber,
+                        role = runCatching { LineupRole.valueOf(slot.role) }
+                            .getOrDefault(LineupRole.FORWARD),
+                        userId = slot.userId,
+                    )
+                },
+                lineupNames = dto.lineup.mapNotNull { slot ->
+                    slot.fullName?.let { slot.userId to it }
+                }.toMap(),
             )
         }
         return when (val result = apiCall { api.list(teamId, fromIso, toIso) }) {

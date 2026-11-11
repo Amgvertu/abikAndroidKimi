@@ -62,6 +62,16 @@ class ReportRepositoryImpl @Inject constructor(
         api.exportCharges(teamId, userId, groupId, status, dateFromIso, dateToIso)
     }
 
+    override suspend fun exportExpenses(
+        teamId: Long,
+        dateFromIso: String?,
+        dateToIso: String?,
+    ): ApiResult<File> = download(
+        "abik_expenses_${teamId}_${dateFromIso ?: "start"}_${dateToIso ?: "end"}.xlsx",
+    ) {
+        api.exportExpenses(teamId, dateFromIso, dateToIso)
+    }
+
     override suspend fun exportMembers(teamId: Long): ApiResult<File> = download(
         "abik_members_${teamId}.xlsx",
     ) {

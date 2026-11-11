@@ -24,6 +24,17 @@ data class EventListItemDto(
     val votesYesTrainers: Int = 0,
     val votesYesReserve: Int? = null,
     val myInReserve: Boolean? = null,
+    val votesUnanswered: Long = 0,
+    val lineup: List<EventListLineupSlotDto> = emptyList(),
+)
+
+@Serializable
+data class EventListLineupSlotDto(
+    val lineNumber: Int? = null,
+    val slotNumber: Int,
+    val role: String,
+    val userId: Long,
+    val fullName: String? = null,
 )
 
 @Serializable

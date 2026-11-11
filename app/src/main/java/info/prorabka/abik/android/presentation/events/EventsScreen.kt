@@ -346,14 +346,26 @@ fun EventCard(event: EventListItem, accentColor: Color? = null, onClick: () -> U
                     )
                 }
             }
-            // Счётчики проголосовавших «Иду» по амплуа (приходят с сервера).
-            Text(
-                "В: ${event.votesYesGoalies}  З: ${event.votesYesDefenders}  " +
-                    "Н: ${event.votesYesForwards}  Т: ${event.votesYesTrainers}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp),
-            )
+            // Полные подписи вместо сокращений; непроголосовавшие считаются
+            // среди активной команды или выбранного списка события.
+            Column(Modifier.padding(top = 4.dp)) {
+                Text("Вратари: ${event.votesYesGoalies}", style = MaterialTheme.typography.bodySmall)
+                Text("Защитники: ${event.votesYesDefenders}", style = MaterialTheme.typography.bodySmall)
+                Text("Нападающие: ${event.votesYesForwards}", style = MaterialTheme.typography.bodySmall)
+                Text("Тренер: ${event.votesYesTrainers}", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "Не проголосовали: ${event.votesUnanswered}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (event.lineup.isNotEmpty()) {
+                CompactLineup(
+                    slots = event.lineup,
+                    names = event.lineupNames,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
         }
     }
 }

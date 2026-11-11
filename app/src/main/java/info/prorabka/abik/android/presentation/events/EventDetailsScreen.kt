@@ -2,6 +2,7 @@ package info.prorabka.abik.android.presentation.events
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -375,7 +376,19 @@ private fun EventContent(
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
-                if (answer == VoteAnswer.YES) MainVotersView(event, main) else VoterGroup(main)
+                if (answer == VoteAnswer.YES) {
+                    MainVotersView(
+                        event = event,
+                        voters = main,
+                        onLongClick = when {
+                            event.type == EventType.TRAINING && canEditSweaters -> onEditSweaters
+                            event.type != EventType.TRAINING && canEditLineup -> onEditLineup
+                            else -> null
+                        },
+                    )
+                } else {
+                    VoterGroup(main)
+                }
                 if (reserve.isNotEmpty()) {
                     Spacer(Modifier.height(12.dp))
                     Text(
@@ -403,39 +416,51 @@ private fun EventContent(
 }
 
 /** Основной состав: цвета на тренировке, звенья в игре, тренеры отдельно. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun MainVotersView(event: EventDetail, voters: List<EventVoter>) {
+private fun MainVotersView(
+    event: EventDetail,
+    voters: List<EventVoter>,
+    onLongClick: (() -> Unit)? = null,
+) {
     val trainers = voters.filter { it.isTrainer }
     val players = voters.filter { !it.isTrainer }
-    when {
-        event.type == EventType.TRAINING && players.any { it.sweaterColor != null } -> {
-            TrainingColorColumns(players)
-        }
-        event.type == EventType.TRAINING -> VoterGroup(players)
-        !event.lineup.isNullOrEmpty() -> {
-            LineupView(event)
-            val assigned = event.lineup.orEmpty().mapTo(mutableSetOf()) { it.userId }
-            val unassigned = players.filter { it.userId !in assigned }
-            if (unassigned.isNotEmpty()) {
-                Text(
-                    "Не распределены (${unassigned.size})",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                VoterGroup(unassigned)
-            }
-        }
-        else -> VoterGroup(players)
+    val clickableModifier = if (onLongClick == null) {
+        Modifier
+    } else {
+        Modifier.combinedClickable(onClick = {}, onLongClick = onLongClick)
     }
-    if (trainers.isNotEmpty()) {
-        Text(
-            "Тренеры (${trainers.size})",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-        VoterGroup(trainers)
+    Column(Modifier.fillMaxWidth().then(clickableModifier)) {
+        when {
+            event.type == EventType.TRAINING && players.any { it.sweaterColor != null } -> {
+                TrainingColorColumns(players)
+            }
+            event.type == EventType.TRAINING -> VoterGroup(players)
+            !event.lineup.isNullOrEmpty() -> {
+                LineupView(event)
+                val assigned = event.lineup.orEmpty().mapTo(mutableSetOf()) { it.userId }
+                val unassigned = players.filter { it.userId !in assigned }
+                if (unassigned.isNotEmpty()) {
+                    Text(
+                        "Не распределены (${unassigned.size})",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    VoterGroup(unassigned)
+                }
+            }
+            else -> VoterGroup(players)
+        }
+        if (trainers.isNotEmpty()) {
+            Text(
+                "Тренеры (${trainers.size})",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            VoterGroup(trainers)
+        }
     }
 }
 
@@ -519,61 +544,30 @@ fun SweaterDot(color: SweaterColor) {
     )
 }
 
-/** Звенья (просмотр): вратарь и звенья. */
+/** Звенья (просмотр): та же компактная схема, что и в списке событий. */
 @Composable
 private fun LineupView(event: EventDetail) {
     val names = event.voters.associate { it.userId to shortPlayerName(it.fullName) }
     val slots = event.lineup ?: return
+    val lineColors = if (event.section == EventSection.SCRIMMAGE) {
+        slots.filter { it.role != LineupRole.GOALKEEPER }
+            .groupBy { it.lineNumber ?: 0 }
+            .mapNotNull { (lineNumber, lineSlots) ->
+                lineSlots.firstNotNullOfOrNull { slot ->
+                    event.voters.firstOrNull { it.userId == slot.userId }
+                        ?.sweaterColor.supportedColor()
+                }?.let { lineNumber to it }
+            }.toMap()
+    } else {
+        emptyMap()
+    }
     Card(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-        Column(Modifier.padding(12.dp)) {
-            slots.filter { it.role == LineupRole.GOALKEEPER }.forEach { slot ->
-                Text(
-                    "Вратарь: ${names[slot.userId] ?: "user#${slot.userId}"}",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            val lines = slots.filter { it.role != LineupRole.GOALKEEPER }
-                .groupBy { it.lineNumber ?: 0 }
-                .toSortedMap()
-            lines.forEach { (lineNumber, lineSlots) ->
-                Spacer(Modifier.height(6.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(6.dp))
-                val lineColor = if (event.section == EventSection.SCRIMMAGE) {
-                    lineSlots.firstNotNullOfOrNull { slot ->
-                        event.voters.firstOrNull { it.userId == slot.userId }
-                            ?.sweaterColor.supportedColor()
-                    }
-                } else {
-                    null
-                }
-                Text(
-                    "Звено $lineNumber" + lineColor?.let { " (${it.display})" }.orEmpty(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                val defenders = lineSlots.filter { it.role == LineupRole.DEFENDER }
-                    .sortedBy { it.slotNumber }
-                val forwards = lineSlots.filter { it.role == LineupRole.FORWARD }
-                    .sortedBy { it.slotNumber }
-                if (forwards.isNotEmpty()) {
-                    Text(
-                        "Н: " + forwards.joinToString(", ") {
-                            names[it.userId] ?: "user#${it.userId}"
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                if (defenders.isNotEmpty()) {
-                    Text(
-                        "З: " + defenders.joinToString(", ") {
-                            names[it.userId] ?: "user#${it.userId}"
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-            }
-        }
+        CompactLineup(
+            slots = slots,
+            names = names,
+            lineColors = lineColors,
+            modifier = Modifier.padding(12.dp),
+        )
     }
 }
 
@@ -600,7 +594,7 @@ private fun SweatersDialog(
     val options = remember {
         listOf<Pair<SweaterColor?, String>>(
             SweaterColor.BLACK to "Чёрные",
-            null to "Не распределены",
+            null to "",
             SweaterColor.WHITE to "Белые",
         )
     }
@@ -668,6 +662,7 @@ private fun SweatersDialog(
                                             enabled = drag == null,
                                         )
                                         .padding(4.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
                                 ) {
                                     ColorColumnTitle(title, color)
                                     groupedVoters(columnVoters).forEach { (group, members) ->
@@ -675,7 +670,9 @@ private fun SweatersDialog(
                                             group,
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(top = 6.dp, bottom = 2.dp),
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.fillMaxWidth()
+                                                .padding(top = 6.dp, bottom = 2.dp),
                                         )
                                         members.forEach { voter ->
                                             SweaterChip(
@@ -744,7 +741,7 @@ private fun SweaterColor?.supportedColor(): SweaterColor? = when (this) {
 private fun TrainingColorColumns(voters: List<EventVoter>) {
     val options = listOf<Pair<SweaterColor?, String>>(
         SweaterColor.BLACK to "Чёрные",
-        null to "Не распределены",
+        null to "",
         SweaterColor.WHITE to "Белые",
     )
     Card(Modifier.fillMaxWidth().padding(top = 4.dp)) {
@@ -753,7 +750,10 @@ private fun TrainingColorColumns(voters: List<EventVoter>) {
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             options.forEach { (color, title) ->
-                Column(Modifier.weight(1f)) {
+                Column(
+                    Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
                     ColorColumnTitle(title, color)
                     groupedVoters(voters.filter { it.sweaterColor.supportedColor() == color })
                         .forEach { (group, members) ->
@@ -761,14 +761,16 @@ private fun TrainingColorColumns(voters: List<EventVoter>) {
                                 group,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 5.dp),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
                             )
                             members.forEach {
                                 Text(
                                     shortPlayerName(it.fullName),
                                     style = MaterialTheme.typography.bodySmall,
                                     maxLines = 3,
-                                    modifier = Modifier.padding(start = 3.dp, top = 2.dp),
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                                 )
                             }
                         }
@@ -780,12 +782,21 @@ private fun TrainingColorColumns(voters: List<EventVoter>) {
 
 @Composable
 private fun ColorColumnTitle(title: String, color: SweaterColor?) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         if (color != null) {
             SweaterDot(color)
             Spacer(Modifier.size(3.dp))
         }
-        Text(title, style = MaterialTheme.typography.labelSmall, maxLines = 2)
+        Text(
+            title,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 2,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

@@ -29,6 +29,14 @@ interface ReportApi {
     ): Response<ResponseBody>
 
     @Streaming
+    @GET("v1/teams/{teamId}/expenses/export")
+    suspend fun exportExpenses(
+        @Path("teamId") teamId: Long,
+        @Query("dateFrom") dateFrom: String? = null,
+        @Query("dateTo") dateTo: String? = null,
+    ): Response<ResponseBody>
+
+    @Streaming
     @GET("v1/teams/{teamId}/reports/members/export")
     suspend fun exportMembers(@Path("teamId") teamId: Long): Response<ResponseBody>
 

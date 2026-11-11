@@ -19,6 +19,13 @@ interface ReportRepository {
         dateToIso: String?,
     ): ApiResult<File>
 
+    /** Скачать Excel расходов за выбранный месяц или произвольный период. */
+    suspend fun exportExpenses(
+        teamId: Long,
+        dateFromIso: String?,
+        dateToIso: String?,
+    ): ApiResult<File>
+
     /** Скачать Excel сводки по участникам в кэш; вернуть файл. */
     suspend fun exportMembers(teamId: Long): ApiResult<File>
 

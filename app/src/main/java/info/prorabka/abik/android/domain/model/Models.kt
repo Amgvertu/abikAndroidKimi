@@ -255,6 +255,11 @@ data class EventListItem(
     val votesYesReserve: Int? = null,
     /** true — я проголосовал «Иду», но попал в резерв. */
     val myInReserve: Boolean? = null,
+    /** Активные участники команды или списка события, которые ещё не ответили. */
+    val votesUnanswered: Long = 0,
+    /** Звенья для компактного отображения прямо в списке событий. */
+    val lineup: List<LineupSlot> = emptyList(),
+    val lineupNames: Map<Long, String> = emptyMap(),
 )
 
 data class EventVoter(

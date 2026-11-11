@@ -40,30 +40,50 @@ private val expenseCategories = linkedMapOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExpensesScreen(
-    onBack: () -> Unit,
+    onBack: () -> Unit = {},
+    embedded: Boolean = false,
     viewModel: ExpensesViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
     info.prorabka.abik.android.presentation.guide.ScreenGuide("expenses")
     info.prorabka.abik.android.core.ui.RealtimeRefresh { viewModel.load() }
     var editor by remember { mutableStateOf<TeamExpense?>(null) }
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<TeamExpense?>(null) }
 
+    LaunchedEffect(ui.exportedFile) {
+        ui.exportedFile?.let { file ->
+            info.prorabka.abik.android.presentation.reports.shareXlsx(context, file)
+            viewModel.consumeExportedFile()
+        }
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Расходы") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
-                    }
-                },
-            )
+            if (!embedded) {
+                TopAppBar(
+                    title = { Text("Расходы") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                        }
+                    },
+                    actions = {
+                        if (ui.isOwner) {
+                            TextButton(onClick = viewModel::export, enabled = !ui.exporting) {
+                                Text(if (ui.exporting) "Экспорт…" else "Excel")
+                            }
+                        }
+                    },
+                )
+            }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { creating = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Добавить расход")
+            if (ui.canEdit) {
+                FloatingActionButton(onClick = { creating = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "Добавить расход")
+                }
             }
         },
     ) { padding ->
@@ -80,47 +100,33 @@ fun ExpensesScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     item {
-                        Card(Modifier.fillMaxWidth()) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                        info.prorabka.abik.android.presentation.finance.FinancePeriodCard(
+                            selectedMonth = ui.selectedMonth,
+                            periodFrom = ui.periodFrom,
+                            periodTo = ui.periodTo,
+                            amountKopecks = ui.total,
+                            onPreviousMonth = viewModel::previousMonth,
+                            onNextMonth = viewModel::nextMonth,
+                            onPeriodSelected = viewModel::setPeriod,
+                            onResetPeriod = viewModel::resetPeriod,
+                        )
+                    }
+                    if (embedded && ui.isOwner) {
+                        item {
+                            TextButton(
+                                onClick = viewModel::export,
+                                enabled = !ui.exporting,
+                                modifier = Modifier.fillMaxWidth(),
                             ) {
-                                IconButton(onClick = viewModel::previousMonth) {
-                                    Icon(
-                                        Icons.Default.KeyboardArrowLeft,
-                                        contentDescription = "Предыдущий месяц",
-                                    )
-                                }
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                ) {
-                                    Text(
-                                        ui.selectedMonth.format(
-                                            DateTimeFormatter.ofPattern("LLLL yyyy", Locale("ru")),
-                                        ).replaceFirstChar { it.uppercase() },
-                                        style = MaterialTheme.typography.labelLarge,
-                                    )
-                                    Text(
-                                        ui.total.kopecksToRubles(),
-                                        style = MaterialTheme.typography.headlineSmall,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                }
-                                IconButton(onClick = viewModel::nextMonth) {
-                                    Icon(
-                                        Icons.Default.KeyboardArrowRight,
-                                        contentDescription = "Следующий месяц",
-                                    )
-                                }
+                                Text(if (ui.exporting) "Формирование Excel…" else "Выгрузить расходы в Excel")
                             }
                         }
                     }
                     item { ErrorText(ui.error) }
-                    if (ui.monthExpenses.isEmpty() && !ui.loading) {
-                        item { EmptyState("В этом месяце расходов нет") }
+                    if (ui.filteredExpenses.isEmpty() && !ui.loading) {
+                        item { EmptyState("За выбранный период расходов нет") }
                     }
-                    items(ui.monthExpenses, key = { it.id }) { expense ->
+                    items(ui.filteredExpenses, key = { it.id }) { expense ->
                         Card(Modifier.fillMaxWidth()) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),

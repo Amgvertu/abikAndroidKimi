@@ -321,7 +321,7 @@ private fun FilterDropdown(
     }
 }
 
-private fun shareXlsx(context: android.content.Context, file: File) {
+fun shareXlsx(context: android.content.Context, file: File) {
     val uri = FileProvider.getUriForFile(
         context,
         "${BuildConfig.APPLICATION_ID}.fileprovider",
