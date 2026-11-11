@@ -75,6 +75,11 @@ fun MemberFinanceScreen(
     }
 
     Scaffold(
+        contentWindowInsets = if (showTopBar) {
+            androidx.compose.material3.ScaffoldDefaults.contentWindowInsets
+        } else {
+            androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0)
+        },
         topBar = {
             if (showTopBar) {
                 TopAppBar(

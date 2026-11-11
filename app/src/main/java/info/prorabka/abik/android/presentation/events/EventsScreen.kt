@@ -359,13 +359,6 @@ fun EventCard(event: EventListItem, accentColor: Color? = null, onClick: () -> U
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (event.lineup.isNotEmpty()) {
-                CompactLineup(
-                    slots = event.lineup,
-                    names = event.lineupNames,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
         }
     }
 }

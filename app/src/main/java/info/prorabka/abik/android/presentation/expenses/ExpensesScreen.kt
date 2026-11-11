@@ -60,6 +60,11 @@ fun ExpensesScreen(
     }
 
     Scaffold(
+        contentWindowInsets = if (embedded) {
+            androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0)
+        } else {
+            ScaffoldDefaults.contentWindowInsets
+        },
         topBar = {
             if (!embedded) {
                 TopAppBar(

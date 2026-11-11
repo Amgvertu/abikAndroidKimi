@@ -105,6 +105,8 @@ fun SubscriptionScreen(
     }
 
     Scaffold(
+        // Верхний и нижний системные отступы уже применены в MainShell.
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         floatingActionButton = {
             if (ui.isManager) {
                 FloatingActionButton(onClick = { onAddCharge(-1L) }) {
