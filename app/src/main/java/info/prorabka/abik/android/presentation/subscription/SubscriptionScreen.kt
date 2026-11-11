@@ -119,33 +119,33 @@ fun SubscriptionScreen(
             }
             if (ui.loading) {
                 LoadingBox()
-                return@Scaffold
-            }
-            AbikPullToRefresh(
-                loading = ui.loading,
-                onRefresh = viewModel::reload,
-            ) {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    // Ошибка сети не должна выглядеть как «нет данных»
-                    ui.error?.let { message ->
-                        item(key = "error") {
-                            Text(
-                                text = message,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(16.dp),
-                            )
+            } else {
+                AbikPullToRefresh(
+                    loading = false,
+                    onRefresh = viewModel::reload,
+                ) {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        // Ошибка сети не должна выглядеть как «нет данных»
+                        ui.error?.let { message ->
+                            item(key = "error") {
+                                Text(
+                                    text = message,
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(16.dp),
+                                )
+                            }
                         }
-                    }
-                    items(ui.rows, key = { it.userId }) { row ->
-                        MemberBalanceRow(
-                            row = row,
-                            isManager = ui.isManager,
-                            onClick = { onMemberClick(row.userId) },
-                            onPayment = { onAddPayment(row.userId) },
-                            onCharge = { onAddCharge(row.userId) },
-                        )
-                        HorizontalDivider()
+                        items(ui.rows, key = { it.userId }) { row ->
+                            MemberBalanceRow(
+                                row = row,
+                                isManager = ui.isManager,
+                                onClick = { onMemberClick(row.userId) },
+                                onPayment = { onAddPayment(row.userId) },
+                                onCharge = { onAddCharge(row.userId) },
+                            )
+                            HorizontalDivider()
+                        }
                     }
                 }
             }
