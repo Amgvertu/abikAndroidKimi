@@ -65,17 +65,19 @@ class ListsViewModel @Inject constructor(
     /** Создать или обновить список (listId == null — создание). */
     fun save(listId: Long?, name: String, memberIds: Set<Long>, onDone: () -> Unit) {
         val teamId = teamManager.selected.value?.id ?: return
+        val activeIds = _ui.value.members.map { it.userId }.toSet()
+        val cleanedMemberIds = memberIds.filter { it in activeIds }.toSet()
         when {
             name.isBlank() -> _ui.update { it.copy(error = "Укажите название списка") }
-            memberIds.isEmpty() -> _ui.update {
-                it.copy(error = "Выберите хотя бы одного участника")
+            cleanedMemberIds.isEmpty() -> _ui.update {
+                it.copy(error = "Выберите хотя бы одного активного участника")
             }
             else -> viewModelScope.launch {
                 _ui.update { it.copy(saving = true, error = null) }
                 val result = if (listId == null) {
-                    chargeRepository.createChargeList(teamId, name.trim(), memberIds)
+                    chargeRepository.createChargeList(teamId, name.trim(), cleanedMemberIds)
                 } else {
-                    chargeRepository.updateChargeList(teamId, listId, name.trim(), memberIds)
+                    chargeRepository.updateChargeList(teamId, listId, name.trim(), cleanedMemberIds)
                 }
                 when (result) {
                     is ApiResult.Success -> {

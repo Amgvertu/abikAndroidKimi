@@ -76,6 +76,7 @@ data class EventDetailDto(
     val chargeDistribution: String? = null,
     val chargeTemplateId: Long? = null,
     val chargeMemberIds: Set<Long>? = null,
+    val voterListId: Long? = null,
     val charged: Boolean = false,
     val lineupRevision: Long = 0,
     val sweaterRevision: Long = 0,
@@ -105,6 +106,7 @@ data class EventCreateRequestDto(
     val chargeDistribution: String? = null,
     val chargeTemplateId: Long? = null,
     val chargeMemberIds: Set<Long>? = null,
+    val voterListId: Long? = null,
 )
 
 @Serializable
@@ -122,6 +124,7 @@ data class EventUpdateRequestDto(
     val chargeDistribution: String? = null,
     val chargeTemplateId: Long? = null,
     val chargeMemberIds: Set<Long>? = null,
+    val voterListId: Long? = null,
 )
 
 @Serializable

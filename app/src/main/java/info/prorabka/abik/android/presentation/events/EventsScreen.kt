@@ -182,6 +182,8 @@ fun EventsScreen(
                     // долгим тапом по дате, независимо от роли.
                     allowAttend = ui.myRole != null,
                     onAttend = ::openAttendance,
+                    allowCreate = ui.isManager,
+                    onCreate = { date -> onCreate(date.toString()) },
                     onSelectDate = viewModel::selectDate,
                     onPrev = viewModel::prevMonth,
                     onNext = viewModel::nextMonth,
@@ -364,6 +366,8 @@ private fun MonthCalendar(
     eventsByDate: Map<LocalDate, List<EventListItem>>,
     allowAttend: Boolean,
     onAttend: (List<EventListItem>) -> Unit,
+    allowCreate: Boolean,
+    onCreate: (LocalDate) -> Unit,
     onSelectDate: (LocalDate) -> Unit,
     onPrev: () -> Unit,
     onNext: () -> Unit,
@@ -416,6 +420,8 @@ private fun MonthCalendar(
                                 dayEvents = eventsByDate[date].orEmpty(),
                                 allowAttend = allowAttend,
                                 onAttend = onAttend,
+                                allowCreate = allowCreate,
+                                onCreate = onCreate,
                                 onClick = { onSelectDate(date) },
                                 modifier = Modifier.weight(1f),
                             )
@@ -437,6 +443,8 @@ private fun DayCell(
     dayEvents: List<EventListItem>,
     allowAttend: Boolean,
     onAttend: (List<EventListItem>) -> Unit,
+    allowCreate: Boolean,
+    onCreate: (LocalDate) -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -447,7 +455,7 @@ private fun DayCell(
             .padding(2.dp)
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = if (allowAttend && dayEvents.isNotEmpty()) {
+                onLongClick = if (allowCreate || (allowAttend && dayEvents.isNotEmpty())) {
                     { menuExpanded = true }
                 } else {
                     null
@@ -506,13 +514,24 @@ private fun DayCell(
             }
         }
         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-            DropdownMenuItem(
-                text = { Text("Отметиться") },
-                onClick = {
-                    menuExpanded = false
-                    onAttend(dayEvents)
-                },
-            )
+            if (allowAttend && dayEvents.isNotEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("Отметиться") },
+                    onClick = {
+                        menuExpanded = false
+                        onAttend(dayEvents)
+                    },
+                )
+            }
+            if (allowCreate) {
+                DropdownMenuItem(
+                    text = { Text("Создать событие") },
+                    onClick = {
+                        menuExpanded = false
+                        onCreate(date)
+                    },
+                )
+            }
         }
     }
 }

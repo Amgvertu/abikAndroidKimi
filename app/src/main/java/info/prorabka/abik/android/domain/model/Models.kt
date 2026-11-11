@@ -297,6 +297,8 @@ data class EventDetail(
     val chargeTemplateId: Long? = null,
     /** Явный список получателей ручного начисления (пусто — по способу начисления). */
     val chargeMemberIds: Set<Long> = emptySet(),
+    /** Текущий состав этого списка ограничивает голосование; null — вся команда. */
+    val voterListId: Long? = null,
     /** Начисление по событию уже выполнено. */
     val charged: Boolean = false,
     val lineupRevision: Long = 0,
@@ -323,4 +325,5 @@ data class EventFormData(
     val chargeTemplateId: Long? = null,
     /** Явный список получателей ручного начисления; null — не задан. */
     val chargeMemberIds: Set<Long>? = null,
+    val voterListId: Long? = null,
 )

@@ -146,6 +146,10 @@ class TeamViewModel @Inject constructor(
     fun addToChargeList(listId: Long, userId: Long) {
         val list = _ui.value.chargeLists.find { it.id == listId } ?: return
         if (userId in list.memberIds) return
+        if (_ui.value.members.none { it.userId == userId }) {
+            _ui.update { it.copy(error = "Игрок больше не является активным участником команды") }
+            return
+        }
         updateChargeListMembers(list, list.memberIds + userId, "Игрок добавлен в список")
     }
 
@@ -185,6 +189,14 @@ class TeamViewModel @Inject constructor(
         successMessage: String,
     ) {
         val teamId = currentTeamId() ?: return
+        // API участников возвращает активный состав. Не отправляем обратно
+        // идентификаторы исключённых людей, оставшиеся в старой версии списка.
+        val activeIds = _ui.value.members.map { it.userId }.toSet()
+        val cleanedMemberIds = memberIds.filter { it in activeIds }.toSet()
+        if (cleanedMemberIds.isEmpty()) {
+            _ui.update { it.copy(error = "В списке должен быть хотя бы один активный участник") }
+            return
+        }
         viewModelScope.launch {
             _ui.update { it.copy(listSaving = true, error = null) }
             when (
@@ -192,7 +204,7 @@ class TeamViewModel @Inject constructor(
                     teamId = teamId,
                     listId = list.id,
                     name = list.name,
-                    memberIds = memberIds,
+                    memberIds = cleanedMemberIds,
                 )
             ) {
                 is ApiResult.Success -> {

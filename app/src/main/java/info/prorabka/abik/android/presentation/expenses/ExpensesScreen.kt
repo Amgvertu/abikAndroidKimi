@@ -10,6 +10,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -79,21 +81,46 @@ fun ExpensesScreen(
                 ) {
                     item {
                         Card(Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(16.dp)) {
-                                Text("Всего расходов", style = MaterialTheme.typography.labelLarge)
-                                Text(
-                                    ui.total.kopecksToRubles(),
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Bold,
-                                )
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                IconButton(onClick = viewModel::previousMonth) {
+                                    Icon(
+                                        Icons.Default.KeyboardArrowLeft,
+                                        contentDescription = "Предыдущий месяц",
+                                    )
+                                }
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    Text(
+                                        ui.selectedMonth.format(
+                                            DateTimeFormatter.ofPattern("LLLL yyyy", Locale("ru")),
+                                        ).replaceFirstChar { it.uppercase() },
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
+                                    Text(
+                                        ui.total.kopecksToRubles(),
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                                IconButton(onClick = viewModel::nextMonth) {
+                                    Icon(
+                                        Icons.Default.KeyboardArrowRight,
+                                        contentDescription = "Следующий месяц",
+                                    )
+                                }
                             }
                         }
                     }
                     item { ErrorText(ui.error) }
-                    if (ui.expenses.isEmpty() && !ui.loading) {
-                        item { EmptyState("Расходов пока нет") }
+                    if (ui.monthExpenses.isEmpty() && !ui.loading) {
+                        item { EmptyState("В этом месяце расходов нет") }
                     }
-                    items(ui.expenses, key = { it.id }) { expense ->
+                    items(ui.monthExpenses, key = { it.id }) { expense ->
                         Card(Modifier.fillMaxWidth()) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),

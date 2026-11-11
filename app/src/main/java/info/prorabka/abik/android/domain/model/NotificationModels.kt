@@ -16,6 +16,9 @@ enum class NotificationType {
     ROSTER_ADDED,
     ROSTER_REMOVED,
     TRAINER_ASSIGNED,
+    EVENT_REMINDER,
+    HOLIDAY_REMINDER,
+    HOLIDAY_GREETING,
     UNKNOWN,
 }
 

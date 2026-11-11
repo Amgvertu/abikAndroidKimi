@@ -132,6 +132,7 @@ class EventRepositoryImpl @Inject constructor(
                 chargeDistribution = data.chargeDistribution?.name,
                 chargeTemplateId = data.chargeTemplateId,
                 chargeMemberIds = data.chargeMemberIds,
+        voterListId = data.voterListId,
             ),
         ).toDomain()
     }
@@ -278,6 +279,7 @@ class EventRepositoryImpl @Inject constructor(
         },
         chargeTemplateId = chargeTemplateId,
         chargeMemberIds = chargeMemberIds.orEmpty(),
+        voterListId = voterListId,
         charged = charged,
         lineupRevision = lineupRevision,
         sweaterRevision = sweaterRevision,
@@ -317,6 +319,7 @@ class EventRepositoryImpl @Inject constructor(
         chargeDistribution = chargeDistribution?.name,
         chargeTemplateId = chargeTemplateId,
         chargeMemberIds = chargeMemberIds,
+        voterListId = voterListId,
     )
 
     private fun sectionOf(raw: String): EventSection =

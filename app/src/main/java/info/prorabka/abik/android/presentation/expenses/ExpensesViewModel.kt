@@ -10,6 +10,8 @@ import info.prorabka.abik.android.domain.repository.ExpenseRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.YearMonth
 import javax.inject.Inject
 
 @HiltViewModel
@@ -22,15 +24,23 @@ class ExpensesViewModel @Inject constructor(
         val loading: Boolean = true,
         val saving: Boolean = false,
         val expenses: List<TeamExpense> = emptyList(),
+        val selectedMonth: YearMonth = YearMonth.now(),
         val myRole: MemberRole? = null,
         val error: String? = null,
     ) {
         val canEdit: Boolean get() = myRole == MemberRole.OWNER || myRole == MemberRole.ADMIN
-        val total: Long get() = expenses.sumOf { it.amountKopecks }
+        val monthExpenses: List<TeamExpense>
+            get() = expenses.filter { expense ->
+                runCatching { YearMonth.from(LocalDate.parse(expense.expenseDate)) == selectedMonth }
+                    .getOrDefault(false)
+            }
+        val total: Long get() = monthExpenses.sumOf { it.amountKopecks }
     }
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
     init { load() }
+    fun previousMonth() = _ui.update { it.copy(selectedMonth = it.selectedMonth.minusMonths(1)) }
+    fun nextMonth() = _ui.update { it.copy(selectedMonth = it.selectedMonth.plusMonths(1)) }
     fun load() {
         val teamId = teamManager.selected.value?.id ?: return
         viewModelScope.launch {
@@ -52,7 +62,19 @@ class ExpensesViewModel @Inject constructor(
             _ui.update { it.copy(saving = true, error = null) }
             val result = if (id == null) repository.create(teamId, data) else repository.update(teamId, id, data)
             when (result) {
-                is ApiResult.Success -> { _ui.update { it.copy(saving = false) }; onDone(); load() }
+                is ApiResult.Success -> {
+                    val expenseMonth = runCatching {
+                        YearMonth.from(LocalDate.parse(data.expenseDate))
+                    }.getOrNull()
+                    _ui.update {
+                        it.copy(
+                            saving = false,
+                            selectedMonth = expenseMonth ?: it.selectedMonth,
+                        )
+                    }
+                    onDone()
+                    load()
+                }
                 is ApiResult.HttpError -> _ui.update { it.copy(saving = false, error = result.message) }
                 is ApiResult.NetworkError -> _ui.update { it.copy(saving = false, error = "Нет соединения с сервером") }
             }

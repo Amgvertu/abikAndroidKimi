@@ -7,6 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.core.prefs.SettingsStore
+import info.prorabka.abik.android.domain.model.ChargeList
 import info.prorabka.abik.android.domain.model.ChargeTemplate
 import info.prorabka.abik.android.domain.model.EventChargeDistribution
 import info.prorabka.abik.android.domain.model.EventChargeMode
@@ -69,6 +70,8 @@ class EventFormViewModel @Inject constructor(
         val chargeDistribution: EventChargeDistribution = EventChargeDistribution.EACH_ATTENDED,
         val chargeTemplateId: Long? = null,
         val templates: List<ChargeTemplate> = emptyList(),
+        val voterListId: Long? = null,
+        val voterLists: List<ChargeList> = emptyList(),
         /** Явные получатели ручного начисления (пусто — по способу начисления). */
         val chargeMemberIds: Set<Long> = emptySet(),
         /** Активные участники команды — для выбора получателей. */
@@ -105,6 +108,7 @@ class EventFormViewModel @Inject constructor(
         if (isEdit) loadEvent() else prefillLastPlaceTime()
         loadTemplates()
         loadMembers()
+        loadVoterLists()
         viewModelScope.launch {
             settingsStore.recentEventPlaces.collect { places ->
                 _ui.update { it.copy(recentPlaces = places) }
@@ -141,6 +145,16 @@ class EventFormViewModel @Inject constructor(
                         },
                     )
                 }
+                else -> Unit
+            }
+        }
+    }
+
+    private fun loadVoterLists() {
+        val teamId = teamManager.selected.value?.id ?: return
+        viewModelScope.launch {
+            when (val result = chargeRepository.chargeLists(teamId)) {
+                is ApiResult.Success -> _ui.update { it.copy(voterLists = result.data) }
                 else -> Unit
             }
         }
@@ -197,6 +211,7 @@ class EventFormViewModel @Inject constructor(
                                 ?: EventChargeDistribution.EACH_ATTENDED,
                             chargeTemplateId = e.chargeTemplateId,
                             chargeMemberIds = e.chargeMemberIds,
+                            voterListId = e.voterListId,
                         )
                     }
                 }
@@ -251,6 +266,7 @@ class EventFormViewModel @Inject constructor(
         it.copy(chargeDistribution = d)
     }
     fun setChargeTemplate(id: Long?) = _ui.update { it.copy(chargeTemplateId = id) }
+    fun setVoterList(id: Long?) = _ui.update { it.copy(voterListId = id) }
 
     /** Переключить участника в списке получателей ручного начисления. */
     fun toggleChargeMember(userId: Long) = _ui.update {
@@ -377,6 +393,7 @@ class EventFormViewModel @Inject constructor(
                 null
             },
             requiredPlayers = if (s.reserveEnabled) s.requiredPlayers.toIntOrNull() else null,
+            voterListId = s.voterListId,
             chargeMode = effectiveMode,
             chargeAmountKopecks = if (effectiveMode == EventChargeMode.MANUAL) {
                 amountRub?.times(100)

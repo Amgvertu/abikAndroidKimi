@@ -248,6 +248,18 @@ fun EventFormScreen(
                     )
                 }
 
+                Spacer(Modifier.height(12.dp))
+                VoterListDropdown(
+                    ui = ui,
+                    onSelect = viewModel::setVoterList,
+                )
+                Text(
+                    "Учитывается актуальный состав списка на момент голосования",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 12.dp, top = 4.dp, end = 12.dp),
+                )
+
                 // --- Регулярка / Двухсторонка: начисление ---
                 if (ui.section != EventSection.TRAINING) {
                     Spacer(Modifier.height(16.dp))
@@ -453,6 +465,50 @@ private fun TemplateDropdown(
                     text = { Text("${template.name} — ${template.amountKopecks / 100} ₽") },
                     onClick = {
                         onSelect(template.id)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun VoterListDropdown(
+    ui: EventFormViewModel.UiState,
+    onSelect: (Long?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = ui.voterLists.firstOrNull { it.id == ui.voterListId }
+    val selectedName = when {
+        ui.voterListId == null -> "Вся команда"
+        selected != null -> selected.name
+        else -> "Список #${ui.voterListId}"
+    }
+
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = selectedName,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Кто может голосовать") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier.fillMaxWidth().menuAnchor(),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Вся команда") },
+                onClick = {
+                    onSelect(null)
+                    expanded = false
+                },
+            )
+            ui.voterLists.forEach { list ->
+                DropdownMenuItem(
+                    text = { Text(list.name) },
+                    onClick = {
+                        onSelect(list.id)
                         expanded = false
                     },
                 )
