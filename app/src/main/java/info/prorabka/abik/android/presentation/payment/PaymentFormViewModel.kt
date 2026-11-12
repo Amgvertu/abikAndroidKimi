@@ -35,6 +35,8 @@ class PaymentFormViewModel @Inject constructor(
         val loading: Boolean = true,
         val saving: Boolean = false,
         val error: String? = null,
+        /** Платёж сохранён локально и ждёт автоматической отправки на сервер. */
+        val pendingSync: Boolean = false,
         val members: List<TeamMember> = emptyList(),
         val selectedMember: TeamMember? = null,
         /** Плательщик из загруженного платежа (id + имя), даже если он исключён из команды. */
@@ -150,7 +152,13 @@ class PaymentFormViewModel @Inject constructor(
                     )
                 }
                 when (result) {
-                    is ApiResult.Success -> onDone()
+                    is ApiResult.Success -> {
+                        if (result.data == info.prorabka.abik.android.domain.model.SyncOutcome.PENDING) {
+                            _ui.update { it.copy(saving = false, pendingSync = true) }
+                        } else {
+                            onDone()
+                        }
+                    }
                     is ApiResult.HttpError -> _ui.update {
                         it.copy(saving = false, error = result.message)
                     }

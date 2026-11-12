@@ -464,51 +464,19 @@ private fun MainVotersView(
     }
 }
 
-/** Список проголосовавших с группировкой по амплуа. Тренеры — отдельная группа. */
+/** Каждый игрок показывается только в одной группе; тренеры — отдельно. */
 @Composable
 private fun VoterGroup(voters: List<EventVoter>) {
-    val order = listOf(
-        Position.GOALKEEPER to "Вратари",
-        Position.DEFENDER to "Защитники",
-        Position.FORWARD to "Нападающие",
-    )
-    val trainers = voters.filter { it.isTrainer }
-    val players = voters.filter { !it.isTrainer }
     Card(Modifier.fillMaxWidth().padding(top = 4.dp)) {
         Column(Modifier.padding(12.dp)) {
-            var first = true
-            order.forEach { (position, label) ->
-                val inPosition = players.filter { it.positions.contains(position) }
-                if (inPosition.isNotEmpty()) {
-                    if (!first) Spacer(Modifier.height(6.dp))
-                    first = false
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    inPosition.forEach { VoterRow(it) }
-                }
-            }
-            val withoutPosition = players.filter { it.positions.isEmpty() }
-            if (withoutPosition.isNotEmpty()) {
-                if (!first) Spacer(Modifier.height(6.dp))
-                first = false
+            groupedVoters(voters).forEachIndexed { index, (label, members) ->
+                if (index > 0) Spacer(Modifier.height(6.dp))
                 Text(
-                    "Без амплуа",
+                    label,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                withoutPosition.forEach { VoterRow(it) }
-            }
-            if (trainers.isNotEmpty()) {
-                if (!first) Spacer(Modifier.height(6.dp))
-                Text(
-                    "Тренер",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                trainers.forEach { VoterRow(it) }
+                members.forEach { VoterRow(it) }
             }
         }
     }
@@ -526,6 +494,14 @@ private fun VoterRow(voter: EventVoter) {
             Spacer(Modifier.size(6.dp))
         }
         Text(shortPlayerName(voter.fullName), style = MaterialTheme.typography.bodyMedium)
+        if (!voter.isTrainer && voter.positions.size > 1) {
+            Spacer(Modifier.size(6.dp))
+            Text(
+                "универсал",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
     }
 }
 

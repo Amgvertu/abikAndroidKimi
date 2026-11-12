@@ -65,6 +65,7 @@ fun ProfileScreen(
 ) {
     val ui by viewModel.ui.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
+    val biometricEnabled by viewModel.biometricEnabled.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
     info.prorabka.abik.android.core.ui.RealtimeRefresh { viewModel.load() }
 
@@ -104,6 +105,9 @@ fun ProfileScreen(
                 notificationSettingsSaving = ui.notificationSettingsSaving,
                 notificationSettingsError = ui.notificationSettingsError,
                 onSaveNotificationSettings = viewModel::saveNotificationSettings,
+                biometricAvailable = viewModel.biometricAvailable,
+                biometricEnabled = biometricEnabled,
+                onBiometricChange = viewModel::setBiometricEnabled,
             )
         }
     }
@@ -362,6 +366,9 @@ private fun SettingsTab(
     notificationSettingsSaving: Boolean,
     notificationSettingsError: String?,
     onSaveNotificationSettings: (info.prorabka.abik.android.domain.model.NotificationSettings) -> Unit,
+    biometricAvailable: Boolean,
+    biometricEnabled: Boolean,
+    onBiometricChange: (Boolean) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -389,6 +396,34 @@ private fun SettingsTab(
                         selected = themeMode == ThemeMode.DARK,
                         onClick = { onThemeChange(ThemeMode.DARK) },
                         label = { Text("Тёмная") },
+                    )
+                }
+            }
+        }
+
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Безопасность", style = MaterialTheme.typography.titleSmall)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Вход по биометрии")
+                        Text(
+                            if (biometricAvailable) {
+                                "Отпечаток пальца или другая биометрия при открытии приложения"
+                            } else {
+                                "Биометрия недоступна или не настроена на устройстве"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = biometricEnabled && biometricAvailable,
+                        onCheckedChange = onBiometricChange,
+                        enabled = biometricAvailable,
                     )
                 }
             }

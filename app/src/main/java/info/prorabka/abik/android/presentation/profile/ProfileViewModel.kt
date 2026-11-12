@@ -36,9 +36,14 @@ class ProfileViewModel @Inject constructor(
     private val settingsStore: SettingsStore,
     private val tokenStore: TokenStore,
     private val urlResolver: UrlResolver,
+    private val biometricAuthManager: info.prorabka.abik.android.core.security.BiometricAuthManager,
 ) : ViewModel() {
 
     fun resolveUrl(url: String?): String? = urlResolver.resolve(url)
+
+    private val _biometricEnabled = MutableStateFlow(tokenStore.biometricEnabled)
+    val biometricEnabled: StateFlow<Boolean> = _biometricEnabled
+    val biometricAvailable: Boolean get() = biometricAuthManager.canAuthenticate()
 
     data class UiState(
         val loading: Boolean = true,
@@ -213,6 +218,11 @@ class ProfileViewModel @Inject constructor(
 
     fun setTheme(mode: ThemeMode) {
         viewModelScope.launch { settingsStore.setThemeMode(mode) }
+    }
+
+    fun setBiometricEnabled(enabled: Boolean) {
+        tokenStore.biometricEnabled = enabled
+        _biometricEnabled.value = enabled
     }
 
     /** Загрузить новый аватар: файл → /api/v1/files → PUT профиля. */

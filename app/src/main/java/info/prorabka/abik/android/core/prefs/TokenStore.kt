@@ -39,6 +39,11 @@ class TokenStore @Inject constructor(@ApplicationContext context: Context) {
         get() = prefs.getLong(KEY_USER_ID, -1L)
         set(value) = prefs.edit().putLong(KEY_USER_ID, value).apply()
 
+    /** Биометрия защищает вход в текущую сессию; пароль не сохраняется. */
+    var biometricEnabled: Boolean
+        get() = prefs.getBoolean(KEY_BIOMETRIC_ENABLED, true)
+        set(value) = prefs.edit().putBoolean(KEY_BIOMETRIC_ENABLED, value).apply()
+
     val isLoggedIn: Boolean get() = !accessToken.isNullOrBlank() && !refreshToken.isNullOrBlank()
 
     fun save(access: String, refresh: String, userId: Long) {
@@ -55,5 +60,6 @@ class TokenStore @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_ACCESS = "access_token"
         const val KEY_REFRESH = "refresh_token"
         const val KEY_USER_ID = "user_id"
+        const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
     }
 }

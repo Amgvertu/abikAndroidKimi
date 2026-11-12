@@ -107,11 +107,24 @@ fun PaymentFormScreen(
                 singleLine = false,
             )
 
+            if (ui.pendingSync) {
+                Text(
+                    "Платёж сохранён на устройстве. При появлении интернета он автоматически " +
+                        "синхронизируется с общей базой; повторная отправка не создаст дубль.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
             ErrorText(ui.error)
             Spacer(modifier = Modifier.height(16.dp))
             AbikButton(
-                text = if (isEdit) "Сохранить" else "Внести",
-                onClick = { viewModel.save(onDone) },
+                text = when {
+                    ui.pendingSync -> "Готово"
+                    isEdit -> "Сохранить"
+                    else -> "Внести"
+                },
+                onClick = { if (ui.pendingSync) onDone() else viewModel.save(onDone) },
                 loading = ui.saving,
             )
             if (isEdit) {
