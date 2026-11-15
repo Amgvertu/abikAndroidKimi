@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.BuildConfig
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
+import info.prorabka.abik.android.core.network.LocalServerAvailability
 import info.prorabka.abik.android.core.network.UrlResolver
 import info.prorabka.abik.android.core.prefs.SettingsStore
 import info.prorabka.abik.android.core.prefs.ThemeMode
@@ -37,6 +38,7 @@ class ProfileViewModel @Inject constructor(
     private val tokenStore: TokenStore,
     private val urlResolver: UrlResolver,
     private val biometricAuthManager: info.prorabka.abik.android.core.security.BiometricAuthManager,
+    private val localServerAvailability: LocalServerAvailability,
 ) : ViewModel() {
 
     fun resolveUrl(url: String?): String? = urlResolver.resolve(url)
@@ -67,17 +69,11 @@ class ProfileViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.SYSTEM)
 
     val isDebugBuild: Boolean = BuildConfig.DEBUG
-    val currentBaseUrl: StateFlow<String> = MutableStateFlow(BuildConfig.DEFAULT_BASE_URL)
+    val localServerAvailable = localServerAvailability.available
 
     init {
         load()
         loadNotificationSettings()
-        viewModelScope.launch {
-            settingsStore.baseUrlOverride.collect { override ->
-                (currentBaseUrl as MutableStateFlow).value =
-                    override ?: BuildConfig.DEFAULT_BASE_URL
-            }
-        }
         // Игровой номер — из состава текущей команды
         viewModelScope.launch {
             teamManager.selected.collect { team ->
@@ -278,6 +274,7 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun useLocalServer() {
+        if (!BuildConfig.DEBUG || !localServerAvailability.available.value) return
         // Через геттер SettingsStore, а не константу BuildConfig — иначе kotlinc
         // инлайнит значение на момент компиляции и может зашить протухший URL.
         viewModelScope.launch { settingsStore.setBaseUrlOverride(settingsStore.localBaseUrl) }

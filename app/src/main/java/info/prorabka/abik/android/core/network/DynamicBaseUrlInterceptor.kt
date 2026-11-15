@@ -5,6 +5,7 @@ import info.prorabka.abik.android.core.prefs.SettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -18,16 +19,26 @@ import javax.inject.Singleton
  * читается синхронно из интерсептора.
  */
 @Singleton
-class BaseUrlHolder @Inject constructor(settingsStore: SettingsStore) {
+class BaseUrlHolder @Inject constructor(
+    settingsStore: SettingsStore,
+    localServerAvailability: LocalServerAvailability,
+) {
     @Volatile
     var baseUrl: String = BuildConfig.DEFAULT_BASE_URL
         private set
 
     init {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            settingsStore.baseUrlOverride.collect { override ->
-                baseUrl = override ?: BuildConfig.DEFAULT_BASE_URL
-            }
+            combine(
+                settingsStore.baseUrlOverride,
+                localServerAvailability.available,
+            ) { override, localAvailable ->
+                when {
+                    !BuildConfig.DEBUG -> BuildConfig.DEFAULT_BASE_URL
+                    override != null && !localAvailable -> BuildConfig.DEFAULT_BASE_URL
+                    else -> override ?: BuildConfig.DEFAULT_BASE_URL
+                }
+            }.collect { baseUrl = it }
         }
     }
 }

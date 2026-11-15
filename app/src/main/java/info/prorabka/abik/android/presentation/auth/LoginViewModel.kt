@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.BuildConfig
 import info.prorabka.abik.android.core.network.ApiResult
+import info.prorabka.abik.android.core.network.LocalServerAvailability
 import info.prorabka.abik.android.core.prefs.SettingsStore
 import info.prorabka.abik.android.core.util.PhoneUtils
 import info.prorabka.abik.android.data.local.OfflineQueue
@@ -12,7 +13,7 @@ import info.prorabka.abik.android.domain.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -23,6 +24,7 @@ class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val settingsStore: SettingsStore,
     private val offlineQueue: OfflineQueue,
+    private val localServerAvailability: LocalServerAvailability,
 ) : ViewModel() {
 
     data class UiState(
@@ -35,18 +37,22 @@ class LoginViewModel @Inject constructor(
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
 
-    /** Текущий base URL (для переключателя сервера в debug). */
-    val currentBaseUrl: StateFlow<String> = settingsStore.baseUrlOverride
-        .map { it ?: BuildConfig.DEFAULT_BASE_URL }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, BuildConfig.DEFAULT_BASE_URL)
+    val localServerAvailable = localServerAvailability.available
+
+    /** Фактически используемый URL: недоступный local override не применяется. */
+    val currentBaseUrl: StateFlow<String> = combine(
+        settingsStore.baseUrlOverride,
+        localServerAvailability.available,
+    ) { override, localAvailable ->
+        if (override != null && localAvailable) override else BuildConfig.DEFAULT_BASE_URL
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, BuildConfig.DEFAULT_BASE_URL)
 
     fun useRemoteServer() {
         viewModelScope.launch { settingsStore.setBaseUrlOverride(null) }
     }
 
     fun useLocalServer() {
-        // Через геттер SettingsStore, а не константу BuildConfig — защита от
-        // инлайнинга константы компилятором (зашивался протухший URL).
+        if (!BuildConfig.DEBUG || !localServerAvailability.available.value) return
         viewModelScope.launch { settingsStore.setBaseUrlOverride(settingsStore.localBaseUrl) }
     }
 

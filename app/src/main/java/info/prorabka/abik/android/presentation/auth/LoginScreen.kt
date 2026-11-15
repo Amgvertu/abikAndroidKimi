@@ -84,19 +84,22 @@ fun LoginScreen(
         TextButton(onClick = onRegister) { Text("Регистрация") }
 
         if (BuildConfig.DEBUG) {
-            val currentUrl by viewModel.currentBaseUrl.collectAsState()
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(
-                text = "Сервер: $currentUrl",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = viewModel::useRemoteServer) {
-                    Text("varamy.online", fontSize = 12.sp)
-                }
-                TextButton(onClick = viewModel::useLocalServer) {
-                    Text("192.168.0.119", fontSize = 12.sp)
+            val localAvailable by viewModel.localServerAvailable.collectAsState()
+            if (localAvailable) {
+                val currentUrl by viewModel.currentBaseUrl.collectAsState()
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = "Сервер: $currentUrl",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = viewModel::useRemoteServer) {
+                        Text("varamy.online", fontSize = 12.sp)
+                    }
+                    TextButton(onClick = viewModel::useLocalServer) {
+                        Text("192.168.0.119", fontSize = 12.sp)
+                    }
                 }
             }
         }

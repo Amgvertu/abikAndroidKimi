@@ -35,12 +35,14 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
         context.dataStore.edit { it[keyTheme] = mode.name }
     }
 
-    /** null — использовать URL по умолчанию (BuildConfig.DEFAULT_BASE_URL). */
-    val baseUrlOverride: Flow<String?> = context.dataStore.data.map { it[keyBaseUrl] }
+    /** null — production URL. Сохранённый debug-override в release игнорируется. */
+    val baseUrlOverride: Flow<String?> = context.dataStore.data.map { prefs ->
+        if (BuildConfig.DEBUG) prefs[keyBaseUrl] else null
+    }
 
     suspend fun setBaseUrlOverride(url: String?) {
         context.dataStore.edit { prefs ->
-            if (url == null) prefs.remove(keyBaseUrl) else prefs[keyBaseUrl] = url
+            if (BuildConfig.DEBUG && url != null) prefs[keyBaseUrl] = url else prefs.remove(keyBaseUrl)
         }
     }
 

@@ -66,6 +66,7 @@ fun ProfileScreen(
     val ui by viewModel.ui.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     val biometricEnabled by viewModel.biometricEnabled.collectAsState()
+    val localServerAvailable by viewModel.localServerAvailable.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
     info.prorabka.abik.android.core.ui.RealtimeRefresh { viewModel.load() }
 
@@ -96,6 +97,7 @@ fun ProfileScreen(
                 themeMode = themeMode,
                 onThemeChange = viewModel::setTheme,
                 isDebug = viewModel.isDebugBuild,
+                localServerAvailable = localServerAvailable,
                 isSuperAdmin = ui.isSuperAdmin,
                 onUseRemote = viewModel::useRemoteServer,
                 onUseLocal = viewModel::useLocalServer,
@@ -357,6 +359,7 @@ private fun SettingsTab(
     themeMode: ThemeMode,
     onThemeChange: (ThemeMode) -> Unit,
     isDebug: Boolean,
+    localServerAvailable: Boolean,
     isSuperAdmin: Boolean,
     onUseRemote: () -> Unit,
     onUseLocal: () -> Unit,
@@ -452,7 +455,7 @@ private fun SettingsTab(
             }
         }
 
-        if (isDebug) {
+        if (isDebug && localServerAvailable) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Сервер (debug)", style = MaterialTheme.typography.titleSmall)

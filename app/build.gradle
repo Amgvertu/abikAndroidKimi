@@ -43,7 +43,7 @@ android {
         // Project ID из консоли RuStore (console.rustore.ru → проект → Push).
         // Пока пусто — RuStore Push не инициализируется. Когда зарегистрируете
         // проект в RuStore, впишите ID сюда.
-        buildConfigField "String", "RUSTORE_PROJECT_ID", 'new String("3hXUg4XY1qsSRn0Gshfr3k28EoKtWlc9")'
+        buildConfigField "String", "RUSTORE_PROJECT_ID", 'new String("68N-c-EaopoIkE0qs0op6rGMyOtWenJc")'
     }
 
     buildTypes {
