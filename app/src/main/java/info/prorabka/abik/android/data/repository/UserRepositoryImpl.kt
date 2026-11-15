@@ -132,7 +132,7 @@ class UserRepositoryImpl @Inject constructor(
 }
 
 private fun info.prorabka.abik.android.data.dto.UserDto.toDomain(): User =
-    User(id, phone, status, isSuperAdmin)
+    User(id, phone, status, isSuperAdmin, isAdAdmin, blockReason)
 
 fun UserProfileResponse.toDomain(): Profile = Profile(
     userId = userId,

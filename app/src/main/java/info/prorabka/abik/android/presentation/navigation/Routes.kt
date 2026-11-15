@@ -22,6 +22,7 @@ object Routes {
     const val PROFILE_EDIT = "profile_edit"
     const val CHANGE_PHONE = "change_phone"
     const val ADMIN = "admin"
+    const val ADS_ADMIN = "ads_admin"
     const val CHARGE_TEMPLATES = "charge_templates"
     const val TEMPLATE_FORM = "template_form?templateId={templateId}"
     const val CHARGE_LISTS = "charge_lists"

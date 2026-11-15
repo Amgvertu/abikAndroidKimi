@@ -129,6 +129,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideAdminOperationsApi(retrofit: Retrofit): info.prorabka.abik.android.data.api.AdminOperationsApi =
+        retrofit.create(info.prorabka.abik.android.data.api.AdminOperationsApi::class.java)
+
+    @Provides
+    @Singleton
     fun provideFileApi(retrofit: Retrofit): FileApi = retrofit.create(FileApi::class.java)
 
     @Provides

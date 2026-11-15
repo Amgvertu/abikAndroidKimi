@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
@@ -116,6 +118,12 @@ fun MainShell(
                     )
                 },
                 actions = {
+                    if (ui.isSuperAdmin) {
+                        IconButton(onClick = { rootNavController.navigate(Routes.ADMIN) }) {
+                            Icon(Icons.Default.AdminPanelSettings, contentDescription = "Админка",
+                                tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                     ui.myBalanceKopecks?.let { balance -> BalanceChip(balance) }
                     IconButton(onClick = { rootNavController.navigate(Routes.NOTIFICATIONS) }) {
                         BadgedBox(
@@ -131,10 +139,12 @@ fun MainShell(
                     ShellMenu(
                         isManager = ui.isManager,
                         isOwner = ui.myRole == info.prorabka.abik.android.domain.model.MemberRole.OWNER,
+                        isAdAdmin = ui.isAdAdmin && !ui.isSuperAdmin,
                         onReports = { rootNavController.navigate(Routes.REPORTS) },
                         onTemplates = { rootNavController.navigate(Routes.CHARGE_TEMPLATES) },
                         onLists = { rootNavController.navigate(Routes.CHARGE_LISTS) },
                         onExpenses = { rootNavController.navigate(Routes.EXPENSES) },
+                        onAds = { rootNavController.navigate(Routes.ADS_ADMIN) },
                         onHelp = { guideViewModel.repeat(currentGuideKey) },
                         onLogout = {
                             viewModel.logout {
@@ -328,10 +338,12 @@ private fun BalanceChip(balanceKopecks: Long) {
 private fun ShellMenu(
     isManager: Boolean,
     isOwner: Boolean,
+    isAdAdmin: Boolean,
     onReports: () -> Unit,
     onTemplates: () -> Unit,
     onLists: () -> Unit,
     onExpenses: () -> Unit,
+    onAds: () -> Unit,
     onHelp: () -> Unit,
     onLogout: () -> Unit,
 ) {
@@ -373,6 +385,13 @@ private fun ShellMenu(
                         },
                     )
                 }
+            }
+            if (isAdAdmin) {
+                DropdownMenuItem(
+                    text = { Text("Реклама") },
+                    leadingIcon = { Icon(Icons.Default.Campaign, contentDescription = null) },
+                    onClick = { expanded = false; onAds() },
+                )
             }
             DropdownMenuItem(
                 text = { Text("Справка") },

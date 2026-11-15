@@ -235,6 +235,9 @@ fun AppNavHost(
         composable(Routes.ADMIN) {
             AdminScreen(onBack = { navController.popBackStack() })
         }
+        composable(Routes.ADS_ADMIN) {
+            AdminScreen(onBack = { navController.popBackStack() }, adOnly = true)
+        }
         composable(Routes.CHARGE_TEMPLATES) {
             TemplatesScreen(
                 onCreateTemplate = { navController.navigate(Routes.templateForm()) },

@@ -14,6 +14,7 @@ import info.prorabka.abik.android.domain.repository.DeviceRepository
 import info.prorabka.abik.android.domain.repository.FinanceRepository
 import info.prorabka.abik.android.domain.repository.NotificationRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
+import info.prorabka.abik.android.domain.repository.UserRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,10 +23,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * Состояние главной оболочки: команды, выбранная команда,
- * моя роль, мой баланс и счётчик непрочитанных уведомлений для тулбара.
- */
+/** Состояние главной оболочки, командные данные и административные роли. */
 @HiltViewModel
 class ShellViewModel @Inject constructor(
     val teamManager: CurrentTeamManager,
@@ -34,11 +32,11 @@ class ShellViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val notificationRepository: NotificationRepository,
     private val deviceRepository: DeviceRepository,
+    private val userRepository: UserRepository,
     private val tokenStore: TokenStore,
     private val urlResolver: UrlResolver,
 ) : ViewModel() {
 
-    /** Относительный URL файла → абсолютный (для логотипов/аватаров). */
     fun resolveUrl(url: String?): String? = urlResolver.resolve(url)
 
     data class UiState(
@@ -49,21 +47,19 @@ class ShellViewModel @Inject constructor(
         val myBalanceKopecks: Long? = null,
         val teamBalanceKopecks: Long? = null,
         val unreadNotifications: Int = 0,
+        val isSuperAdmin: Boolean = false,
+        val isAdAdmin: Boolean = false,
         val loading: Boolean = true,
     ) {
         val isManager: Boolean
-            get() = myRole == MemberRole.OWNER ||
-                myRole == MemberRole.MODERATOR ||
-                myRole == MemberRole.ADMIN
+            get() = myRole == MemberRole.OWNER || myRole == MemberRole.MODERATOR || myRole == MemberRole.ADMIN
     }
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
 
     init {
-        viewModelScope.launch {
-            teamManager.teams.collect { teams -> _ui.update { it.copy(teams = teams) } }
-        }
+        viewModelScope.launch { teamManager.teams.collect { teams -> _ui.update { it.copy(teams = teams) } } }
         viewModelScope.launch {
             teamManager.selected.collect { team ->
                 _ui.update { it.copy(selected = team) }
@@ -75,12 +71,8 @@ class ShellViewModel @Inject constructor(
         startUnreadPolling()
     }
 
-    /** Регистрируем FCM-токен на сервере (fire-and-forget). */
-    private fun registerDevice() {
-        viewModelScope.launch { deviceRepository.registerCurrentDevice() }
-    }
+    private fun registerDevice() { viewModelScope.launch { deviceRepository.registerCurrentDevice() } }
 
-    /** Опрашиваем счётчик непрочитанных, чтобы бейдж на колокольчике был актуален. */
     private fun startUnreadPolling() {
         viewModelScope.launch {
             while (isActive) {
@@ -99,13 +91,17 @@ class ShellViewModel @Inject constructor(
         }
     }
 
-    private companion object {
-        const val UNREAD_POLL_INTERVAL_MS = 30_000L
-    }
+    private companion object { const val UNREAD_POLL_INTERVAL_MS = 30_000L }
 
     fun refresh() {
         viewModelScope.launch {
             _ui.update { it.copy(loading = true) }
+            when (val me = userRepository.me()) {
+                is ApiResult.Success -> _ui.update {
+                    it.copy(isSuperAdmin = me.data.isSuperAdmin, isAdAdmin = me.data.isAdAdmin)
+                }
+                else -> Unit
+            }
             teamManager.refresh()
             teamManager.selected.value?.let { loadTeamData(it.id) }
             _ui.update { it.copy(loading = false) }
@@ -122,9 +118,7 @@ class ShellViewModel @Inject constructor(
         when (val members = teamRepository.members(teamId)) {
             is ApiResult.Success -> {
                 val myId = tokenStore.userId
-                _ui.update {
-                    it.copy(myIsTrainer = members.data.firstOrNull { member -> member.userId == myId }?.isTrainer == true)
-                }
+                _ui.update { it.copy(myIsTrainer = members.data.firstOrNull { m -> m.userId == myId }?.isTrainer == true) }
             }
             else -> Unit
         }
@@ -132,11 +126,8 @@ class ShellViewModel @Inject constructor(
             is ApiResult.Success -> {
                 val myId = tokenStore.userId
                 _ui.update {
-                    it.copy(
-                        myBalanceKopecks = b.data.firstOrNull { bal -> bal.userId == myId }
-                            ?.amountKopecks,
-                        teamBalanceKopecks = b.data.sumOf { bal -> bal.amountKopecks },
-                    )
+                    it.copy(myBalanceKopecks = b.data.firstOrNull { bal -> bal.userId == myId }?.amountKopecks,
+                        teamBalanceKopecks = b.data.sumOf { bal -> bal.amountKopecks })
                 }
             }
             else -> Unit
@@ -146,7 +137,6 @@ class ShellViewModel @Inject constructor(
     fun logout(onLoggedOut: () -> Unit) {
         viewModelScope.launch {
             authRepository.logout()
-            // Чистим командные данные и локальное состояние — не оставляем чужих badges
             teamManager.clear()
             _ui.update { UiState(loading = false) }
             onLoggedOut()

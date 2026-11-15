@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.Button
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -120,7 +121,13 @@ fun HomeScreen(
                     onClick = onEventClick,
                 )
 
-                NotificationsCard(
+                feed.advertisement?.let { advertisement ->
+                    AdvertisementCard(
+                        advertisement = advertisement,
+                        imageUrl = viewModel.resolveUrl(advertisement.imageUrl),
+                        onClick = viewModel::trackAdClick,
+                    )
+                } ?: NotificationsCard(
                     notifications = feed.notifications,
                     onShowAll = onNotifications,
                 )
@@ -219,6 +226,35 @@ private fun NearestEventCard(event: EventListItem?, onClick: (Long) -> Unit) {
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+/** Реклама заменяет блок уведомлений; при её отсутствии лента возвращается. */
+@Composable
+private fun AdvertisementCard(
+    advertisement: info.prorabka.abik.android.domain.model.Advertisement,
+    imageUrl: String?,
+    onClick: () -> Unit,
+) {
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Реклама", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            imageUrl?.let {
+                coil.compose.AsyncImage(
+                    model = it, contentDescription = advertisement.title,
+                    modifier = Modifier.fillMaxWidth().height(180.dp),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                )
+            }
+            advertisement.title?.let { Text(it, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+            advertisement.body?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            if (!advertisement.linkUrl.isNullOrBlank() && !advertisement.buttonText.isNullOrBlank()) {
+                Button(onClick = { onClick(); uriHandler.openUri(advertisement.linkUrl) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(advertisement.buttonText)
                 }
             }
         }

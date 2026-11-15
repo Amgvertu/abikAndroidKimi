@@ -80,6 +80,12 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
+    abstract fun bindAdminOperationsRepository(
+        impl: info.prorabka.abik.android.data.repository.AdminOperationsRepositoryImpl,
+    ): info.prorabka.abik.android.domain.repository.AdminOperationsRepository
+
+    @Binds
+    @Singleton
     abstract fun bindFileRepository(impl: FileRepositoryImpl): FileRepository
 
     @Binds

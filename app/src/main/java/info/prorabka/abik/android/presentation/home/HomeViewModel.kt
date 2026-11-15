@@ -5,8 +5,11 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
+import info.prorabka.abik.android.core.network.UrlResolver
+import info.prorabka.abik.android.domain.model.Advertisement
 import info.prorabka.abik.android.domain.model.AppNotification
 import info.prorabka.abik.android.domain.model.EventListItem
+import info.prorabka.abik.android.domain.repository.AdminOperationsRepository
 import info.prorabka.abik.android.domain.repository.EventRepository
 import info.prorabka.abik.android.domain.repository.NotificationRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,64 +17,77 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.util.UUID
 import javax.inject.Inject
 
-/**
- * Главная: ближайшее событие и последние уведомления выбранной команды.
- * Балансы живут в ShellViewModel — здесь только лента.
- */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val teamManager: CurrentTeamManager,
     private val eventRepository: EventRepository,
     private val notificationRepository: NotificationRepository,
+    private val advertising: AdminOperationsRepository,
+    private val urlResolver: UrlResolver,
 ) : ViewModel() {
 
     data class UiState(
         val loading: Boolean = true,
         val nearestEvent: EventListItem? = null,
         val notifications: List<AppNotification> = emptyList(),
+        val advertisement: Advertisement? = null,
     )
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
+    private val sessionId = UUID.randomUUID().toString()
+    private var currentTeamId: Long? = null
+    fun resolveUrl(url: String?) = urlResolver.resolve(url)
 
     init {
-        // Перезагружаем ленту при смене команды
         viewModelScope.launch {
             teamManager.selected.collect { team ->
+                currentTeamId = team?.id
                 if (team != null) load(team.id) else _ui.update {
-                    it.copy(loading = false, nearestEvent = null, notifications = emptyList())
+                    it.copy(loading = false, nearestEvent = null, notifications = emptyList(), advertisement = null)
                 }
             }
         }
     }
 
-    fun refresh() {
-        teamManager.selected.value?.let { team ->
-            viewModelScope.launch { load(team.id) }
-        }
+    fun refresh() { currentTeamId?.let { teamId -> viewModelScope.launch { load(teamId) } } }
+
+    fun trackAdClick() {
+        val ad = _ui.value.advertisement ?: return
+        viewModelScope.launch { advertising.recordAdEvent(ad.id, "CLICK", sessionId, currentTeamId) }
     }
 
     private suspend fun load(teamId: Long) {
         _ui.update { it.copy(loading = true) }
         loadNearestEvent(teamId)
-        loadNotifications()
+        loadAdvertisement(teamId)
+        if (_ui.value.advertisement == null) loadNotifications() else _ui.update { it.copy(notifications = emptyList()) }
         _ui.update { it.copy(loading = false) }
+    }
+
+    private suspend fun loadAdvertisement(teamId: Long) {
+        when (val result = advertising.activeAd(teamId)) {
+            is ApiResult.Success -> {
+                val previous = _ui.value.advertisement?.id
+                _ui.update { it.copy(advertisement = result.data) }
+                val ad = result.data
+                if (ad != null && previous != ad.id) advertising.recordAdEvent(ad.id, "VIEW", sessionId, teamId)
+            }
+            else -> _ui.update { it.copy(advertisement = null) }
+        }
     }
 
     private suspend fun loadNearestEvent(teamId: Long) {
         val todayDate = LocalDate.now()
-        // Тот же диапазон, что на экране игр: главная использует его общий кэш.
         val from = todayDate.withDayOfMonth(1).minusMonths(1)
         val to = java.time.YearMonth.from(todayDate).plusMonths(1).atEndOfMonth()
         when (val r = eventRepository.events(teamId, from.toString(), to.toString())) {
             is ApiResult.Success -> {
                 val today = todayDate.toString()
-                val nearest = r.data
-                    .filter { it.dateIso >= today }
-                    .sortedWith(compareBy({ it.dateIso }, { it.time }))
-                    .firstOrNull()
+                val nearest = r.data.filter { it.dateIso >= today }.sortedWith(compareBy({ it.dateIso }, { it.time })).firstOrNull()
                 _ui.update { it.copy(nearestEvent = nearest) }
             }
             else -> _ui.update { it.copy(nearestEvent = null) }
@@ -80,9 +96,7 @@ class HomeViewModel @Inject constructor(
 
     private suspend fun loadNotifications() {
         when (val r = notificationRepository.list()) {
-            is ApiResult.Success -> _ui.update {
-                it.copy(notifications = r.data.sortedByDescending { n -> n.sentAtIso }.take(3))
-            }
+            is ApiResult.Success -> _ui.update { it.copy(notifications = r.data.sortedByDescending { n -> n.sentAtIso }.take(3)) }
             else -> _ui.update { it.copy(notifications = emptyList()) }
         }
     }

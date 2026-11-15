@@ -24,6 +24,8 @@ data class User(
     val phone: String,
     val status: String,
     val isSuperAdmin: Boolean = false,
+    val isAdAdmin: Boolean = false,
+    val blockReason: String? = null,
 )
 
 data class Profile(
