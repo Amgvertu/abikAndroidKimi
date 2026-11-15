@@ -40,19 +40,34 @@ fun <T> AdminDropdown(label: String, items: List<T>, selected: T?, onSelect: (T?
 fun AdminStatsContent(ui: AdminViewModel.UiState, viewModel: AdminViewModel) {
     var from by remember { mutableStateOf(LocalDate.now().minusDays(29).toString()) }
     var to by remember { mutableStateOf(LocalDate.now().toString()) }
+    var filtersExpanded by remember { mutableStateOf(false) }
     val teams = ui.targetTeams.map { it.id to it.name }
+    fun applyPeriod(start: LocalDate, end: LocalDate = LocalDate.now()) {
+        from = start.toString(); to = end.toString()
+        viewModel.applyFilters(from, to, ui.filterRegionId, ui.filterCityId, ui.filterTeamId)
+    }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Фильтры статистики", style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(from, { from = it }, label = { Text("С (ГГГГ-ММ-ДД)") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(to, { to = it }, label = { Text("По") }, modifier = Modifier.weight(1f))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Период и фильтры", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { filtersExpanded = !filtersExpanded }) { Text(if (filtersExpanded) "Скрыть" else "Развернуть") }
                 }
-                AdminDropdown("Регион", ui.regions, ui.regions.firstOrNull { it.id == ui.filterRegionId }, { viewModel.selectFilterRegion(it?.id) }, { it.name })
-                AdminDropdown("Город", ui.cities, ui.cities.firstOrNull { it.id == ui.filterCityId }, { viewModel.applyFilters(from, to, ui.filterRegionId, it?.id, ui.filterTeamId) }, { it.name })
-                AdminDropdown("Команда", teams, teams.firstOrNull { it.first == ui.filterTeamId }, { viewModel.applyFilters(from, to, ui.filterRegionId, ui.filterCityId, it?.first) }, { it.second })
-                AbikButton("Применить", onClick = { viewModel.applyFilters(from, to, ui.filterRegionId, ui.filterCityId, ui.filterTeamId) })
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(onClick = { val today = LocalDate.now(); applyPeriod(today) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("Сегодня", style = MaterialTheme.typography.labelSmall, maxLines = 1) }
+                    OutlinedButton(onClick = { val today = LocalDate.now(); applyPeriod(today.withDayOfMonth(1)) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("Текущий месяц", style = MaterialTheme.typography.labelSmall, maxLines = 1) }
+                    OutlinedButton(onClick = { val today = LocalDate.now(); applyPeriod(today.withDayOfYear(1)) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(4.dp)) { Text("Текущий год", style = MaterialTheme.typography.labelSmall, maxLines = 1) }
+                }
+                if (filtersExpanded) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AdminDateField("С", from, { from = it }, Modifier.weight(1f))
+                        AdminDateField("По", to, { to = it }, Modifier.weight(1f))
+                    }
+                    AdminDropdown("Регион", ui.regions, ui.regions.firstOrNull { it.id == ui.filterRegionId }, { viewModel.selectFilterRegion(it?.id) }, { it.name })
+                    AdminDropdown("Город", ui.cities, ui.cities.firstOrNull { it.id == ui.filterCityId }, { viewModel.applyFilters(from, to, ui.filterRegionId, it?.id, ui.filterTeamId) }, { it.name })
+                    AdminDropdown("Команда", teams, teams.firstOrNull { it.first == ui.filterTeamId }, { viewModel.applyFilters(from, to, ui.filterRegionId, ui.filterCityId, it?.first) }, { it.second })
+                    AbikButton("Применить", onClick = { viewModel.applyFilters(from, to, ui.filterRegionId, ui.filterCityId, ui.filterTeamId) })
+                }
             } }
         }
         ui.overview?.let { overview ->
@@ -64,7 +79,7 @@ fun AdminStatsContent(ui: AdminViewModel.UiState, viewModel: AdminViewModel) {
             item { MetricCard("Отменённые начисления", "${overview.cancelledChargeCount} • ${overview.cancelledChargeAmountKopecks.kopecksToRubles()}", Modifier.fillMaxWidth()) }
             item { MetricCard("Платежи", "${overview.paymentCount} • ${overview.paymentAmountKopecks.kopecksToRubles()}", Modifier.fillMaxWidth()) }
             item { Text("Динамика регистраций", style = MaterialTheme.typography.titleMedium) }
-            items(overview.daily) { day ->
+            items(overview.daily.filter { it.users > 0 || it.teams > 0 }) { day ->
                 Row(Modifier.fillMaxWidth()) {
                     Text(runCatching { LocalDate.parse(day.date).format(DateTimeFormatter.ofPattern("dd.MM")) }.getOrDefault(day.date), Modifier.weight(1f))
                     Text("Пользователи: ${day.users}", Modifier.weight(1.5f))
@@ -73,6 +88,21 @@ fun AdminStatsContent(ui: AdminViewModel.UiState, viewModel: AdminViewModel) {
                 HorizontalDivider()
             }
         }
+    }
+}
+
+@Composable
+private fun AdminDateField(label: String, value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    fun showPicker() {
+        val initial = runCatching { LocalDate.parse(value) }.getOrDefault(LocalDate.now())
+        android.app.DatePickerDialog(context, { _, year, month, day ->
+            onChange(LocalDate.of(year, month + 1, day).toString())
+        }, initial.year, initial.monthValue - 1, initial.dayOfMonth).show()
+    }
+    Box(modifier) {
+        OutlinedTextField(value = value, onValueChange = {}, readOnly = true, label = { Text(label) }, modifier = Modifier.fillMaxWidth())
+        Box(Modifier.matchParentSize().clickable(onClick = ::showPicker))
     }
 }
 
