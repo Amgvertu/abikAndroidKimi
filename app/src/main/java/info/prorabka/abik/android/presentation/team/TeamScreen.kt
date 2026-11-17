@@ -1,11 +1,12 @@
 package info.prorabka.abik.android.presentation.team
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
 import android.provider.ContactsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -53,6 +56,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import coil.compose.AsyncImage
@@ -68,6 +72,8 @@ import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.MemberStatus
 import info.prorabka.abik.android.domain.model.Position
 import info.prorabka.abik.android.domain.model.TeamMember
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Экран «Команда»: вся команда и произвольные общие списки участников.
@@ -602,8 +608,8 @@ fun TeamScreen(
     if (showInviteDialog) {
         InviteDialog(
             onDismiss = { showInviteDialog = false },
-            onInvite = { phone ->
-                viewModel.invite(phone)
+            onInvite = { phones ->
+                viewModel.invite(phones)
                 showInviteDialog = false
             },
         )
@@ -1113,84 +1119,100 @@ private fun OutgoingInvitationsCard(
     }
 }
 
+private data class ContactRecipient(
+    val phone: String,
+    val name: String,
+)
+
 @Composable
-private fun InviteDialog(onDismiss: () -> Unit, onInvite: (String) -> Unit) {
+private fun InviteDialog(onDismiss: () -> Unit, onInvite: (List<String>) -> Unit) {
     val context = LocalContext.current
     var phone by remember { mutableStateOf("") }
-    var contactName by remember { mutableStateOf<String?>(null) }
+    var recipients by remember { mutableStateOf<Map<String, String?>>(emptyMap()) }
     var contactError by remember { mutableStateOf<String?>(null) }
-    val contactPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult(),
-    ) { result ->
-        val uri = result.data?.data
-        if (uri != null) {
-            try {
-                context.contentResolver.query(
-                    uri,
-                    arrayOf(
-                        ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-                        ContactsContract.CommonDataKinds.Phone.NUMBER,
-                    ),
-                    null,
-                    null,
-                    null,
-                ).use { cursor ->
-                    if (cursor != null && cursor.moveToFirst()) {
-                        contactName = cursor.getString(0)
-                        phone = PhoneUtils.inputDigits(cursor.getString(1).orEmpty())
-                        contactError = null
-                    } else {
-                        contactError = "Не удалось получить номер контакта"
-                    }
-                }
-            } catch (_: Exception) {
-                contactError = "Не удалось прочитать выбранный контакт"
-            }
+    var showContactPicker by remember { mutableStateOf(false) }
+    val contactsPermission = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            contactError = null
+            showContactPicker = true
+        } else {
+            contactError = "Разрешите доступ к контактам в настройках приложения"
         }
     }
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Пригласить игрока") },
+        title = { Text("Пригласить игроков") },
         text = {
             Column {
                 Text(
-                    "Игрок должен быть зарегистрирован в abik",
+                    "Игроки должны быть зарегистрированы в abik",
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Spacer(modifier = Modifier.height(8.dp))
                 TextButton(
                     onClick = {
                         contactError = null
-                        try {
-                            contactPicker.launch(
-                                Intent(
-                                    Intent.ACTION_PICK,
-                                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                                ),
-                            )
-                        } catch (_: ActivityNotFoundException) {
-                            contactError = "На устройстве нет приложения контактов"
+                        if (ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.READ_CONTACTS,
+                            ) == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            showContactPicker = true
+                        } else {
+                            contactsPermission.launch(Manifest.permission.READ_CONTACTS)
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Выбрать из записной книги") }
-                contactName?.let {
+
+                if (recipients.isNotEmpty()) {
                     Text(
-                        "Выбран: $it",
+                        "Выбрано: ${recipients.size}",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyColumn(modifier = Modifier.heightIn(max = 180.dp)) {
+                        items(recipients.entries.toList(), key = { it.key }) { recipient ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    recipient.value?.takeIf { it.isNotBlank() }?.let { name ->
+                                        Text(name, style = MaterialTheme.typography.bodyMedium)
+                                    }
+                                    Text(
+                                        PhoneUtils.formatInput(recipient.key),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                TextButton(onClick = { recipients = recipients - recipient.key }) {
+                                    Text("Удалить")
+                                }
+                            }
+                        }
+                    }
                 }
+
                 AbikTextField(
                     value = phone,
-                    onValueChange = {
-                        phone = PhoneUtils.inputDigits(it)
-                        contactName = null
-                    },
+                    onValueChange = { phone = PhoneUtils.inputDigits(it) },
                     label = "Номер телефона",
                     keyboardType = KeyboardType.Phone,
                 )
+                TextButton(
+                    onClick = {
+                        PhoneUtils.normalize(phone)?.let { normalized ->
+                            recipients = recipients + (normalized to null)
+                            phone = ""
+                        }
+                    },
+                    enabled = PhoneUtils.isValid(phone),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Добавить номер") }
                 contactError?.let {
                     Text(
                         it,
@@ -1203,14 +1225,134 @@ private fun InviteDialog(onDismiss: () -> Unit, onInvite: (String) -> Unit) {
         },
         confirmButton = {
             TextButton(
-                onClick = { onInvite(phone) },
-                enabled = PhoneUtils.isValid(phone),
-            ) { Text("Отправить") }
+                onClick = { onInvite(recipients.keys.toList()) },
+                enabled = recipients.isNotEmpty(),
+            ) { Text("Отправить (${recipients.size})") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Отмена") }
         },
     )
+
+    if (showContactPicker) {
+        ContactsPickerDialog(
+            initiallySelected = recipients.keys,
+            onDismiss = { showContactPicker = false },
+            onConfirm = { contacts ->
+                recipients = recipients + contacts.associate { it.phone to it.name }
+                showContactPicker = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun ContactsPickerDialog(
+    initiallySelected: Set<String>,
+    onDismiss: () -> Unit,
+    onConfirm: (List<ContactRecipient>) -> Unit,
+) {
+    val context = LocalContext.current
+    var contacts by remember { mutableStateOf<List<ContactRecipient>>(emptyList()) }
+    var selected by remember { mutableStateOf(initiallySelected) }
+    var query by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        try {
+            contacts = withContext(Dispatchers.IO) { readPhoneContacts(context) }
+        } catch (_: Exception) {
+            error = "Не удалось прочитать контакты"
+        }
+        loading = false
+    }
+
+    val filtered = contacts.filter { contact ->
+        query.isBlank() || contact.name.contains(query, ignoreCase = true) ||
+            contact.phone.contains(query.filter(Char::isDigit))
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Выбрать контакты") },
+        text = {
+            Column {
+                AbikTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = "Поиск",
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                when {
+                    loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                    error != null -> Text(error!!, color = MaterialTheme.colorScheme.error)
+                    filtered.isEmpty() -> Text("Контакты не найдены")
+                    else -> LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+                        items(filtered, key = { it.phone }) { contact ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selected = if (contact.phone in selected) {
+                                            selected - contact.phone
+                                        } else {
+                                            selected + contact.phone
+                                        }
+                                    }
+                                    .padding(vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(
+                                    checked = contact.phone in selected,
+                                    onCheckedChange = null,
+                                )
+                                Column {
+                                    Text(contact.name, style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        PhoneUtils.formatInput(contact.phone),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(contacts.filter { it.phone in selected }) },
+                enabled = selected.isNotEmpty(),
+            ) { Text("Добавить (${selected.size})") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Отмена") }
+        },
+    )
+}
+
+private fun readPhoneContacts(context: android.content.Context): List<ContactRecipient> {
+    val unique = linkedMapOf<String, ContactRecipient>()
+    context.contentResolver.query(
+        ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+        arrayOf(
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+            ContactsContract.CommonDataKinds.Phone.NUMBER,
+        ),
+        null,
+        null,
+        ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC",
+    ).use { cursor ->
+        if (cursor == null) return emptyList()
+        while (cursor.moveToNext()) {
+            val rawPhone = cursor.getString(1).orEmpty()
+            val normalized = PhoneUtils.normalize(rawPhone) ?: continue
+            val name = cursor.getString(0).orEmpty().ifBlank { rawPhone }
+            unique.putIfAbsent(normalized, ContactRecipient(normalized, name))
+        }
+    }
+    return unique.values.sortedBy { it.name.lowercase() }
 }
 
 /** Редактирование названия и описания команды (управляющие). */

@@ -262,23 +262,35 @@ class TeamViewModel @Inject constructor(
         }
     }
 
-    fun invite(phoneRaw: String) {
+    fun invite(phonesRaw: List<String>) {
         val teamId = currentTeamId() ?: return
-        val phone = PhoneUtils.normalize(phoneRaw)
-        if (phone == null) {
-            _ui.update { it.copy(error = "Введите корректный номер телефона") }
+        val phones = phonesRaw.mapNotNull(PhoneUtils::normalize).distinct()
+        if (phones.isEmpty()) {
+            _ui.update { it.copy(error = "Выберите хотя бы один корректный номер телефона") }
             return
         }
         viewModelScope.launch {
-            when (val r = teamRepository.invite(teamId, phone)) {
-                is ApiResult.Success -> _ui.update {
-                    it.copy(info = "Приглашение отправлено на ${PhoneUtils.formatInput(phone)}")
-                }
-                is ApiResult.HttpError -> _ui.update { it.copy(error = r.message) }
-                is ApiResult.NetworkError -> _ui.update {
-                    it.copy(error = "Нет соединения с сервером")
+            var sent = 0
+            var lastError: String? = null
+            phones.forEach { phone ->
+                when (val result = teamRepository.invite(teamId, phone)) {
+                    is ApiResult.Success -> sent++
+                    is ApiResult.HttpError -> lastError = result.message
+                    is ApiResult.NetworkError -> lastError = "Нет соединения с сервером"
                 }
             }
+            val failed = phones.size - sent
+            _ui.update {
+                it.copy(
+                    info = if (sent > 0) "Отправлено приглашений: $sent" else null,
+                    error = if (failed > 0) {
+                        "Не отправлено: $failed" + lastError?.let { error -> ". $error" }.orEmpty()
+                    } else {
+                        null
+                    },
+                )
+            }
+            if (sent > 0) loadOutgoingInvitations(teamId)
         }
     }
 

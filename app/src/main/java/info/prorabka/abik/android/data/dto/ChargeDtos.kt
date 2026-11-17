@@ -82,6 +82,9 @@ data class ChargeTemplateDto(
     val type: String,
     val periodicity: String,
     val dayOfMonth: Int? = null,
+    val pollEnabled: Boolean = false,
+    val pollStartDay: Int? = null,
+    val pollEndDay: Int? = null,
     val startDate: String? = null,
     val endDate: String? = null,
     val distribution: String,
@@ -100,6 +103,9 @@ data class ChargeTemplateRequestDto(
     val type: String,
     val periodicity: String,
     val dayOfMonth: Int? = null,
+    val pollEnabled: Boolean = false,
+    val pollStartDay: Int? = null,
+    val pollEndDay: Int? = null,
     val startDate: String? = null,
     val endDate: String? = null,
     val distribution: String,
@@ -121,3 +127,25 @@ data class ChargeListRequestDto(
     val name: String,
     val memberIds: Set<Long>,
 )
+
+
+@Serializable
+data class SubscriptionPollVoterDto(val userId: Long, val name: String)
+
+@Serializable
+data class SubscriptionPollDto(
+    val id: Long,
+    val templateId: Long,
+    val title: String,
+    val startDate: String,
+    val endDate: String,
+    val validFrom: String,
+    val validUntil: String,
+    val yesCount: Int,
+    val noCount: Int,
+    val myVote: String? = null,
+    val positiveVoters: List<SubscriptionPollVoterDto> = emptyList(),
+)
+
+@Serializable
+data class SubscriptionPollVoteRequestDto(val answer: String)

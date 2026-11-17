@@ -71,12 +71,21 @@ interface ChargeRepository {
         subgroupId: Long?,
         name: String,
         amountKopecks: Long,
-        dayOfMonth: Int,
+        dayOfMonth: Int?,
         distribution: ChargeDistribution,
         memberIds: Set<Long>,
+        pollStartDay: Int? = null,
+        pollEndDay: Int? = null,
     ): ApiResult<Unit>
 
     suspend fun setTemplateActive(teamId: Long, templateId: Long, active: Boolean): ApiResult<Unit>
+
+    suspend fun currentSubscriptionPoll(teamId: Long): ApiResult<info.prorabka.abik.android.domain.model.SubscriptionPoll?>
+    suspend fun voteSubscriptionPoll(
+        teamId: Long,
+        pollId: Long,
+        answer: info.prorabka.abik.android.domain.model.SubscriptionPollAnswer,
+    ): ApiResult<info.prorabka.abik.android.domain.model.SubscriptionPoll>
 
     // --- Списки получателей ---
 

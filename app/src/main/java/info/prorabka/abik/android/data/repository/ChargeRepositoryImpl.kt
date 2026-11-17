@@ -217,6 +217,9 @@ class ChargeRepositoryImpl @Inject constructor(
                 type = dto.type,
                 periodicity = dto.periodicity,
                 dayOfMonth = dto.dayOfMonth,
+                pollEnabled = dto.pollEnabled,
+                pollStartDay = dto.pollStartDay,
+                pollEndDay = dto.pollEndDay,
                 distribution = runCatching { ChargeDistribution.valueOf(dto.distribution) }
                     .getOrDefault(ChargeDistribution.FIXED),
                 active = dto.active,
@@ -232,9 +235,11 @@ class ChargeRepositoryImpl @Inject constructor(
         subgroupId: Long?,
         name: String,
         amountKopecks: Long,
-        dayOfMonth: Int,
+        dayOfMonth: Int?,
         distribution: ChargeDistribution,
         memberIds: Set<Long>,
+        pollStartDay: Int?,
+        pollEndDay: Int?,
     ): ApiResult<Unit> = apiCall {
         val body = ChargeTemplateRequestDto(
             groupId = groupId,
@@ -244,6 +249,9 @@ class ChargeRepositoryImpl @Inject constructor(
             type = "SYSTEMATIC",
             periodicity = "MONTHLY",
             dayOfMonth = dayOfMonth,
+            pollEnabled = pollStartDay != null,
+            pollStartDay = pollStartDay,
+            pollEndDay = pollEndDay,
             distribution = distribution.name,
             memberIds = memberIds,
         )
@@ -267,6 +275,43 @@ class ChargeRepositoryImpl @Inject constructor(
         }
         Unit
     }
+
+    override suspend fun currentSubscriptionPoll(teamId: Long): ApiResult<info.prorabka.abik.android.domain.model.SubscriptionPoll?> = apiCall {
+        api.currentSubscriptionPoll(teamId)?.toSubscriptionPoll()
+    }
+
+    override suspend fun voteSubscriptionPoll(
+        teamId: Long,
+        pollId: Long,
+        answer: info.prorabka.abik.android.domain.model.SubscriptionPollAnswer,
+    ): ApiResult<info.prorabka.abik.android.domain.model.SubscriptionPoll> = apiCall {
+        api.voteSubscriptionPoll(
+            teamId,
+            pollId,
+            info.prorabka.abik.android.data.dto.SubscriptionPollVoteRequestDto(answer.name),
+        ).toSubscriptionPoll()
+    }
+
+    private fun info.prorabka.abik.android.data.dto.SubscriptionPollDto.toSubscriptionPoll() =
+        info.prorabka.abik.android.domain.model.SubscriptionPoll(
+            id = id,
+            templateId = templateId,
+            title = title,
+            startDate = startDate,
+            endDate = endDate,
+            validFrom = validFrom,
+            validUntil = validUntil,
+            yesCount = yesCount,
+            noCount = noCount,
+            myVote = myVote?.let { value ->
+                runCatching {
+                    info.prorabka.abik.android.domain.model.SubscriptionPollAnswer.valueOf(value)
+                }.getOrNull()
+            },
+            positiveVoters = positiveVoters.map {
+                info.prorabka.abik.android.domain.model.SubscriptionPollVoter(it.userId, it.name)
+            },
+        )
 
     // --- Списки получателей ---
 

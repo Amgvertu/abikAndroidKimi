@@ -69,6 +69,8 @@ class EventFormViewModel @Inject constructor(
         val chargeAmountRub: String = "",
         val chargeDistribution: EventChargeDistribution = EventChargeDistribution.EACH_ATTENDED,
         val chargeTemplateId: Long? = null,
+        val excludeSubscriptionHolders: Boolean = false,
+        val hasPollSubscription: Boolean = false,
         val templates: List<ChargeTemplate> = emptyList(),
         val voterListId: Long? = null,
         val voterLists: List<ChargeList> = emptyList(),
@@ -85,18 +87,23 @@ class EventFormViewModel @Inject constructor(
         /** Последние места проведения — подсказки под полем «Место». */
         val recentPlaces: List<String> = emptyList(),
     ) {
+        /** Повторение доступно для тренировок и двухсторонок. */
+        val recurrenceAvailable: Boolean
+            get() = section == EventSection.TRAINING || section == EventSection.SCRIMMAGE
+
         /** Место необязательно только для повторяющейся тренировки (ТЗ). */
         val placeRequired: Boolean
             get() = !(section == EventSection.TRAINING && repeatWeekly)
 
-        /** Варианты распределения суммы: у двухсторонки только «отметившиеся». */
+        /** Для двухсторонки и режима «По опросу» — только фактические участники. */
         val availableDistributions: List<EventChargeDistribution>
-            get() = when (section) {
-                EventSection.SCRIMMAGE -> listOf(
+            get() = if (section == EventSection.SCRIMMAGE || chargeMode == EventChargeMode.VOTE) {
+                listOf(
                     EventChargeDistribution.EACH_ATTENDED,
                     EventChargeDistribution.SPLIT_ATTENDED,
                 )
-                else -> EventChargeDistribution.entries
+            } else {
+                EventChargeDistribution.entries
             }
     }
 
@@ -163,18 +170,19 @@ class EventFormViewModel @Inject constructor(
     private fun loadTemplates() {
         val teamId = teamManager.selected.value?.id ?: return
         viewModelScope.launch {
-            // В форме события доступны только шаблоны из группы «Регулярка» (ТЗ).
-            val regularGroupIds = when (val g = chargeRepository.groups(teamId)) {
-                is ApiResult.Success -> g.data
-                    .filter { it.name.equals(REGULAR_GROUP_NAME, ignoreCase = true) }
-                    .map { it.id }
-                    .toSet()
-                else -> emptySet()
+            val groups = when (val result = chargeRepository.groups(teamId)) {
+                is ApiResult.Success -> result.data
+                else -> emptyList()
             }
-            when (val r = chargeRepository.templates(teamId, onlyActive = true)) {
+            val regularGroupIds = groups
+                .filter { it.name.equals(REGULAR_GROUP_NAME, ignoreCase = true) }
+                .map { it.id }
+                .toSet()
+            when (val result = chargeRepository.templates(teamId, onlyActive = true)) {
                 is ApiResult.Success -> _ui.update {
                     it.copy(
-                        templates = r.data.filter { t -> t.groupId in regularGroupIds },
+                        templates = result.data.filter { t -> t.groupId in regularGroupIds },
+                        hasPollSubscription = result.data.any { t -> t.pollEnabled },
                     )
                 }
                 else -> Unit
@@ -210,6 +218,7 @@ class EventFormViewModel @Inject constructor(
                             chargeDistribution = e.chargeDistribution
                                 ?: EventChargeDistribution.EACH_ATTENDED,
                             chargeTemplateId = e.chargeTemplateId,
+                            excludeSubscriptionHolders = e.excludeSubscriptionHolders,
                             chargeMemberIds = e.chargeMemberIds,
                             voterListId = e.voterListId,
                         )
@@ -235,17 +244,21 @@ class EventFormViewModel @Inject constructor(
             EventSection.REGULAR, EventSection.SCRIMMAGE ->
                 if (it.type == EventType.TRAINING) EventType.GAME else it.type
         }
-        // У двухсторонки только «отметившиеся»
+        // У двухсторонки и начисления по опросу только «отметившиеся»
+        val attendanceOnly = section == EventSection.SCRIMMAGE || it.chargeMode == EventChargeMode.VOTE
         val newDistribution = when {
-            section == EventSection.SCRIMMAGE &&
-                it.chargeDistribution == EventChargeDistribution.EACH_ROSTER ->
+            attendanceOnly && it.chargeDistribution == EventChargeDistribution.EACH_ROSTER ->
                 EventChargeDistribution.EACH_ATTENDED
-            section == EventSection.SCRIMMAGE &&
-                it.chargeDistribution == EventChargeDistribution.SPLIT_ROSTER ->
+            attendanceOnly && it.chargeDistribution == EventChargeDistribution.SPLIT_ROSTER ->
                 EventChargeDistribution.SPLIT_ATTENDED
             else -> it.chargeDistribution
         }
-        it.copy(section = section, type = newType, chargeDistribution = newDistribution)
+        it.copy(
+            section = section,
+            type = newType,
+            chargeDistribution = newDistribution,
+            repeatWeekly = if (section == EventSection.REGULAR) false else it.repeatWeekly,
+        )
     }
 
     fun setType(type: EventType) = _ui.update { it.copy(type = type) }
@@ -258,7 +271,18 @@ class EventFormViewModel @Inject constructor(
     fun setRequiredPlayers(v: String) = _ui.update {
         it.copy(requiredPlayers = v.filter { c -> c.isDigit() }.take(3))
     }
-    fun setChargeMode(mode: EventChargeMode) = _ui.update { it.copy(chargeMode = mode) }
+    fun setChargeMode(mode: EventChargeMode) = _ui.update {
+        val newDistribution = if (mode == EventChargeMode.VOTE) {
+            when (it.chargeDistribution) {
+                EventChargeDistribution.EACH_ROSTER -> EventChargeDistribution.EACH_ATTENDED
+                EventChargeDistribution.SPLIT_ROSTER -> EventChargeDistribution.SPLIT_ATTENDED
+                else -> it.chargeDistribution
+            }
+        } else {
+            it.chargeDistribution
+        }
+        it.copy(chargeMode = mode, chargeDistribution = newDistribution)
+    }
     fun setChargeAmount(v: String) = _ui.update {
         it.copy(chargeAmountRub = v.filter { c -> c.isDigit() }.take(9))
     }
@@ -266,6 +290,9 @@ class EventFormViewModel @Inject constructor(
         it.copy(chargeDistribution = d)
     }
     fun setChargeTemplate(id: Long?) = _ui.update { it.copy(chargeTemplateId = id) }
+    fun setExcludeSubscriptionHolders(value: Boolean) = _ui.update {
+        it.copy(excludeSubscriptionHolders = value)
+    }
     fun setVoterList(id: Long?) = _ui.update { it.copy(voterListId = id) }
 
     /** Переключить участника в списке получателей ручного начисления. */
@@ -342,16 +369,19 @@ class EventFormViewModel @Inject constructor(
             !timeOk -> "Время в формате ЧЧ:ММ (например, 21:30)"
             s.reserveEnabled && (s.requiredPlayers.toIntOrNull() ?: 0) <= 0 ->
                 "Укажите требуемое количество полевых игроков или отключите резерв"
-            s.repeatWeekly && s.section == EventSection.TRAINING && s.weekdays.isEmpty() ->
+            s.repeatWeekly && s.recurrenceAvailable && s.weekdays.isEmpty() ->
                 "Выберите дни недели для повторения"
-            s.repeatWeekly && s.section == EventSection.TRAINING && until == null ->
+            s.repeatWeekly && s.recurrenceAvailable && until == null ->
                 "Выберите дату окончания повторения"
-            s.repeatWeekly && s.section == EventSection.TRAINING &&
+            s.repeatWeekly && s.recurrenceAvailable &&
                 until != null && until.isBefore(date) ->
                 "Дата окончания серии раньше даты начала"
             s.chargeMode == EventChargeMode.MANUAL &&
                 s.chargeAmountRub.isNotBlank() && s.chargeAmountRub.toLongOrNull() == null ->
                 "Некорректная сумма"
+            s.chargeMode == EventChargeMode.VOTE &&
+                (s.chargeAmountRub.toLongOrNull() ?: 0L) <= 0L ->
+                "Укажите сумму начисления"
             s.chargeMode == EventChargeMode.TEMPLATE && s.chargeTemplateId == null ->
                 "Выберите шаблон начисления"
             else -> null
@@ -382,12 +412,12 @@ class EventFormViewModel @Inject constructor(
             time = s.time,
             place = s.place.trim(),
             note = s.note.trim().ifBlank { null },
-            weekdays = if (s.repeatWeekly && s.section == EventSection.TRAINING && !isEdit) {
+            weekdays = if (s.repeatWeekly && s.recurrenceAvailable && !isEdit) {
                 s.weekdays
             } else {
                 null
             },
-            untilDateIso = if (s.repeatWeekly && s.section == EventSection.TRAINING && !isEdit) {
+            untilDateIso = if (s.repeatWeekly && s.recurrenceAvailable && !isEdit) {
                 s.untilDateIso
             } else {
                 null
@@ -395,12 +425,16 @@ class EventFormViewModel @Inject constructor(
             requiredPlayers = if (s.reserveEnabled) s.requiredPlayers.toIntOrNull() else null,
             voterListId = s.voterListId,
             chargeMode = effectiveMode,
-            chargeAmountKopecks = if (effectiveMode == EventChargeMode.MANUAL) {
+            chargeAmountKopecks = if (effectiveMode == EventChargeMode.MANUAL ||
+                effectiveMode == EventChargeMode.VOTE
+            ) {
                 amountRub?.times(100)
             } else {
                 null
             },
-            chargeDistribution = if (effectiveMode == EventChargeMode.MANUAL) {
+            chargeDistribution = if (effectiveMode == EventChargeMode.MANUAL ||
+                effectiveMode == EventChargeMode.VOTE
+            ) {
                 s.chargeDistribution
             } else {
                 null
@@ -410,6 +444,8 @@ class EventFormViewModel @Inject constructor(
             } else {
                 null
             },
+            excludeSubscriptionHolders = effectiveMode == EventChargeMode.VOTE &&
+                s.section == EventSection.SCRIMMAGE && s.excludeSubscriptionHolders,
             chargeMemberIds = if (effectiveMode == EventChargeMode.MANUAL) {
                 s.chargeMemberIds
             } else {

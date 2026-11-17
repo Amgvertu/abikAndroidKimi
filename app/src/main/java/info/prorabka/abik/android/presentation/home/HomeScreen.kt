@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -56,6 +57,7 @@ fun HomeScreen(
 ) {
     val ui by shellViewModel.ui.collectAsState()
     val feed by viewModel.ui.collectAsState()
+    val showPollDetails = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     info.prorabka.abik.android.core.ui.RealtimeRefresh {
         viewModel.refresh()
         shellViewModel.refresh()
@@ -103,6 +105,16 @@ fun HomeScreen(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                feed.subscriptionPoll?.let { poll ->
+                    SubscriptionPollCard(
+                        poll = poll,
+                        voting = feed.pollVoting,
+                        error = feed.pollError,
+                        onVote = viewModel::voteSubscriptionPoll,
+                        onDetails = { showPollDetails.value = true },
+                    )
+                }
+
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     BalanceCard(
                         title = "Мой баланс",
@@ -135,6 +147,15 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(64.dp))
             }
         }
+    }
+
+    if (showPollDetails.value && feed.subscriptionPoll != null) {
+        SubscriptionPollDetailsDialog(
+            poll = feed.subscriptionPoll!!,
+            voting = feed.pollVoting,
+            onVote = viewModel::voteSubscriptionPoll,
+            onClose = { showPollDetails.value = false },
+        )
     }
 }
 
@@ -317,3 +338,109 @@ private fun NotificationsCard(
         }
     }
 }
+
+
+@Composable
+private fun SubscriptionPollCard(
+    poll: info.prorabka.abik.android.domain.model.SubscriptionPoll,
+    voting: Boolean,
+    error: String?,
+    onVote: (info.prorabka.abik.android.domain.model.SubscriptionPollAnswer) -> Unit,
+    onDetails: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onDetails)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Абонемент (опрос)", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary)
+            Text(poll.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Голосование: ${pollDate(poll.startDate)}–${pollDate(poll.endDate)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            PollVoteButtons(poll, voting, onVote)
+            if (error != null) Text(error, style = MaterialTheme.typography.bodySmall, color = Danger)
+            Text("Подробнее и список проголосовавших →", style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+private fun PollVoteButtons(
+    poll: info.prorabka.abik.android.domain.model.SubscriptionPoll,
+    voting: Boolean,
+    onVote: (info.prorabka.abik.android.domain.model.SubscriptionPollAnswer) -> Unit,
+) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        PollVoteButton(
+            text = "+  ${poll.yesCount}",
+            selected = poll.myVote == info.prorabka.abik.android.domain.model.SubscriptionPollAnswer.YES,
+            enabled = !voting,
+            modifier = Modifier.weight(1f),
+            onClick = { onVote(info.prorabka.abik.android.domain.model.SubscriptionPollAnswer.YES) },
+        )
+        PollVoteButton(
+            text = "−  ${poll.noCount}",
+            selected = poll.myVote == info.prorabka.abik.android.domain.model.SubscriptionPollAnswer.NO,
+            enabled = !voting,
+            modifier = Modifier.weight(1f),
+            onClick = { onVote(info.prorabka.abik.android.domain.model.SubscriptionPollAnswer.NO) },
+        )
+    }
+}
+
+@Composable
+private fun PollVoteButton(
+    text: String,
+    selected: Boolean,
+    enabled: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    if (selected) {
+        Button(onClick = onClick, enabled = enabled, modifier = modifier) { Text(text) }
+    } else {
+        androidx.compose.material3.OutlinedButton(onClick = onClick, enabled = enabled, modifier = modifier) {
+            Text(text)
+        }
+    }
+}
+
+@Composable
+private fun SubscriptionPollDetailsDialog(
+    poll: info.prorabka.abik.android.domain.model.SubscriptionPoll,
+    voting: Boolean,
+    onVote: (info.prorabka.abik.android.domain.model.SubscriptionPollAnswer) -> Unit,
+    onClose: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(poll.title) },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Абонемент на ${pollDate(poll.validFrom)}–${pollDate(poll.validUntil)}",
+                    style = MaterialTheme.typography.bodyMedium)
+                PollVoteButtons(poll, voting, onVote)
+                Text("Проголосовали «+»: ${poll.yesCount}", style = MaterialTheme.typography.titleSmall)
+                if (poll.positiveVoters.isEmpty()) {
+                    Text("Пока никто не проголосовал положительно",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    poll.positiveVoters.forEach { voter ->
+                        Text(voter.name, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onClose) { Text("Закрыть") }
+        },
+    )
+}
+
+private fun pollDate(value: String): String = runCatching {
+    java.time.LocalDate.parse(value).format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+}.getOrDefault(value)

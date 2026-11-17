@@ -47,6 +47,9 @@ data class ChargeTemplate(
     val type: String,
     val periodicity: String,
     val dayOfMonth: Int?,
+    val pollEnabled: Boolean = false,
+    val pollStartDay: Int? = null,
+    val pollEndDay: Int? = null,
     val distribution: ChargeDistribution,
     val active: Boolean,
     val memberIds: Set<Long>,
@@ -57,4 +60,23 @@ data class ChargeList(
     val id: Long,
     val name: String,
     val memberIds: Set<Long>,
+)
+
+
+enum class SubscriptionPollAnswer { YES, NO }
+
+data class SubscriptionPollVoter(val userId: Long, val name: String)
+
+data class SubscriptionPoll(
+    val id: Long,
+    val templateId: Long,
+    val title: String,
+    val startDate: String,
+    val endDate: String,
+    val validFrom: String,
+    val validUntil: String,
+    val yesCount: Int,
+    val noCount: Int,
+    val myVote: SubscriptionPollAnswer?,
+    val positiveVoters: List<SubscriptionPollVoter>,
 )

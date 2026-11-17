@@ -144,6 +144,7 @@ class EventRepositoryImpl @Inject constructor(
                 chargeAmountKopecks = data.chargeAmountKopecks,
                 chargeDistribution = data.chargeDistribution?.name,
                 chargeTemplateId = data.chargeTemplateId,
+                excludeSubscriptionHolders = data.excludeSubscriptionHolders,
                 chargeMemberIds = data.chargeMemberIds,
         voterListId = data.voterListId,
             ),
@@ -291,6 +292,7 @@ class EventRepositoryImpl @Inject constructor(
             runCatching { EventChargeDistribution.valueOf(it) }.getOrNull()
         },
         chargeTemplateId = chargeTemplateId,
+        excludeSubscriptionHolders = excludeSubscriptionHolders,
         chargeMemberIds = chargeMemberIds.orEmpty(),
         voterListId = voterListId,
         charged = charged,
@@ -331,6 +333,7 @@ class EventRepositoryImpl @Inject constructor(
         chargeAmountKopecks = chargeAmountKopecks,
         chargeDistribution = chargeDistribution?.name,
         chargeTemplateId = chargeTemplateId,
+        excludeSubscriptionHolders = excludeSubscriptionHolders,
         chargeMemberIds = chargeMemberIds,
         voterListId = voterListId,
     )

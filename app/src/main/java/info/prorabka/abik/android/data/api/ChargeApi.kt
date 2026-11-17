@@ -13,6 +13,8 @@ import info.prorabka.abik.android.data.dto.ChargeTemplateDto
 import info.prorabka.abik.android.data.dto.ChargeTemplateRequestDto
 import info.prorabka.abik.android.data.dto.ChargeUpdateRequestDto
 import info.prorabka.abik.android.data.dto.MessageResponse
+import info.prorabka.abik.android.data.dto.SubscriptionPollDto
+import info.prorabka.abik.android.data.dto.SubscriptionPollVoteRequestDto
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -129,6 +131,18 @@ interface ChargeApi {
         @Path("teamId") teamId: Long,
         @Path("templateId") templateId: Long,
     ): ChargeTemplateDto
+
+    // --- Ежемесячный абонемент по опросу ---
+
+    @GET("v1/teams/{teamId}/subscription-polls/current")
+    suspend fun currentSubscriptionPoll(@Path("teamId") teamId: Long): SubscriptionPollDto?
+
+    @POST("v1/teams/{teamId}/subscription-polls/{pollId}/vote")
+    suspend fun voteSubscriptionPoll(
+        @Path("teamId") teamId: Long,
+        @Path("pollId") pollId: Long,
+        @Body body: SubscriptionPollVoteRequestDto,
+    ): SubscriptionPollDto
 
     // --- Списки получателей ---
 

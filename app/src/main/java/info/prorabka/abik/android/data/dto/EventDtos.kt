@@ -86,6 +86,7 @@ data class EventDetailDto(
     val chargeAmountKopecks: Long? = null,
     val chargeDistribution: String? = null,
     val chargeTemplateId: Long? = null,
+    val excludeSubscriptionHolders: Boolean = false,
     val chargeMemberIds: Set<Long>? = null,
     val voterListId: Long? = null,
     val charged: Boolean = false,
@@ -116,6 +117,7 @@ data class EventCreateRequestDto(
     val chargeAmountKopecks: Long? = null,
     val chargeDistribution: String? = null,
     val chargeTemplateId: Long? = null,
+    val excludeSubscriptionHolders: Boolean = false,
     val chargeMemberIds: Set<Long>? = null,
     val voterListId: Long? = null,
 )
@@ -134,6 +136,7 @@ data class EventUpdateRequestDto(
     val chargeAmountKopecks: Long? = null,
     val chargeDistribution: String? = null,
     val chargeTemplateId: Long? = null,
+    val excludeSubscriptionHolders: Boolean = false,
     val chargeMemberIds: Set<Long>? = null,
     val voterListId: Long? = null,
 )

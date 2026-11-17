@@ -1,6 +1,7 @@
 package info.prorabka.abik.android.presentation.subscription
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,8 +47,7 @@ import info.prorabka.abik.android.core.ui.components.ErrorText
 import info.prorabka.abik.android.core.ui.components.LoadingBox
 import info.prorabka.abik.android.domain.model.ChargeDistribution
 
-/** Создание/редактирование шаблона начисления («Абонемент» / «Регулярка»). */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun TemplateFormScreen(
     templateId: Long,
@@ -56,7 +56,6 @@ fun TemplateFormScreen(
     viewModel: TemplateFormViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
-
     LaunchedEffect(templateId) { viewModel.load(templateId) }
 
     Scaffold(
@@ -82,10 +81,9 @@ fun TemplateFormScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 16.dp),
         ) {
-            // Вид шаблона (только при создании)
             if (ui.editTemplateId == null) {
                 Text("Вид шаблона", style = MaterialTheme.typography.titleSmall)
-                Row {
+                FlowRow {
                     TemplateKind.entries.forEach { kind ->
                         FilterChip(
                             selected = ui.kind == kind,
@@ -98,39 +96,66 @@ fun TemplateFormScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            if (ui.kind == TemplateKind.SUBSCRIPTION) {
+            if (ui.kind != TemplateKind.REGULAR) {
                 AbikTextField(
                     value = ui.name,
                     onValueChange = viewModel::onName,
                     label = "Название шаблона",
                 )
                 Spacer(modifier = Modifier.height(12.dp))
+            }
 
-                AbikTextField(
-                    value = ui.dayOfMonth,
-                    onValueChange = viewModel::onDayOfMonth,
-                    label = "День месяца начисления (1–28)",
-                    keyboardType = KeyboardType.Number,
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-            } else {
-                OutlinedTextField(
-                    value = ui.season,
-                    onValueChange = viewModel::onSeason,
-                    label = { Text("Сезон (например, 2026/2027)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    visualTransformation = SeasonVisualTransformation,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (ui.season.isNotBlank()) {
+            when (ui.kind) {
+                TemplateKind.SUBSCRIPTION -> {
+                    AbikTextField(
+                        value = ui.dayOfMonth,
+                        onValueChange = viewModel::onDayOfMonth,
+                        label = "День месяца начисления (1–28)",
+                        keyboardType = KeyboardType.Number,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                TemplateKind.POLL_SUBSCRIPTION -> {
+                    AbikTextField(
+                        value = ui.pollStartDay,
+                        onValueChange = viewModel::onPollStartDay,
+                        label = "День начала опроса (1–31)",
+                        keyboardType = KeyboardType.Number,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    AbikTextField(
+                        value = ui.pollEndDay,
+                        onValueChange = viewModel::onPollEndDay,
+                        label = "День окончания опроса (1–31)",
+                        keyboardType = KeyboardType.Number,
+                    )
                     Text(
-                        "Название: ${ui.effectiveName}",
+                        "В коротком месяце обе даты переносятся на его последний день. Начисление выполняется на следующий день после окончания опроса.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp),
+                        modifier = Modifier.padding(top = 8.dp),
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                TemplateKind.REGULAR -> {
+                    OutlinedTextField(
+                        value = ui.season,
+                        onValueChange = viewModel::onSeason,
+                        label = { Text("Сезон (например, 2026/2027)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = SeasonVisualTransformation,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (ui.season.isNotBlank()) {
+                        Text(
+                            "Название: ${ui.effectiveName}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
             }
 
             AbikTextField(
@@ -148,63 +173,66 @@ fun TemplateFormScreen(
                         selected = ui.distribution == dist,
                         onClick = { viewModel.onDistribution(dist) },
                         label = { Text(dist.display) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     )
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            if (ui.kind == TemplateKind.POLL_SUBSCRIPTION) {
                 Text(
-                    if (ui.kind == TemplateKind.REGULAR) {
-                        "Заявленные игроки (${ui.selectedUserIds.size})"
-                    } else {
-                        "Участники (${ui.selectedUserIds.size})"
-                    },
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.weight(1f),
+                    "Голосовать могут все участники команды. Начисление получат ответившие «+», кроме вратарей и тренеров. Абонемент будет действовать весь следующий месяц.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                // Подставить получателей из именованного списка
-                if (ui.lists.isNotEmpty()) {
-                    androidx.compose.foundation.layout.Box {
-                        var listsExpanded by remember { mutableStateOf(false) }
-                        TextButton(onClick = { listsExpanded = true }) {
-                            Text("Из списка")
-                        }
-                        androidx.compose.material3.DropdownMenu(
-                            expanded = listsExpanded,
-                            onDismissRequest = { listsExpanded = false },
-                        ) {
-                            ui.lists.forEach { list ->
-                                androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text("${list.name} (${list.memberIds.size})") },
-                                    onClick = {
-                                        listsExpanded = false
-                                        viewModel.applyList(list)
-                                    },
-                                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        if (ui.kind == TemplateKind.REGULAR) {
+                            "Заявленные игроки (${ui.selectedUserIds.size})"
+                        } else {
+                            "Участники (${ui.selectedUserIds.size})"
+                        },
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (ui.lists.isNotEmpty()) {
+                        androidx.compose.foundation.layout.Box {
+                            var listsExpanded by remember { mutableStateOf(false) }
+                            TextButton(onClick = { listsExpanded = true }) { Text("Из списка") }
+                            androidx.compose.material3.DropdownMenu(
+                                expanded = listsExpanded,
+                                onDismissRequest = { listsExpanded = false },
+                            ) {
+                                ui.lists.forEach { list ->
+                                    androidx.compose.material3.DropdownMenuItem(
+                                        text = { Text("${list.name} (${list.memberIds.size})") },
+                                        onClick = {
+                                            listsExpanded = false
+                                            viewModel.applyList(list)
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
+                    TextButton(onClick = viewModel::selectAll) { Text("Выбрать всех") }
                 }
-                TextButton(onClick = viewModel::selectAll) { Text("Выбрать всех") }
-            }
-            Column(modifier = Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
-                ui.members.forEach { member ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Checkbox(
-                            checked = member.userId in ui.selectedUserIds,
-                            onCheckedChange = { viewModel.toggleMember(member.userId) },
-                        )
-                        Text(member.shortDisplayName, style = MaterialTheme.typography.bodyMedium)
+                Column(modifier = Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
+                    ui.members.forEach { member ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Checkbox(
+                                checked = member.userId in ui.selectedUserIds,
+                                onCheckedChange = { viewModel.toggleMember(member.userId) },
+                            )
+                            Text(member.shortDisplayName, style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
                 }
             }
@@ -221,24 +249,13 @@ fun TemplateFormScreen(
     }
 }
 
-/**
- * Отображение сезона: цифры «20262027» → «2026/2027».
- * Слэш — только визуальный, поэтому курсор не скачет при вводе.
- */
 private object SeasonVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
         val digits = text.text
-        val out = if (digits.length > 4) {
-            digits.take(4) + "/" + digits.drop(4)
-        } else {
-            digits
-        }
+        val out = if (digits.length > 4) digits.take(4) + "/" + digits.drop(4) else digits
         val mapping = object : OffsetMapping {
-            override fun originalToTransformed(offset: Int): Int =
-                if (offset <= 4) offset else offset + 1
-
-            override fun transformedToOriginal(offset: Int): Int =
-                if (offset <= 4) offset else offset - 1
+            override fun originalToTransformed(offset: Int): Int = if (offset <= 4) offset else offset + 1
+            override fun transformedToOriginal(offset: Int): Int = if (offset <= 4) offset else offset - 1
         }
         return TransformedText(AnnotatedString(out), mapping)
     }

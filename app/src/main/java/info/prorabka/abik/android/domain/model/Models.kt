@@ -210,6 +210,7 @@ enum class EventChargeMode(val display: String) {
     NONE("Без начисления"),
     MANUAL("Вручную"),
     TEMPLATE("По шаблону"),
+    VOTE("По опросу"),
 }
 
 /** Кому и как начислять сумму за игру. */
@@ -302,6 +303,7 @@ data class EventDetail(
     val chargeAmountKopecks: Long? = null,
     val chargeDistribution: EventChargeDistribution? = null,
     val chargeTemplateId: Long? = null,
+    val excludeSubscriptionHolders: Boolean = false,
     /** Явный список получателей ручного начисления (пусто — по способу начисления). */
     val chargeMemberIds: Set<Long> = emptySet(),
     /** Текущий состав этого списка ограничивает голосование; null — вся команда. */
@@ -330,6 +332,7 @@ data class EventFormData(
     val chargeAmountKopecks: Long? = null,
     val chargeDistribution: EventChargeDistribution? = null,
     val chargeTemplateId: Long? = null,
+    val excludeSubscriptionHolders: Boolean = false,
     /** Явный список получателей ручного начисления; null — не задан. */
     val chargeMemberIds: Set<Long>? = null,
     val voterListId: Long? = null,

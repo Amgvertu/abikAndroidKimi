@@ -115,8 +115,8 @@ fun EventFormScreen(
                     }
                 }
 
-                // --- Тренировка: повторяющаяся / разовая (только при создании) ---
-                if (ui.section == EventSection.TRAINING && !viewModel.isEdit) {
+                // --- Повторение тренировки или двухсторонки (только при создании) ---
+                if (ui.recurrenceAvailable && !viewModel.isEdit) {
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(
@@ -148,16 +148,12 @@ fun EventFormScreen(
                         LocalDate.parse(ui.dateIso)
                             .format(EventFormViewModel.DISPLAY_DATE)
                     }.getOrDefault(ui.dateIso),
-                    label = if (ui.repeatWeekly && ui.section == EventSection.TRAINING) {
-                        "Дата начала"
-                    } else {
-                        "Дата"
-                    },
+                    label = if (ui.repeatWeekly && ui.recurrenceAvailable) "Дата начала" else "Дата",
                     onSelect = viewModel::setDate,
                 )
 
-                // --- Повторяющаяся тренировка: дата окончания + дни недели ---
-                if (ui.section == EventSection.TRAINING && ui.repeatWeekly && !viewModel.isEdit) {
+                // --- Повторение: дата окончания + дни недели ---
+                if (ui.recurrenceAvailable && ui.repeatWeekly && !viewModel.isEdit) {
                     Spacer(Modifier.height(12.dp))
                     DateField(
                         displayValue = ui.untilDateIso?.let {
@@ -260,7 +256,7 @@ fun EventFormScreen(
                     modifier = Modifier.padding(start = 12.dp, top = 4.dp, end = 12.dp),
                 )
 
-                // --- Регулярка / Двухсторонка: начисление ---
+                // --- Начисление за игру ---
                 if (ui.section != EventSection.TRAINING) {
                     Spacer(Modifier.height(16.dp))
                     Text(
@@ -268,36 +264,31 @@ fun EventFormScreen(
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Row(
+                    FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        FilterChip(
-                            selected = ui.chargeMode == EventChargeMode.NONE,
-                            onClick = { viewModel.setChargeMode(EventChargeMode.NONE) },
-                            label = { Text("Нет", maxLines = 1, fontSize = 11.sp) },
-                            modifier = Modifier.weight(1f),
-                        )
-                        FilterChip(
-                            selected = ui.chargeMode == EventChargeMode.MANUAL,
-                            onClick = { viewModel.setChargeMode(EventChargeMode.MANUAL) },
-                            label = { Text("Вручную", maxLines = 1, fontSize = 11.sp) },
-                            modifier = Modifier.weight(1f),
-                        )
-                        FilterChip(
-                            selected = ui.chargeMode == EventChargeMode.TEMPLATE,
-                            onClick = { viewModel.setChargeMode(EventChargeMode.TEMPLATE) },
-                            label = { Text("По шаблону", maxLines = 1, fontSize = 11.sp) },
-                            modifier = Modifier.weight(1f),
-                        )
+                        EventChargeMode.entries.forEach { mode ->
+                            FilterChip(
+                                selected = ui.chargeMode == mode,
+                                onClick = { viewModel.setChargeMode(mode) },
+                                label = { Text(mode.display, fontSize = 11.sp) },
+                            )
+                        }
                     }
 
-                    if (ui.chargeMode == EventChargeMode.MANUAL) {
+                    if (ui.chargeMode == EventChargeMode.MANUAL ||
+                        ui.chargeMode == EventChargeMode.VOTE
+                    ) {
                         Spacer(Modifier.height(8.dp))
                         AbikTextField(
                             value = ui.chargeAmountRub,
                             onValueChange = viewModel::setChargeAmount,
-                            label = "Сумма оплаты, ₽ (необязательно)",
+                            label = if (ui.chargeMode == EventChargeMode.VOTE) {
+                                "Сумма, ₽"
+                            } else {
+                                "Сумма оплаты, ₽ (необязательно)"
+                            },
                             keyboardType = KeyboardType.Number,
                         )
                         if (ui.chargeAmountRub.isNotBlank()) {
@@ -317,7 +308,35 @@ fun EventFormScreen(
                                 }
                             }
                         }
-                        // Явный список получателей (ТЗ): пустой — по способу начисления
+                    }
+
+                    if (ui.chargeMode == EventChargeMode.VOTE) {
+                        Text(
+                            "Начисление получит основной состав, ответивший «Иду», без вратарей, тренеров и резерва.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                        if (ui.section == EventSection.SCRIMMAGE && ui.hasPollSubscription) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    viewModel.setExcludeSubscriptionHolders(!ui.excludeSubscriptionHolders)
+                                },
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(
+                                    checked = ui.excludeSubscriptionHolders,
+                                    onCheckedChange = viewModel::setExcludeSubscriptionHolders,
+                                )
+                                Text(
+                                    "Не начислять пользователям с действительным абонементом",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                    }
+
+                    if (ui.chargeMode == EventChargeMode.MANUAL) {
                         Spacer(Modifier.height(8.dp))
                         Text(
                             "Кому начислить (необязательно)",
@@ -445,7 +464,8 @@ private fun TemplateDropdown(
     onSelect: (Long?) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val selected = ui.templates.firstOrNull { it.id == ui.chargeTemplateId }
+    val templates = ui.templates
+    val selected = templates.firstOrNull { it.id == ui.chargeTemplateId }
 
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
@@ -454,13 +474,13 @@ private fun TemplateDropdown(
             readOnly = true,
             label = { Text("Шаблон начисления") },
             placeholder = {
-                Text(if (ui.templates.isEmpty()) "Нет активных шаблонов" else "Выберите шаблон")
+                Text(if (templates.isEmpty()) "Нет активных шаблонов" else "Выберите шаблон")
             },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
             modifier = Modifier.fillMaxWidth().menuAnchor(),
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            ui.templates.forEach { template ->
+            templates.forEach { template ->
                 DropdownMenuItem(
                     text = { Text("${template.name} — ${template.amountKopecks / 100} ₽") },
                     onClick = {

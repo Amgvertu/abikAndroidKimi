@@ -111,7 +111,11 @@ fun TemplatesScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                                 Text(
-                                    "Участников: ${template.memberIds.size}",
+                                    if (template.pollEnabled) {
+                                        "Опрос: ${template.pollStartDay ?: "—"}–${template.pollEndDay ?: "—"} число • получатели по голосам"
+                                    } else {
+                                        "Участников: ${template.memberIds.size}"
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
