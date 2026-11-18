@@ -359,6 +359,11 @@ fun EventCard(event: EventListItem, accentColor: Color? = null, onClick: () -> U
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            KatokProInviteButton(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+            )
         }
     }
 }

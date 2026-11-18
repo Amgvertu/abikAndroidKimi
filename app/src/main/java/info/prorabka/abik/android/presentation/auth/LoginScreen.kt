@@ -85,23 +85,29 @@ fun LoginScreen(
 
         if (BuildConfig.DEBUG) {
             val localAvailable by viewModel.localServerAvailable.collectAsState()
-            if (localAvailable) {
-                val currentUrl by viewModel.currentBaseUrl.collectAsState()
-                Spacer(modifier = Modifier.height(24.dp))
-                Text(
-                    text = "Сервер: $currentUrl",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = viewModel::useRemoteServer) {
-                        Text("varamy.online", fontSize = 12.sp)
-                    }
-                    TextButton(onClick = viewModel::useLocalServer) {
-                        Text("192.168.0.119", fontSize = 12.sp)
-                    }
+            val currentUrl by viewModel.currentBaseUrl.collectAsState()
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "Сервер (временно): $currentUrl",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = viewModel::useRemoteServer) {
+                    Text("Глобальный", fontSize = 12.sp)
+                }
+                TextButton(
+                    onClick = viewModel::useLocalServer,
+                    enabled = localAvailable,
+                ) {
+                    Text("Локальный", fontSize = 12.sp)
                 }
             }
+            Text(
+                text = if (localAvailable) "192.168.0.119:8083 доступен" else "Локальный сервер недоступен",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

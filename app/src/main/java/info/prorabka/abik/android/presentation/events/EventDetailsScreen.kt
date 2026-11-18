@@ -299,7 +299,13 @@ private fun EventContent(
             Text(note, style = MaterialTheme.typography.bodyMedium)
         }
 
-        Spacer(Modifier.height(16.dp))
+        KatokProInviteButton(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+        )
+
+        Spacer(Modifier.height(8.dp))
 
         // Голосование
         Text(

@@ -135,7 +135,7 @@ interface ChargeApi {
     // --- Ежемесячный абонемент по опросу ---
 
     @GET("v1/teams/{teamId}/subscription-polls/current")
-    suspend fun currentSubscriptionPoll(@Path("teamId") teamId: Long): SubscriptionPollDto?
+    suspend fun currentSubscriptionPoll(@Path("teamId") teamId: Long): retrofit2.Response<SubscriptionPollDto>
 
     @POST("v1/teams/{teamId}/subscription-polls/{pollId}/vote")
     suspend fun voteSubscriptionPoll(

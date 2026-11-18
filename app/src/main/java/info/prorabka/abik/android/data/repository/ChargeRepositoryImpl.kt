@@ -277,7 +277,9 @@ class ChargeRepositoryImpl @Inject constructor(
     }
 
     override suspend fun currentSubscriptionPoll(teamId: Long): ApiResult<info.prorabka.abik.android.domain.model.SubscriptionPoll?> = apiCall {
-        api.currentSubscriptionPoll(teamId)?.toSubscriptionPoll()
+        val response = api.currentSubscriptionPoll(teamId)
+        if (!response.isSuccessful) throw retrofit2.HttpException(response)
+        response.body()?.toSubscriptionPoll()
     }
 
     override suspend fun voteSubscriptionPoll(

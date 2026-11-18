@@ -462,7 +462,12 @@ class EventFormViewModel @Inject constructor(
             when (result) {
                 is ApiResult.Success -> {
                     settingsStore.rememberEventPlaceTime(s.place.trim(), s.time)
-                    _ui.update { it.copy(saving = false, saved = true) }
+                    _ui.update {
+                        it.copy(
+                            saving = false,
+                            saved = true,
+                        )
+                    }
                 }
                 is ApiResult.HttpError -> _ui.update {
                     it.copy(saving = false, error = result.message)
