@@ -7,6 +7,7 @@ import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.core.network.UrlResolver
 import info.prorabka.abik.android.core.prefs.TokenStore
+import info.prorabka.abik.android.domain.model.Invitation
 import info.prorabka.abik.android.domain.model.MemberRole
 import info.prorabka.abik.android.domain.model.Team
 import info.prorabka.abik.android.domain.repository.AuthRepository
@@ -49,10 +50,15 @@ class ShellViewModel @Inject constructor(
         val unreadNotifications: Int = 0,
         val isSuperAdmin: Boolean = false,
         val isAdAdmin: Boolean = false,
+        val invitations: List<Invitation> = emptyList(),
+        val invitationSaving: Boolean = false,
+        val invitationError: String? = null,
         val loading: Boolean = true,
     ) {
         val isManager: Boolean
             get() = myRole == MemberRole.OWNER || myRole == MemberRole.MODERATOR || myRole == MemberRole.ADMIN
+        val isOwnerOrAdmin: Boolean
+            get() = myRole == MemberRole.OWNER || myRole == MemberRole.ADMIN
     }
 
     private val _ui = MutableStateFlow(UiState())
@@ -104,11 +110,68 @@ class ShellViewModel @Inject constructor(
             }
             teamManager.refresh()
             teamManager.selected.value?.let { loadTeamData(it.id) }
+            loadInvitations()
             _ui.update { it.copy(loading = false) }
         }
     }
 
     fun selectTeam(team: Team) = teamManager.select(team)
+
+    private suspend fun loadInvitations() {
+        when (val result = teamRepository.incomingInvitations()) {
+            is ApiResult.Success -> _ui.update {
+                it.copy(invitations = result.data.filter { invitation -> invitation.status == "PENDING" })
+            }
+            else -> Unit
+        }
+    }
+
+    fun acceptInvitation(invitation: Invitation) {
+        if (_ui.value.invitationSaving) return
+        viewModelScope.launch {
+            _ui.update { it.copy(invitationSaving = true, invitationError = null) }
+            when (val result = teamRepository.acceptInvitation(invitation.id)) {
+                is ApiResult.Success -> {
+                    teamManager.refresh()
+                    teamManager.teams.value.firstOrNull { it.id == invitation.teamId }
+                        ?.let(teamManager::select)
+                    _ui.update {
+                        it.copy(
+                            invitationSaving = false,
+                            invitations = it.invitations.filter { item -> item.id != invitation.id },
+                        )
+                    }
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(invitationSaving = false, invitationError = result.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(invitationSaving = false, invitationError = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
+    fun declineInvitation(invitation: Invitation) {
+        if (_ui.value.invitationSaving) return
+        viewModelScope.launch {
+            _ui.update { it.copy(invitationSaving = true, invitationError = null) }
+            when (val result = teamRepository.declineInvitation(invitation.id)) {
+                is ApiResult.Success -> _ui.update {
+                    it.copy(
+                        invitationSaving = false,
+                        invitations = it.invitations.filter { item -> item.id != invitation.id },
+                    )
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(invitationSaving = false, invitationError = result.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(invitationSaving = false, invitationError = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
 
     private suspend fun loadTeamData(teamId: Long) {
         when (val d = teamRepository.detail(teamId)) {

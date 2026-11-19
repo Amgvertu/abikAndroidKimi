@@ -31,6 +31,7 @@ fun AdminScreen(
             TopAppBar(
                 title = { Text(if (adOnly) "Реклама" else "Администрирование") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") } },
+                actions = { info.prorabka.abik.android.presentation.guide.GuideHelpButton() },
             )
         },
     ) { padding ->

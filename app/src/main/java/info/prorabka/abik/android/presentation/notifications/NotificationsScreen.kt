@@ -81,6 +81,7 @@ fun NotificationsScreen(
                     }
                 },
                 actions = {
+                    info.prorabka.abik.android.presentation.guide.GuideHelpButton()
                     if (ui.hasUnread) {
                         IconButton(onClick = { viewModel.markAllRead() }) {
                             Icon(

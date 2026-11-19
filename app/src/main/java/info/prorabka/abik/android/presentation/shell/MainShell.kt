@@ -100,6 +100,10 @@ fun MainShell(
             guideUi.loaded && it !in guideUi.completed
     }
 
+    androidx.compose.runtime.LaunchedEffect(roleKey) {
+        guideViewModel.setRole(roleKey)
+    }
+
     // Возврат с форм (платёж/начисление/профиль) — обновить балансы и бейдж
     LifecycleResumeEffect(Unit) {
         viewModel.refresh()
@@ -118,6 +122,9 @@ fun MainShell(
                     )
                 },
                 actions = {
+                    info.prorabka.abik.android.presentation.guide.GuideHelpButton(
+                        currentRoute ?: MainTab.HOME.route,
+                    )
                     if (ui.isSuperAdmin) {
                         IconButton(onClick = { rootNavController.navigate(Routes.ADMIN) }) {
                             Icon(Icons.Default.AdminPanelSettings, contentDescription = "Админка",
@@ -248,6 +255,13 @@ fun MainShell(
             }
         }
     }
+    InvitationsDialog(
+        invitations = ui.invitations,
+        saving = ui.invitationSaving,
+        error = ui.invitationError,
+        onAccept = viewModel::acceptInvitation,
+        onDecline = viewModel::declineInvitation,
+    )
     visibleGuideKey?.let { key ->
         info.prorabka.abik.android.presentation.guide.GuideOverlay(key, guideViewModel)
     }

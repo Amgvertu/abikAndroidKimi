@@ -121,11 +121,13 @@ fun HomeScreen(
                         amount = ui.myBalanceKopecks,
                         modifier = Modifier.weight(1f),
                     )
-                    BalanceCard(
-                        title = "Баланс команды",
-                        amount = ui.teamBalanceKopecks,
-                        modifier = Modifier.weight(1f),
-                    )
+                    if (ui.isOwnerOrAdmin) {
+                        BalanceCard(
+                            title = "Баланс команды",
+                            amount = ui.teamBalanceKopecks,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
 
                 NearestEventCard(

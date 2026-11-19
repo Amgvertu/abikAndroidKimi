@@ -70,6 +70,7 @@ fun PaymentFormScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },
+                actions = { info.prorabka.abik.android.presentation.guide.GuideHelpButton() },
             )
         },
     ) { padding ->

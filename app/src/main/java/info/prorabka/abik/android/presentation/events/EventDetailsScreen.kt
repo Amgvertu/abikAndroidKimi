@@ -133,6 +133,7 @@ fun EventDetailsScreen(
                     }
                 },
                 actions = {
+                    info.prorabka.abik.android.presentation.guide.GuideHelpButton()
                     if (ui.isManager && ui.event != null) {
                         IconButton(onClick = { onEdit(viewModel.eventId) }) {
                             Icon(Icons.Default.Edit, contentDescription = "Редактировать")
@@ -165,6 +166,7 @@ fun EventDetailsScreen(
                         info = ui.info,
                         canEditSweaters = ui.canEditSweaters,
                         canEditLineup = ui.canEditLineup,
+                        canInvite = ui.isManager,
                         onVote = viewModel::vote,
                         onEditSweaters = { showSweatersDialog = true },
                         onEditLineup = { showLineupDialog = true },
@@ -255,6 +257,7 @@ private fun EventContent(
     info: String?,
     canEditSweaters: Boolean,
     canEditLineup: Boolean,
+    canInvite: Boolean,
     onVote: (VoteAnswer) -> Unit,
     onEditSweaters: () -> Unit,
     onEditLineup: () -> Unit,
@@ -299,11 +302,13 @@ private fun EventContent(
             Text(note, style = MaterialTheme.typography.bodyMedium)
         }
 
-        KatokProInviteButton(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-        )
+        if (canInvite) {
+            KatokProInviteButton(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+            )
+        }
 
         Spacer(Modifier.height(8.dp))
 

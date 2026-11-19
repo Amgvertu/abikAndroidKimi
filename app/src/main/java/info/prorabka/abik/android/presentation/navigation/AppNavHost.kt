@@ -3,12 +3,17 @@ package info.prorabka.abik.android.presentation.navigation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.prefs.SessionManager
@@ -51,6 +56,30 @@ fun AppNavHost(
         }
     }
 
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+    val hasGuide = currentRoute != null && currentRoute !in setOf(
+        Routes.SPLASH,
+        Routes.LOGIN,
+        Routes.REGISTER,
+        Routes.FORGOT,
+        Routes.ONBOARDING_PROFILE,
+        Routes.ONBOARDING_TEAM,
+    )
+    val guideViewModel = if (hasGuide) {
+        hiltViewModel<info.prorabka.abik.android.presentation.guide.GuideViewModel>()
+    } else null
+    val guideUi = guideViewModel?.ui?.collectAsState()?.value
+    val openGuide: (String) -> Unit = openGuide@{ requestedScreen ->
+        val route = requestedScreen.ifBlank {
+            currentRoute?.substringBefore('/')?.substringBefore('?') ?: return@openGuide
+        }
+        guideViewModel?.repeat("$route:${guideViewModel.ui.value.roleKey}")
+    }
+
+    CompositionLocalProvider(
+        info.prorabka.abik.android.presentation.guide.LocalGuideLauncher provides openGuide,
+    ) {
     NavHost(navController = navController, startDestination = Routes.SPLASH) {
         composable(Routes.SPLASH) {
             SplashScreen(
@@ -99,7 +128,10 @@ fun AppNavHost(
             )
         }
         composable(Routes.MAIN) {
-            MainShell(rootNavController = navController)
+            MainShell(
+                rootNavController = navController,
+                guideViewModel = checkNotNull(guideViewModel),
+            )
         }
         composable(
             route = Routes.PAYMENT_FORM,
@@ -268,5 +300,13 @@ fun AppNavHost(
                 onBack = { navController.popBackStack() },
             )
         }
+    }
+    if (currentRoute != Routes.MAIN) {
+        guideUi?.forcedKey?.let { key ->
+            guideViewModel?.let { viewModel ->
+                info.prorabka.abik.android.presentation.guide.GuideOverlay(key, viewModel)
+            }
+        }
+    }
     }
 }

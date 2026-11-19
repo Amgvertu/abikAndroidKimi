@@ -75,6 +75,7 @@ fun ExpensesScreen(
                         }
                     },
                     actions = {
+                        info.prorabka.abik.android.presentation.guide.GuideHelpButton()
                         if (ui.isOwner) {
                             TextButton(onClick = viewModel::export, enabled = !ui.exporting) {
                                 Text(if (ui.exporting) "Экспорт…" else "Excel")

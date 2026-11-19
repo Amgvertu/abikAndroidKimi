@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -197,6 +198,7 @@ fun EventsScreen(
                         EventCard(
                             event = event,
                             accentColor = markerColor(event, ui.dominantTrainingTimes),
+                            showInvite = ui.isManager,
                             onClick = { onEventClick(event.id) },
                         )
                     }
@@ -216,6 +218,7 @@ fun EventsScreen(
                             EventCard(
                                 event = event,
                                 accentColor = markerColor(event, ui.dominantTrainingTimes),
+                            showInvite = ui.isManager,
                                 onClick = { onEventClick(event.id) },
                             )
                         }
@@ -281,7 +284,12 @@ private fun SectionHeader(text: String) {
 
 /** Карточка события: название, дата, время, место, тип, мой ответ и счётчики. */
 @Composable
-fun EventCard(event: EventListItem, accentColor: Color? = null, onClick: () -> Unit) {
+fun EventCard(
+    event: EventListItem,
+    accentColor: Color? = null,
+    showInvite: Boolean,
+    onClick: () -> Unit,
+) {
     val badgeColor = accentColor ?: MaterialTheme.colorScheme.primary
     Card(
         Modifier
@@ -346,24 +354,34 @@ fun EventCard(event: EventListItem, accentColor: Color? = null, onClick: () -> U
                     )
                 }
             }
-            // Полные подписи вместо сокращений; непроголосовавшие считаются
-            // среди активной команды или выбранного списка события.
-            Column(Modifier.padding(top = 4.dp)) {
-                Text("Вратари: ${event.votesYesGoalies}", style = MaterialTheme.typography.bodySmall)
-                Text("Защитники: ${event.votesYesDefenders}", style = MaterialTheme.typography.bodySmall)
-                Text("Нападающие: ${event.votesYesForwards}", style = MaterialTheme.typography.bodySmall)
-                Text("Тренер: ${event.votesYesTrainers}", style = MaterialTheme.typography.bodySmall)
-                Text(
-                    "Не проголосовали: ${event.votesUnanswered}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            KatokProInviteButton(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 6.dp),
-            )
+                    .padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Полные подписи вместо сокращений; непроголосовавшие считаются
+                // среди активной команды или выбранного списка события.
+                Column(Modifier.weight(1f)) {
+                    Text("Вратари: ${event.votesYesGoalies}", style = MaterialTheme.typography.bodySmall)
+                    Text("Защитники: ${event.votesYesDefenders}", style = MaterialTheme.typography.bodySmall)
+                    Text("Нападающие: ${event.votesYesForwards}", style = MaterialTheme.typography.bodySmall)
+                    Text("Тренер: ${event.votesYesTrainers}", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        "Не проголосовали: ${event.votesUnanswered}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (showInvite) {
+                    KatokProInviteButton(
+                        compact = true,
+                        modifier = Modifier
+                            .width(148.dp)
+                            .padding(start = 4.dp),
+                    )
+                }
+            }
         }
     }
 }

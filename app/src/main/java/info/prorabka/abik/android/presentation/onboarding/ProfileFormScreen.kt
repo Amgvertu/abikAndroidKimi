@@ -78,7 +78,16 @@ fun ProfileFormScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp, vertical = 16.dp),
     ) {
-        Text(text = title, style = MaterialTheme.typography.headlineSmall)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = title, style = MaterialTheme.typography.headlineSmall)
+            if (onSkip == null) {
+                info.prorabka.abik.android.presentation.guide.GuideHelpButton()
+            }
+        }
         Spacer(modifier = Modifier.height(16.dp))
 
         RegionDropdown(ui, viewModel)

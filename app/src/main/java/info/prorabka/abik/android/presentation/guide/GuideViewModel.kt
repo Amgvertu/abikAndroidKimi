@@ -21,6 +21,7 @@ class GuideViewModel @Inject constructor(
         val loaded: Boolean = false,
         val completed: Set<String> = emptySet(),
         val forcedKey: String? = null,
+        val roleKey: String = "MEMBER",
     )
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
@@ -49,6 +50,8 @@ class GuideViewModel @Inject constructor(
     /** Закрытие и «Пропустить» тоже означают, что автоматический показ завершён. */
     fun skip(key: String) = complete(key)
 
-    /** Ручной вызов из меню всегда показывает справку текущего экрана заново. */
+    /** Ручной вызов всегда показывает справку текущего экрана заново. */
     fun repeat(key: String) = _ui.update { it.copy(forcedKey = key) }
+
+    fun setRole(role: String) = _ui.update { it.copy(roleKey = role) }
 }
