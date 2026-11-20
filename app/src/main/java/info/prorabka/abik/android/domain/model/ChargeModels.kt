@@ -63,6 +63,14 @@ data class ChargeList(
 )
 
 
+data class ActiveSubscription(
+    val teamId: Long,
+    val teamName: String,
+    val title: String,
+    val validFrom: String,
+    val validUntil: String,
+)
+
 enum class SubscriptionPollAnswer { YES, NO }
 
 data class SubscriptionPollVoter(val userId: Long, val name: String)

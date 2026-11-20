@@ -130,6 +130,10 @@ fun HomeScreen(
                     }
                 }
 
+                if (feed.activeSubscriptions.isNotEmpty()) {
+                    ActiveSubscriptionsCard(feed.activeSubscriptions)
+                }
+
                 NearestEventCard(
                     event = feed.nearestEvent,
                     onClick = onEventClick,
@@ -181,6 +185,45 @@ private fun BalanceCard(title: String, amount: Long?, modifier: Modifier = Modif
                     else -> Success
                 },
             )
+        }
+    }
+}
+
+/** Абонементы по итогам опросов во всех командах пользователя. */
+@Composable
+private fun ActiveSubscriptionsCard(
+    subscriptions: List<info.prorabka.abik.android.domain.model.ActiveSubscription>,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Действующие абонементы", style = MaterialTheme.typography.titleSmall)
+            subscriptions.forEachIndexed { index, subscription ->
+                if (index > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = if (index == 0) 8.dp else 0.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            subscription.teamName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        if (subscription.title.isNotBlank() && subscription.title != "Абонемент") {
+                            Text(
+                                subscription.title,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    Text(
+                        subscriptionMonth(subscription.validFrom),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
         }
     }
 }
@@ -352,7 +395,8 @@ private fun SubscriptionPollCard(
 ) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onDetails)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Абонемент (опрос)", style = MaterialTheme.typography.labelMedium,
+            Text("Абонемент (опрос) • ${subscriptionMonth(poll.validFrom)}",
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary)
             Text(poll.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(
@@ -445,4 +489,11 @@ private fun SubscriptionPollDetailsDialog(
 
 private fun pollDate(value: String): String = runCatching {
     java.time.LocalDate.parse(value).format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+}.getOrDefault(value)
+
+private fun subscriptionMonth(value: String): String = runCatching {
+    java.time.YearMonth.from(java.time.LocalDate.parse(value))
+        .format(java.time.format.DateTimeFormatter.ofPattern(
+            "LLLL yyyy", java.util.Locale.forLanguageTag("ru")))
+        .replaceFirstChar { it.titlecase() }
 }.getOrDefault(value)

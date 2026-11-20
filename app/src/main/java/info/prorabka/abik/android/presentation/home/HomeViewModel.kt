@@ -39,6 +39,7 @@ class HomeViewModel @Inject constructor(
         val notifications: List<AppNotification> = emptyList(),
         val advertisement: Advertisement? = null,
         val subscriptionPoll: SubscriptionPoll? = null,
+        val activeSubscriptions: List<info.prorabka.abik.android.domain.model.ActiveSubscription> = emptyList(),
         val pollVoting: Boolean = false,
         val pollError: String? = null,
     )
@@ -91,6 +92,7 @@ class HomeViewModel @Inject constructor(
     private suspend fun load(teamId: Long) {
         _ui.update { it.copy(loading = true) }
         loadSubscriptionPoll(teamId)
+        loadActiveSubscriptions()
         loadNearestEvent(teamId)
         loadAdvertisement(teamId)
         if (_ui.value.advertisement == null) loadNotifications() else _ui.update {
@@ -103,6 +105,13 @@ class HomeViewModel @Inject constructor(
         when (val result = chargeRepository.currentSubscriptionPoll(teamId)) {
             is ApiResult.Success -> _ui.update { it.copy(subscriptionPoll = result.data, pollError = null) }
             else -> Unit
+        }
+    }
+
+    private suspend fun loadActiveSubscriptions() {
+        when (val result = chargeRepository.activeSubscriptions()) {
+            is ApiResult.Success -> _ui.update { it.copy(activeSubscriptions = result.data) }
+            else -> _ui.update { it.copy(activeSubscriptions = emptyList()) }
         }
     }
 

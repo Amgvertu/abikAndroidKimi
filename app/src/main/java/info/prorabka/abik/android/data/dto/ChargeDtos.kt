@@ -130,6 +130,15 @@ data class ChargeListRequestDto(
 
 
 @Serializable
+data class ActiveSubscriptionDto(
+    val teamId: Long,
+    val teamName: String,
+    val title: String,
+    val validFrom: String,
+    val validUntil: String,
+)
+
+@Serializable
 data class SubscriptionPollVoterDto(val userId: Long, val name: String)
 
 @Serializable

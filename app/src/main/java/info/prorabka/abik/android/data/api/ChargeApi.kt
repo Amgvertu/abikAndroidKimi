@@ -134,6 +134,9 @@ interface ChargeApi {
 
     // --- Ежемесячный абонемент по опросу ---
 
+    @GET("v1/subscription-polls/active")
+    suspend fun activeSubscriptions(): List<info.prorabka.abik.android.data.dto.ActiveSubscriptionDto>
+
     @GET("v1/teams/{teamId}/subscription-polls/current")
     suspend fun currentSubscriptionPoll(@Path("teamId") teamId: Long): retrofit2.Response<SubscriptionPollDto>
 

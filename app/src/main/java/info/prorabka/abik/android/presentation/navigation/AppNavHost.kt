@@ -35,6 +35,7 @@ import info.prorabka.abik.android.presentation.profile.ChangePhoneScreen
 import info.prorabka.abik.android.presentation.reports.ReportsScreen
 import info.prorabka.abik.android.presentation.roster.RosterScreen
 import info.prorabka.abik.android.presentation.shell.MainShell
+import info.prorabka.abik.android.presentation.shell.TeamSwipeHost
 import info.prorabka.abik.android.presentation.splash.SplashScreen
 import info.prorabka.abik.android.presentation.subscription.ChargeCreateScreen
 import info.prorabka.abik.android.presentation.subscription.MemberFinanceScreen
@@ -58,6 +59,28 @@ fun AppNavHost(
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val teams by teamManager.teams.collectAsState()
+    val selectedTeam by teamManager.selected.collectAsState()
+    val teamSwipeEnabled = teams.size > 1 && currentRoute != null && currentRoute !in setOf(
+        Routes.SPLASH,
+        Routes.LOGIN,
+        Routes.REGISTER,
+        Routes.REGISTER_CONFIRM,
+        Routes.FORGOT,
+        Routes.FORGOT_CONFIRM,
+        Routes.ONBOARDING_PROFILE,
+        Routes.ONBOARDING_TEAM,
+        Routes.PAYMENT_FORM,
+        Routes.MEMBER_DETAILS,
+        Routes.MEMBER_FINANCE,
+        Routes.EVENT_DETAILS,
+        Routes.EVENT_FORM,
+        Routes.CHARGE_CREATE,
+        Routes.PROFILE_EDIT,
+        Routes.CHANGE_PHONE,
+        Routes.TEMPLATE_FORM,
+        "member_profile_edit/{userId}",
+    )
     val hasGuide = currentRoute != null && currentRoute !in setOf(
         Routes.SPLASH,
         Routes.LOGIN,
@@ -79,6 +102,16 @@ fun AppNavHost(
 
     CompositionLocalProvider(
         info.prorabka.abik.android.presentation.guide.LocalGuideLauncher provides openGuide,
+    ) {
+    TeamSwipeHost(
+        enabled = teamSwipeEnabled,
+        onSwipe = { direction ->
+            val currentIndex = teams.indexOfFirst { it.id == selectedTeam?.id }
+            if (currentIndex >= 0) {
+                val nextIndex = (currentIndex + direction + teams.size) % teams.size
+                teamManager.select(teams[nextIndex])
+            }
+        },
     ) {
     NavHost(navController = navController, startDestination = Routes.SPLASH) {
         composable(Routes.SPLASH) {
@@ -300,6 +333,7 @@ fun AppNavHost(
                 onBack = { navController.popBackStack() },
             )
         }
+    }
     }
     if (currentRoute != Routes.MAIN) {
         guideUi?.forcedKey?.let { key ->

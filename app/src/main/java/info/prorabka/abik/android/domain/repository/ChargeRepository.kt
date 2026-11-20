@@ -80,6 +80,7 @@ interface ChargeRepository {
 
     suspend fun setTemplateActive(teamId: Long, templateId: Long, active: Boolean): ApiResult<Unit>
 
+    suspend fun activeSubscriptions(): ApiResult<List<info.prorabka.abik.android.domain.model.ActiveSubscription>>
     suspend fun currentSubscriptionPoll(teamId: Long): ApiResult<info.prorabka.abik.android.domain.model.SubscriptionPoll?>
     suspend fun voteSubscriptionPoll(
         teamId: Long,

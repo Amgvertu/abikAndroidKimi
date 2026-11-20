@@ -19,6 +19,7 @@ enum class NotificationType {
     EVENT_REMINDER,
     HOLIDAY_REMINDER,
     HOLIDAY_GREETING,
+    SUBSCRIPTION_POLL_CREATED,
     UNKNOWN,
 }
 

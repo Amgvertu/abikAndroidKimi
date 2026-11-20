@@ -276,6 +276,18 @@ class ChargeRepositoryImpl @Inject constructor(
         Unit
     }
 
+    override suspend fun activeSubscriptions(): ApiResult<List<info.prorabka.abik.android.domain.model.ActiveSubscription>> = apiCall {
+        api.activeSubscriptions().map {
+            info.prorabka.abik.android.domain.model.ActiveSubscription(
+                teamId = it.teamId,
+                teamName = it.teamName,
+                title = it.title,
+                validFrom = it.validFrom,
+                validUntil = it.validUntil,
+            )
+        }
+    }
+
     override suspend fun currentSubscriptionPoll(teamId: Long): ApiResult<info.prorabka.abik.android.domain.model.SubscriptionPoll?> = apiCall {
         val response = api.currentSubscriptionPoll(teamId)
         if (!response.isSuccessful) throw retrofit2.HttpException(response)
