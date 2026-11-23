@@ -110,6 +110,9 @@ fun MainShell(
         viewModel.refreshUnreadCount()
         onPauseOrDispose { }
     }
+    info.prorabka.abik.android.core.ui.RealtimeRefresh {
+        viewModel.refreshUnreadCount()
+    }
 
     Scaffold(
         topBar = {
@@ -131,7 +134,13 @@ fun MainShell(
                                 tint = MaterialTheme.colorScheme.primary)
                         }
                     }
-                    ui.myBalanceKopecks?.let { balance -> BalanceChip(balance) }
+                    ui.myBalanceKopecks?.let { balance ->
+                        BalanceChip(balance) {
+                            if (ui.myUserId > 0) {
+                                rootNavController.navigate(Routes.memberFinance(ui.myUserId))
+                            }
+                        }
+                    }
                     IconButton(onClick = { rootNavController.navigate(Routes.NOTIFICATIONS) }) {
                         BadgedBox(
                             badge = {
@@ -267,7 +276,7 @@ fun MainShell(
     }
 }
 
-/** Логотип + выпадающий список команд в тулбаре. */
+/** Логотип + выпадающий список команд с активностью по каждой команде. */
 @Composable
 private fun TeamSelector(
     ui: ShellViewModel.UiState,
@@ -275,21 +284,15 @@ private fun TeamSelector(
     onCreateTeam: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val otherUnread = ui.unreadByTeam
+        .filterKeys { it != ui.selected?.id }.values.sum()
     Row(verticalAlignment = Alignment.CenterVertically) {
-        val logoUrl = viewModel.resolveUrl(ui.selected?.logoUrl)
-        if (logoUrl != null) {
-            AsyncImage(
-                model = logoUrl,
-                contentDescription = "Логотип",
-                modifier = Modifier.size(32.dp).clip(CircleShape),
-                contentScale = ContentScale.Crop,
-            )
-        } else {
-            Icon(
-                Icons.Default.AccountCircle,
-                contentDescription = null,
-                modifier = Modifier.size(28.dp),
-                tint = MaterialTheme.colorScheme.primary,
+        BadgedBox(
+            badge = { if (otherUnread > 0) Badge() },
+        ) {
+            TeamAvatar(
+                name = ui.selected?.name ?: "abik",
+                logoUrl = viewModel.resolveUrl(ui.selected?.logoUrl),
             )
         }
         Spacer(modifier = Modifier.width(6.dp))
@@ -306,8 +309,19 @@ private fun TeamSelector(
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 ui.teams.forEach { team ->
+                    val unread = ui.unreadByTeam[team.id] ?: 0
                     DropdownMenuItem(
                         text = { Text(team.name) },
+                        leadingIcon = {
+                            TeamAvatar(
+                                name = team.name,
+                                logoUrl = viewModel.resolveUrl(team.logoUrl),
+                                size = 28,
+                            )
+                        },
+                        trailingIcon = {
+                            if (unread > 0) Badge { Text(unread.toString()) }
+                        },
                         onClick = {
                             viewModel.selectTeam(team)
                             expanded = false
@@ -329,14 +343,53 @@ private fun TeamSelector(
     }
 }
 
-/** Баланс-плашка в тулбаре (как в прототипе): «+1 500 ₽» / «−500 ₽». */
+private fun teamInitials(name: String): String {
+    val words = name.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+    return when {
+        words.isEmpty() -> "AB"
+        words.size == 1 -> words.first().take(2).uppercase()
+        else -> words.take(2).joinToString("") { it.take(1).uppercase() }
+    }
+}
+
 @Composable
-private fun BalanceChip(balanceKopecks: Long) {
+private fun TeamAvatar(name: String, logoUrl: String?, size: Int = 32) {
+    var loadFailed by remember(logoUrl) { mutableStateOf(false) }
+    Box(
+        modifier = Modifier
+            .size(size.dp)
+            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = teamInitials(name),
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            fontSize = (size * 0.34).sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+        )
+        if (!logoUrl.isNullOrBlank() && !loadFailed) {
+            AsyncImage(
+                model = logoUrl,
+                contentDescription = "Логотип команды $name",
+                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                contentScale = ContentScale.Crop,
+                onError = { loadFailed = true },
+            )
+        }
+    }
+}
+
+/** Баланс-плашка открывает подробную финансовую историю пользователя. */
+@Composable
+private fun BalanceChip(balanceKopecks: Long, onClick: () -> Unit) {
     val color = if (balanceKopecks < 0) Danger else Success
     val sign = if (balanceKopecks < 0) "−" else "+"
     Box(
         modifier = Modifier
-            .background(color.copy(alpha = 0.15f), CircleShape)
+            .clip(CircleShape)
+            .background(color.copy(alpha = 0.15f))
+            .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
         Text(

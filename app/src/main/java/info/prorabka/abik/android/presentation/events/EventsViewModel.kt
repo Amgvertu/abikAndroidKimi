@@ -27,6 +27,11 @@ class EventsViewModel @Inject constructor(
     private val tokenStore: info.prorabka.abik.android.core.prefs.TokenStore,
 ) : ViewModel() {
 
+    data class DeleteCandidate(
+        val event: EventListItem,
+        val seriesId: Long?,
+    )
+
     data class UiState(
         val loading: Boolean = true,
         val refreshing: Boolean = false,
@@ -38,10 +43,15 @@ class EventsViewModel @Inject constructor(
         val events: List<EventListItem> = emptyList(),
         val myRole: MemberRole? = null,
         val myIsTrainer: Boolean = false,
+        val deleteCandidate: DeleteCandidate? = null,
+        val deleting: Boolean = false,
+        val deleteError: String? = null,
         val error: String? = null,
     ) {
         val isManager: Boolean
             get() = myRole == MemberRole.OWNER || myRole == MemberRole.ADMIN || myIsTrainer
+        val canDeleteEvents: Boolean
+            get() = myRole == MemberRole.OWNER || myRole == MemberRole.ADMIN
 
         val sectionEvents: List<EventListItem>
             get() = events.filter { it.section in sections }
@@ -161,6 +171,55 @@ class EventsViewModel @Inject constructor(
     private fun reloadEvents() {
         val teamId = teamManager.selected.value?.id ?: return
         viewModelScope.launch { loadEvents(teamId) }
+    }
+
+    fun prepareDelete(event: EventListItem) {
+        if (!_ui.value.canDeleteEvents || _ui.value.deleting) return
+        val teamId = teamManager.selected.value?.id ?: return
+        viewModelScope.launch {
+            _ui.update { it.copy(deleting = true, deleteError = null) }
+            when (val result = eventRepository.detail(teamId, event.id)) {
+                is ApiResult.Success -> _ui.update {
+                    it.copy(
+                        deleting = false,
+                        deleteCandidate = DeleteCandidate(event, result.data.seriesId),
+                    )
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(deleting = false, error = result.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(deleting = false, error = "Нет соединения с сервером")
+                }
+            }
+        }
+    }
+
+    fun dismissDelete() {
+        if (!_ui.value.deleting) {
+            _ui.update { it.copy(deleteCandidate = null, deleteError = null) }
+        }
+    }
+
+    fun delete(scope: String) {
+        val candidate = _ui.value.deleteCandidate ?: return
+        if (_ui.value.deleting) return
+        val teamId = teamManager.selected.value?.id ?: return
+        viewModelScope.launch {
+            _ui.update { it.copy(deleting = true, deleteError = null) }
+            when (val result = eventRepository.delete(teamId, candidate.event.id, scope)) {
+                is ApiResult.Success -> {
+                    _ui.update { it.copy(deleting = false, deleteCandidate = null) }
+                    loadEvents(teamId)
+                }
+                is ApiResult.HttpError -> _ui.update {
+                    it.copy(deleting = false, deleteError = result.message)
+                }
+                is ApiResult.NetworkError -> _ui.update {
+                    it.copy(deleting = false, deleteError = "Нет соединения с сервером")
+                }
+            }
+        }
     }
 
     fun clearError() = _ui.update { it.copy(error = null) }

@@ -26,8 +26,8 @@ class GuideViewModel @Inject constructor(
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
 
-    init { load() }
-
+    // Загрузку запускает AppNavHost только для экранов, где справка доступна.
+    // Это исключает неавторизованный запрос на login/register/splash.
     fun load() {
         // Сначала локальный прогресс: справка не зависит от доступности сервера.
         _ui.update { it.copy(loaded = true, completed = it.completed + progressStore.completed()) }

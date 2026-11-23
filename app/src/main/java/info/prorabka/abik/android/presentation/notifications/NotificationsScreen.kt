@@ -51,11 +51,14 @@ import info.prorabka.abik.android.domain.model.AppNotification
 import info.prorabka.abik.android.domain.model.Invitation
 import info.prorabka.abik.android.domain.model.NotificationType
 
-/** Центр уведомлений: лента, «прочитать все», тап = прочитано. */
+/** Единый центр активности всех команд с явным переходом к источнику. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen(
     onBack: () -> Unit,
+    onOpenEvent: (Long) -> Unit,
+    onOpenFinance: (Long) -> Unit,
+    onOpenHome: () -> Unit,
     viewModel: NotificationsViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsState()
@@ -67,6 +70,27 @@ fun NotificationsScreen(
         if (message != null) {
             snackbarHostState.showSnackbar(message)
             viewModel.clearMessages()
+        }
+    }
+
+    fun open(notification: AppNotification) {
+        viewModel.onNotificationClick(notification)
+        val eventId = notification.payload?.get("eventId")?.toLongOrNull()
+        when (notification.type) {
+            NotificationType.EVENT_CREATED,
+            NotificationType.EVENT_UPDATED,
+            NotificationType.EVENT_CANCELLED,
+            NotificationType.EVENT_REMINDER,
+            -> if (eventId != null) onOpenEvent(eventId) else onOpenHome()
+            NotificationType.NEW_CHARGE,
+            NotificationType.PAYMENT,
+            NotificationType.DEBT_REMINDER,
+            -> {
+                val userId = notification.payload?.get("userId")?.toLongOrNull() ?: ui.myUserId
+                if (userId > 0) onOpenFinance(userId) else onOpenHome()
+            }
+            NotificationType.INVITATION -> Unit
+            else -> onOpenHome()
         }
     }
 
@@ -103,51 +127,70 @@ fun NotificationsScreen(
             onRefresh = viewModel::refresh,
         ) {
             when {
-            ui.loading && ui.items.isEmpty() -> LoadingBox(Modifier.padding(padding))
-            ui.error != null && ui.items.isEmpty() -> Column(
-                modifier = Modifier.padding(padding).fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
-            ) {
-                ErrorText(ui.error)
-                EmptyState(
-                    title = "",
-                    actionText = "Повторить",
-                    onAction = { viewModel.refresh() },
-                )
-            }
-            ui.items.isEmpty() -> EmptyState(
-                title = "Уведомлений пока нет",
-                modifier = Modifier.padding(padding),
-            )
-            else -> LazyColumn(
-                modifier = Modifier.padding(padding).fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(ui.items, key = { it.id }) { notification ->
-                    val invitation = if (
-                        notification.type == NotificationType.INVITATION &&
-                        notification.title == "Приглашение в команду"
-                    ) {
-                        notification.teamId?.let(ui.pendingInvitations::get)
-                    } else {
-                        null
-                    }
-                    NotificationItem(
-                        notification = notification,
-                        invitation = invitation,
-                        saving = ui.invitationSavingId != null,
-                        onClick = { viewModel.onNotificationClick(notification) },
-                        onAccept = {
-                            invitation?.let { viewModel.acceptInvitation(notification, it) }
-                        },
-                        onDecline = {
-                            invitation?.let { viewModel.declineInvitation(notification, it) }
-                        },
+                ui.loading && ui.items.isEmpty() -> LoadingBox(Modifier.padding(padding))
+                ui.error != null && ui.items.isEmpty() -> Column(
+                    modifier = Modifier.padding(padding).fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    ErrorText(ui.error)
+                    EmptyState(
+                        title = "",
+                        actionText = "Повторить",
+                        onAction = { viewModel.refresh() },
                     )
                 }
+                ui.items.isEmpty() -> EmptyState(
+                    title = "Уведомлений пока нет",
+                    modifier = Modifier.padding(padding),
+                )
+                else -> LazyColumn(
+                    modifier = Modifier.padding(padding).fillMaxSize(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(
+                                NotificationsViewModel.FeedFilter.ALL to "Все",
+                                NotificationsViewModel.FeedFilter.CURRENT to "Текущая",
+                                NotificationsViewModel.FeedFilter.OTHER to "Другие команды",
+                            ).forEach { (filter, label) ->
+                                androidx.compose.material3.FilterChip(
+                                    selected = ui.filter == filter,
+                                    onClick = { viewModel.setFilter(filter) },
+                                    label = { Text(label) },
+                                )
+                            }
+                        }
+                    }
+                    if (ui.visibleItems.isEmpty()) {
+                        item { EmptyState(title = "В этом разделе уведомлений нет") }
+                    }
+                    items(ui.visibleItems, key = { it.id }) { notification ->
+                        val invitation = if (
+                            notification.type == NotificationType.INVITATION &&
+                            notification.title == "Приглашение в команду"
+                        ) {
+                            notification.teamId?.let(ui.pendingInvitations::get)
+                        } else {
+                            null
+                        }
+                        NotificationItem(
+                            notification = notification,
+                            teamName = ui.teamName(notification.teamId),
+                            invitation = invitation,
+                            saving = ui.invitationSavingId != null,
+                            onClick = { open(notification) },
+                            onAccept = {
+                                invitation?.let { viewModel.acceptInvitation(notification, it) }
+                            },
+                            onDecline = {
+                                invitation?.let { viewModel.declineInvitation(notification, it) }
+                            },
+                        )
+                    }
+                }
             }
-        }
         }
     }
 }
@@ -155,6 +198,7 @@ fun NotificationsScreen(
 @Composable
 private fun NotificationItem(
     notification: AppNotification,
+    teamName: String?,
     invitation: Invitation?,
     saving: Boolean,
     onClick: () -> Unit,
@@ -198,6 +242,14 @@ private fun NotificationItem(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(6.dp))
+                if (teamName != null) {
+                    Text(
+                        text = teamName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
                 Text(
                     text = notification.sentAtIso.isoDateTimeToDisplay(),
                     style = MaterialTheme.typography.labelSmall,

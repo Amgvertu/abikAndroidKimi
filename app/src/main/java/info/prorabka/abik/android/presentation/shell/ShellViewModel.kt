@@ -44,10 +44,12 @@ class ShellViewModel @Inject constructor(
         val teams: List<Team> = emptyList(),
         val selected: Team? = null,
         val myRole: MemberRole? = null,
+        val myUserId: Long = 0L,
         val myIsTrainer: Boolean = false,
         val myBalanceKopecks: Long? = null,
         val teamBalanceKopecks: Long? = null,
         val unreadNotifications: Int = 0,
+        val unreadByTeam: Map<Long, Int> = emptyMap(),
         val isSuperAdmin: Boolean = false,
         val isAdAdmin: Boolean = false,
         val invitations: List<Invitation> = emptyList(),
@@ -90,8 +92,17 @@ class ShellViewModel @Inject constructor(
 
     fun refreshUnreadCount() {
         viewModelScope.launch {
-            when (val result = notificationRepository.unreadCount()) {
-                is ApiResult.Success -> _ui.update { it.copy(unreadNotifications = result.data) }
+            when (val result = notificationRepository.list(onlyUnread = true)) {
+                is ApiResult.Success -> {
+                    val byTeam = result.data.mapNotNull { it.teamId }
+                        .groupingBy { it }.eachCount()
+                    _ui.update {
+                        it.copy(
+                            unreadNotifications = result.data.size,
+                            unreadByTeam = byTeam,
+                        )
+                    }
+                }
                 else -> Unit
             }
         }
@@ -104,7 +115,11 @@ class ShellViewModel @Inject constructor(
             _ui.update { it.copy(loading = true) }
             when (val me = userRepository.me()) {
                 is ApiResult.Success -> _ui.update {
-                    it.copy(isSuperAdmin = me.data.isSuperAdmin, isAdAdmin = me.data.isAdAdmin)
+                    it.copy(
+                        myUserId = me.data.id,
+                        isSuperAdmin = me.data.isSuperAdmin,
+                        isAdAdmin = me.data.isAdAdmin,
+                    )
                 }
                 else -> Unit
             }

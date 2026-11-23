@@ -89,10 +89,13 @@ fun AppNavHost(
         Routes.ONBOARDING_PROFILE,
         Routes.ONBOARDING_TEAM,
     )
-    val guideViewModel = if (hasGuide) {
-        hiltViewModel<info.prorabka.abik.android.presentation.guide.GuideViewModel>()
-    } else null
-    val guideUi = guideViewModel?.ui?.collectAsState()?.value
+    // ViewModel должна переживать смену маршрута: предыдущий экран ещё некоторое
+    // время остаётся в composition во время навигационной анимации.
+    val guideViewModel = hiltViewModel<info.prorabka.abik.android.presentation.guide.GuideViewModel>()
+    LaunchedEffect(hasGuide) {
+        if (hasGuide) guideViewModel.load()
+    }
+    val guideUi = guideViewModel.ui.collectAsState().value
     val openGuide: (String) -> Unit = openGuide@{ requestedScreen ->
         val route = requestedScreen.ifBlank {
             currentRoute?.substringBefore('/')?.substringBefore('?') ?: return@openGuide
@@ -187,7 +190,12 @@ fun AppNavHost(
             )
         }
         composable(Routes.NOTIFICATIONS) {
-            NotificationsScreen(onBack = { navController.popBackStack() })
+            NotificationsScreen(
+                onBack = { navController.popBackStack() },
+                onOpenEvent = { eventId -> navController.navigate(Routes.eventDetails(eventId)) },
+                onOpenFinance = { userId -> navController.navigate(Routes.memberFinance(userId)) },
+                onOpenHome = { navController.popBackStack() },
+            )
         }
         composable(
             route = Routes.MEMBER_DETAILS,

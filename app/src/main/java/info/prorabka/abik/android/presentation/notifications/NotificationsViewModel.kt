@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import info.prorabka.abik.android.core.CurrentTeamManager
 import info.prorabka.abik.android.core.network.ApiResult
+import info.prorabka.abik.android.core.prefs.TokenStore
 import info.prorabka.abik.android.domain.model.AppNotification
 import info.prorabka.abik.android.domain.model.Invitation
+import info.prorabka.abik.android.domain.model.Team
 import info.prorabka.abik.android.domain.repository.NotificationRepository
 import info.prorabka.abik.android.domain.repository.TeamRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,10 +22,17 @@ class NotificationsViewModel @Inject constructor(
     private val repository: NotificationRepository,
     private val teamRepository: TeamRepository,
     private val teamManager: CurrentTeamManager,
+    tokenStore: TokenStore,
 ) : ViewModel() {
+
+    enum class FeedFilter { ALL, CURRENT, OTHER }
 
     data class UiState(
         val items: List<AppNotification> = emptyList(),
+        val teams: List<Team> = emptyList(),
+        val selectedTeamId: Long? = null,
+        val filter: FeedFilter = FeedFilter.ALL,
+        val myUserId: Long = 0L,
         val pendingInvitations: Map<Long, Invitation> = emptyMap(),
         val invitationSavingId: Long? = null,
         val loading: Boolean = true,
@@ -31,14 +40,35 @@ class NotificationsViewModel @Inject constructor(
         val info: String? = null,
     ) {
         val hasUnread: Boolean get() = items.any { !it.isRead }
+        val visibleItems: List<AppNotification>
+            get() = when (filter) {
+                FeedFilter.ALL -> items
+                FeedFilter.CURRENT -> items.filter {
+                    it.teamId == null || it.teamId == selectedTeamId
+                }
+                FeedFilter.OTHER -> items.filter {
+                    it.teamId != null && it.teamId != selectedTeamId
+                }
+            }
+        fun teamName(teamId: Long?): String? = teams.firstOrNull { it.id == teamId }?.name
     }
 
-    private val _ui = MutableStateFlow(UiState())
+    private val _ui = MutableStateFlow(UiState(myUserId = tokenStore.userId))
     val ui: StateFlow<UiState> = _ui
 
     init {
+        viewModelScope.launch {
+            teamManager.teams.collect { teams -> _ui.update { it.copy(teams = teams) } }
+        }
+        viewModelScope.launch {
+            teamManager.selected.collect { team ->
+                _ui.update { it.copy(selectedTeamId = team?.id) }
+            }
+        }
         refresh()
     }
+
+    fun setFilter(filter: FeedFilter) = _ui.update { it.copy(filter = filter) }
 
     fun refresh() {
         viewModelScope.launch {
@@ -67,8 +97,11 @@ class NotificationsViewModel @Inject constructor(
         }
     }
 
-    /** Пометить прочитанным при тапе (оптимистично, ошибку молча игнорируем). */
+    /** Явный тап открывает команду уведомления и помечает запись прочитанной. */
     fun onNotificationClick(notification: AppNotification) {
+        notification.teamId?.let { teamId ->
+            teamManager.teams.value.firstOrNull { it.id == teamId }?.let(teamManager::select)
+        }
         if (notification.isRead) return
         _ui.update { state ->
             state.copy(

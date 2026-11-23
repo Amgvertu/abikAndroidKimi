@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -199,6 +200,8 @@ fun EventsScreen(
                             event = event,
                             accentColor = markerColor(event, ui.dominantTrainingTimes),
                             showInvite = ui.isManager,
+                                showDelete = ui.canDeleteEvents,
+                                onDelete = { viewModel.prepareDelete(event) },
                             onClick = { onEventClick(event.id) },
                         )
                     }
@@ -219,6 +222,8 @@ fun EventsScreen(
                                 event = event,
                                 accentColor = markerColor(event, ui.dominantTrainingTimes),
                             showInvite = ui.isManager,
+                                showDelete = ui.canDeleteEvents,
+                                onDelete = { viewModel.prepareDelete(event) },
                                 onClick = { onEventClick(event.id) },
                             )
                         }
@@ -270,6 +275,53 @@ fun EventsScreen(
             },
         )
     }
+
+    ui.deleteCandidate?.let { candidate ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissDelete,
+            title = { Text("Удалить событие?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(candidate.event.title, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (candidate.seriesId != null) {
+                            "Событие входит в серию. Удалить только его или всю серию целиком?"
+                        } else {
+                            "Действие нельзя отменить."
+                        },
+                    )
+                    ui.deleteError?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            confirmButton = {
+                Column(horizontalAlignment = Alignment.End) {
+                    if (candidate.seriesId != null) {
+                        TextButton(
+                            enabled = !ui.deleting,
+                            onClick = { viewModel.delete("series") },
+                        ) { Text(if (ui.deleting) "Удаление…" else "Всю серию") }
+                    }
+                    TextButton(
+                        enabled = !ui.deleting,
+                        onClick = { viewModel.delete("single") },
+                    ) {
+                        Text(
+                            if (ui.deleting) "Удаление…" else {
+                                if (candidate.seriesId != null) "Только это" else "Удалить"
+                            },
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    TextButton(
+                        enabled = !ui.deleting,
+                        onClick = viewModel::dismissDelete,
+                    ) { Text("Отмена") }
+                }
+            },
+        )
+    }
 }
 
 @Composable
@@ -283,21 +335,38 @@ private fun SectionHeader(text: String) {
 }
 
 /** Карточка события: название, дата, время, место, тип, мой ответ и счётчики. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun EventCard(
     event: EventListItem,
     accentColor: Color? = null,
     showInvite: Boolean,
+    showDelete: Boolean = false,
+    onDelete: () -> Unit = {},
     onClick: () -> Unit,
 ) {
     val badgeColor = accentColor ?: MaterialTheme.colorScheme.primary
-    Card(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable(onClick = onClick),
-    ) {
-        Column(Modifier.padding(12.dp)) {
+    val rosterComplete = event.requiredPlayers != null && event.requiredPlayers > 0 &&
+        event.votesYes - (event.votesYesReserve ?: 0) >= event.requiredPlayers
+    val attendanceColor = if (rosterComplete) Color(0xFF43A047) else Color(0xFFF9A825)
+    var menuExpanded by remember(event.id) { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Card(
+            Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = if (showDelete) ({ menuExpanded = true }) else null,
+                ),
+        ) {
+            Row(modifier = Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
+                Box(
+                    Modifier
+                        .width(4.dp)
+                        .fillMaxHeight()
+                        .background(attendanceColor),
+                )
+                Column(Modifier.padding(12.dp).weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     event.title,
@@ -382,6 +451,17 @@ fun EventCard(
                     )
                 }
             }
+                }
+            }
+        }
+        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Удалить событие", color = MaterialTheme.colorScheme.error) },
+                onClick = {
+                    menuExpanded = false
+                    onDelete()
+                },
+            )
         }
     }
 }

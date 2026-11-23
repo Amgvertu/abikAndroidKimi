@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -12,6 +14,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -117,6 +120,42 @@ private fun steps(screen: String, role: String): List<GuideStep> {
     return common
 }
 
+/** Второй уровень справки объясняет не только кнопки, но и логику раздела. */
+private fun detailedSteps(screen: String, role: String): List<GuideStep> {
+    val manager = role == "OWNER" || role == "ADMIN" || role == "MODERATOR"
+    val details = when (screen) {
+        "charge_lists", "tab_team" -> listOf(
+            GuideStep("Как работают списки", "Именованный список — сохранённый состав участников команды. Один участник может входить в несколько списков. Изменение списка не меняет состав самой команды."),
+            GuideStep("Где применяется состав", "Список можно выбрать получателем начисления или ограничить им опрос события. В последнем случае голосуют только актуальные участники выбранного списка. При исключении участника его актуальные голоса и связи очищаются на сервере."),
+        )
+        "charge_templates", "template_form" -> listOf(
+            GuideStep("Периодичность и распределение", "Шаблон запускает начисления только пока активен. Сумма может назначаться каждому участнику или делиться между получателями. Получатели определяются участниками и списками, выбранными в шаблоне."),
+            GuideStep("Абонемент по опросу", "В заданные дни месяца открывается опрос. После его завершения начисление получают ответившие положительно, а действующий абонемент распространяется на следующий месяц. Если указанного дня в месяце нет, используется последний день месяца."),
+        )
+        "event_form" -> listOf(
+            GuideStep("Лимит и резерв", "Если задано необходимое число игроков, положительные ответы сверх лимита попадают в резерв. Индикатор карточки становится зелёным, когда основной состав набран; без лимита индикатор остаётся жёлтым."),
+            GuideStep("Повторяющиеся события", "При создании серии параметры применяются к выбранным дням до даты окончания. При редактировании и удалении можно изменить только текущее событие или всю серию."),
+            GuideStep("Начисление за событие", "Можно не начислять, применить шаблон, указать разовую сумму или использовать результаты опроса. Проверьте распределение и исключения для вратарей и действующих абонементов перед сохранением."),
+        )
+        "tab_games", "event_details" -> listOf(
+            GuideStep("Опрос и состав", "Ответ «Иду» попадает в основной состав до исчерпания лимита, затем — в резерв. «Под вопросом» не занимает место. Цветная полоса слева показывает, набран ли требуемый состав."),
+            GuideStep("Действия управляющих", if (manager || role == "TRAINER") "Долгое нажатие на карточку открывает удаление для владельца и администратора. Редактирование, звенья и свитеры доступны внутри события согласно роли." else "Откройте событие, чтобы изменить ответ и посмотреть состав. Управление событием доступно только участникам с соответствующими правами."),
+        )
+        "tab_subscription", "member_finance", "charge_create", "payment_form" -> listOf(
+            GuideStep("Как складывается баланс", "Начисления увеличивают задолженность, платежи уменьшают её. В карточке участника видны операции и остаток по каждому начислению. Нажатие на личный баланс в верхней панели открывает вашу подробную историю."),
+            GuideStep("Платежи без сети", "Разрешённый офлайн-платёж сохраняется локально с уникальным идентификатором и синхронизируется после восстановления связи. До подтверждения сервером не дублируйте операцию вручную."),
+        )
+        "notifications" -> listOf(
+            GuideStep("Активность всех команд", "Фильтр «Все» объединяет команды, «Текущая» показывает выбранную команду, «Другие команды» — фоновую активность. Счётчики в списке команд помогают заметить новые события без переключения."),
+            GuideStep("Переход по уведомлению", "Тап по уведомлению другой команды явно переключает приложение на неё и открывает связанное событие или финансы. Само появление уведомления текущую команду не меняет."),
+        )
+        else -> listOf(
+            GuideStep("Логика экрана", "Данные и доступные операции относятся к команде, выбранной в верхней панели. При нескольких командах проверьте её название перед изменением. Свайп влево или вправо переключает команду с сохранением текущего раздела."),
+        )
+    }
+    return steps(screen, role) + details
+}
+
 @Composable
 fun GuideOverlay(
     key: String,
@@ -124,19 +163,33 @@ fun GuideOverlay(
 ) {
     val parts = key.split(':', limit = 2)
     if (parts.size != 2) return
-    val items = remember(key) { steps(parts[0], parts[1]) }
+    var showDetails by remember(key) { mutableStateOf(false) }
+    val items = remember(key, showDetails) {
+        if (showDetails) detailedSteps(parts[0], parts[1]) else steps(parts[0], parts[1])
+    }
     var index by remember(key) { mutableIntStateOf(0) }
     val step = items[index]
     AlertDialog(
         onDismissRequest = { viewModel.skip(key) },
         title = { Text(step.title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 LinearProgressIndicator(
                     progress = { (index + 1).toFloat() / items.size },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Text(step.text, style = MaterialTheme.typography.bodyLarge)
+                TextButton(
+                    onClick = {
+                        showDetails = !showDetails
+                        index = 0
+                    },
+                ) {
+                    Text(if (showDetails) "Краткая справка" else "Подробнее о логике экрана")
+                }
                 Text("Шаг ${index + 1} из ${items.size}", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
