@@ -158,7 +158,7 @@ data class TeamCreateData(
     val name: String,
     val cityId: Long,
     val homeRegionId: Long,
-    val logoUrl: String,
+    val logoUrl: String?,
     val description: String?,
     val season: String?,
 )

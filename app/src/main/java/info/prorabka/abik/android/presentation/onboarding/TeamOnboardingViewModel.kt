@@ -31,11 +31,6 @@ class TeamOnboardingViewModel @Inject constructor(
     private val settingsStore: SettingsStore,
 ) : ViewModel() {
 
-    companion object {
-        /** Стандартный логотип, если пользователь не выбрал свой. */
-        const val DEFAULT_LOGO_URL = "default://logo"
-    }
-
     data class UiState(
         val loading: Boolean = true,
         val invitations: List<Invitation> = emptyList(),
@@ -126,7 +121,7 @@ class TeamOnboardingViewModel @Inject constructor(
                 _ui.update { it.copy(saving = true, error = null) }
                 // Лого: выбранное — загружаем на сервер, иначе — стандартный (ТЗ)
                 val logoUrl = when (val uri = s.logoUri) {
-                    null -> DEFAULT_LOGO_URL
+                    null -> null
                     else -> when (val uploaded = fileRepository.upload(uri)) {
                         is ApiResult.Success -> uploaded.data
                         is ApiResult.HttpError -> {

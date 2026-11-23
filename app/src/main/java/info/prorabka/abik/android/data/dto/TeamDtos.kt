@@ -26,7 +26,7 @@ data class TeamCreateRequestDto(
     val name: String,
     val cityId: Long,
     val homeRegionId: Long,
-    val logoUrl: String,
+    val logoUrl: String? = null,
     val description: String? = null,
     val season: String? = null,
 )
