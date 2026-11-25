@@ -14,6 +14,7 @@ import info.prorabka.abik.android.core.prefs.TokenStore
 import info.prorabka.abik.android.domain.model.NotificationSettings
 import info.prorabka.abik.android.domain.model.Profile
 import info.prorabka.abik.android.domain.model.TeamMember
+import info.prorabka.abik.android.domain.repository.FilePurpose
 import info.prorabka.abik.android.domain.repository.FileRepository
 import info.prorabka.abik.android.domain.repository.NotificationRepository
 import info.prorabka.abik.android.domain.repository.UserRepository
@@ -162,7 +163,7 @@ class ProfileViewModel @Inject constructor(
     fun uploadAvatar(uri: android.net.Uri) {
         val profile = _ui.value.profile ?: return
         viewModelScope.launch {
-            when (val uploaded = fileRepository.upload(uri)) {
+            when (val uploaded = fileRepository.upload(uri, FilePurpose.AVATAR)) {
                 is ApiResult.Success -> saveAvatar(profile, uploaded.data)
                 is ApiResult.HttpError -> _ui.update { it.copy(error = uploaded.message) }
                 is ApiResult.NetworkError -> _ui.update {

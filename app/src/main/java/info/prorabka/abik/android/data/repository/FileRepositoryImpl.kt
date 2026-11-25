@@ -10,6 +10,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import info.prorabka.abik.android.core.network.ApiResult
 import info.prorabka.abik.android.core.network.apiCall
 import info.prorabka.abik.android.data.api.FileApi
+import info.prorabka.abik.android.domain.repository.FilePurpose
 import info.prorabka.abik.android.domain.repository.FileRepository
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -27,7 +28,7 @@ class FileRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : FileRepository {
 
-    override suspend fun upload(uri: Uri): ApiResult<String> = apiCall {
+    override suspend fun upload(uri: Uri, purpose: FilePurpose): ApiResult<String> = apiCall {
         val source = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: throw IOException("Не удалось прочитать файл")
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -66,6 +67,6 @@ class FileRepositoryImpl @Inject constructor(
         }
         val body = output.toByteArray().toRequestBody("image/jpeg".toMediaType())
         val part = MultipartBody.Part.createFormData("file", "upload.jpg", body)
-        api.upload(part).url
+        api.upload(part, purpose.name).url
     }
 }
