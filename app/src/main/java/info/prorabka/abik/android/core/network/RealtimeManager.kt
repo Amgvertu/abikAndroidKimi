@@ -14,16 +14,24 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /** Подключение к серверному сигналу изменений. Сообщения не содержат данных. */
 @Singleton
 class RealtimeManager @Inject constructor(
-    private val client: OkHttpClient,
+    client: OkHttpClient,
     private val baseUrlHolder: BaseUrlHolder,
     private val tokenStore: TokenStore,
+    private val tokenAuthenticator: TokenAuthenticator,
 ) {
+    // Долгоживущий сокет не должен наследовать 10-секундный read timeout REST-клиента.
+    // Ping также не даёт промежуточным прокси закрыть неактивное соединение.
+    private val webSocketClient = client.newBuilder()
+        .readTimeout(0, TimeUnit.SECONDS)
+        .pingInterval(20, TimeUnit.SECONDS)
+        .build()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _revision = MutableStateFlow(0L)
     val revision: StateFlow<Long> = _revision
@@ -56,12 +64,18 @@ class RealtimeManager @Inject constructor(
             .encodedPath(base.encodedPath.trimEnd('/') + "/ws")
             .setQueryParameter("token", token)
             .build()
-        socket = client.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
+        socket = webSocketClient.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) { attempt = 0 }
             override fun onMessage(webSocket: WebSocket, text: String) {
                 if (text.contains("\"changed\"")) _revision.value = _revision.value + 1
             }
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                // Backend отклоняет handshake с истёкшим JWT кодом 403, который OkHttp
+                // не передаёт Authenticator автоматически. Обновляем пару токенов здесь;
+                // следующий connect() уже возьмёт новый access token из TokenStore.
+                response?.takeIf { it.code == 401 || it.code == 403 }?.let {
+                    runCatching { tokenAuthenticator.authenticate(null, it) }
+                }
                 disconnected(webSocket)
             }
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {

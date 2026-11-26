@@ -40,9 +40,7 @@ class TokenAuthenticator @Inject constructor(
             val requestToken = response.request.header("Authorization")
                 ?.removePrefix("Bearer ")
             if (!currentAccess.isNullOrBlank() && currentAccess != requestToken) {
-                return response.request.newBuilder()
-                    .header("Authorization", "Bearer $currentAccess")
-                    .build()
+                return response.request.withAccessToken(currentAccess)
             }
 
             val refreshResponse = runCatching {
@@ -62,10 +60,21 @@ class TokenAuthenticator @Inject constructor(
                 refresh = body.tokens.refreshToken,
                 userId = body.user.id,
             )
-            return response.request.newBuilder()
-                .header("Authorization", "Bearer ${body.tokens.accessToken}")
-                .build()
+            return response.request.withAccessToken(body.tokens.accessToken)
         }
+    }
+
+    /** WebSocket handshake получает JWT из query, а не только из Authorization. */
+    private fun Request.withAccessToken(accessToken: String): Request {
+        val updatedUrl = if (url.queryParameter("token") != null) {
+            url.newBuilder().setQueryParameter("token", accessToken).build()
+        } else {
+            url
+        }
+        return newBuilder()
+            .url(updatedUrl)
+            .header("Authorization", "Bearer $accessToken")
+            .build()
     }
 
     private fun responseCount(response: Response): Int {
